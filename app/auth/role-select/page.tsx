@@ -1,0 +1,105 @@
+"use client"
+
+import { useRouter } from "next/navigation"
+import { useStore, type UserRole } from "@/lib/store"
+import { Button } from "@/components/ui/button"
+import { User, Palette, Factory, Camera, Building2 } from "lucide-react"
+
+const roles: { id: UserRole; label: string; description: string; icon: React.ElementType }[] = [
+  {
+    id: "model",
+    label: "Model",
+    description: "Showcase your portfolio and find gigs",
+    icon: User,
+  },
+  {
+    id: "designer",
+    label: "Designer",
+    description: "Share designs and find manufacturers",
+    icon: Palette,
+  },
+  {
+    id: "manufacturer",
+    label: "Manufacturer",
+    description: "Offer production services",
+    icon: Factory,
+  },
+  {
+    id: "photographer",
+    label: "Photographer",
+    description: "Share your work and find shoots",
+    icon: Camera,
+  },
+  {
+    id: "brand",
+    label: "Brand",
+    description: "Post campaigns and discover talent",
+    icon: Building2,
+  },
+]
+
+export default function RoleSelectPage() {
+  const router = useRouter()
+  const { setRole, user } = useStore()
+
+  const handleSelectRole = (role: UserRole) => {
+    setRole(role)
+    router.push(`/dashboard/${role}`)
+  }
+
+  return (
+    <div className="min-h-screen flex flex-col lg:flex-row bg-white dark:bg-black">
+      {/* Left Side - Branding */}
+      <div className="hidden lg:flex lg:w-1/2 xl:w-3/5 relative bg-neutral-100 dark:bg-neutral-950 overflow-hidden">
+        <div className="relative z-10 flex flex-col justify-center px-8 xl:px-16 2xl:px-32 w-full">
+          <div className="space-y-6 xl:space-y-8 max-w-xl">
+            <h1 className="text-5xl xl:text-6xl 2xl:text-7xl font-light text-black dark:text-white tracking-[0.2em] whitespace-nowrap">
+              THIMBLE
+            </h1>
+            <div className="w-16 xl:w-24 h-px bg-black dark:bg-white" />
+            <p className="text-base xl:text-lg 2xl:text-xl text-neutral-600 dark:text-neutral-400 leading-relaxed font-light">
+              Choose your role to get started. You can always change this later.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Right Side - Role Selection */}
+      <div className="flex-1 flex items-center justify-center p-4 sm:p-6 lg:p-8 xl:p-12 bg-white dark:bg-black min-h-screen lg:min-h-0">
+        <div className="w-full max-w-sm sm:max-w-md space-y-6 sm:space-y-8">
+          <div className="lg:hidden text-center">
+            <h1 className="text-xl sm:text-2xl font-light text-black dark:text-white tracking-[0.2em]">THIMBLE</h1>
+          </div>
+
+          <div className="text-center space-y-2 sm:space-y-3">
+            <h2 className="text-xl sm:text-2xl font-light text-black dark:text-white">Select your role</h2>
+            <p className="text-sm sm:text-base text-neutral-500 dark:text-neutral-400">
+              How will you use THIMBLE?
+            </p>
+          </div>
+
+          <div className="space-y-3">
+            {roles.map((role) => {
+              const Icon = role.icon
+              return (
+                <button
+                  key={role.id}
+                  onClick={() => handleSelectRole(role.id)}
+                  className="w-full flex items-center gap-4 p-4 border border-neutral-200 dark:border-neutral-800 hover:border-black dark:hover:border-white hover:bg-neutral-50 dark:hover:bg-neutral-900 transition-all text-left group"
+                >
+                  <div className="w-12 h-12 flex items-center justify-center bg-neutral-100 dark:bg-neutral-800 group-hover:bg-black dark:group-hover:bg-white transition-colors">
+                    <Icon className="h-6 w-6 text-neutral-600 dark:text-neutral-400 group-hover:text-white dark:group-hover:text-black transition-colors" />
+                  </div>
+                  <div>
+                    <p className="font-medium text-black dark:text-white">{role.label}</p>
+                    <p className="text-sm text-neutral-500">{role.description}</p>
+                  </div>
+                </button>
+              )
+            })}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
