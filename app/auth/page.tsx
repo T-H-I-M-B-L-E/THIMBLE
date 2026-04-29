@@ -1,12 +1,12 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { useStore } from "@/lib/store"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Eye, EyeOff } from "lucide-react"
+import { Eye, EyeOff, Sun, Moon } from "lucide-react"
 
 export default function LoginPage() {
   const router = useRouter()
@@ -14,6 +14,21 @@ export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState("")
+  const [isDark, setIsDark] = useState(false)
+
+  useEffect(() => {
+    // Check system preference
+    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches
+    setIsDark(prefersDark)
+    if (prefersDark) {
+      document.documentElement.classList.add('dark')
+    }
+  }, [])
+
+  const toggleTheme = () => {
+    setIsDark(!isDark)
+    document.documentElement.classList.toggle('dark')
+  }
 
   const [formData, setFormData] = useState({
     email: "",
@@ -38,6 +53,15 @@ export default function LoginPage() {
     <div className="min-h-screen flex flex-col lg:flex-row bg-white dark:bg-black">
       {/* Left Side - Branding */}
       <div className="hidden lg:flex lg:w-1/2 xl:w-3/5 relative bg-neutral-100 dark:bg-neutral-950 overflow-hidden">
+        <div className="absolute top-6 right-6">
+          <button
+            onClick={toggleTheme}
+            className="p-2 text-neutral-500 hover:text-black dark:hover:text-white transition-colors"
+            aria-label="Toggle theme"
+          >
+            {isDark ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
+          </button>
+        </div>
         <div className="relative z-10 flex flex-col justify-center px-8 xl:px-16 2xl:px-32 w-full">
           <div className="space-y-6 xl:space-y-8 max-w-xl">
             <h1 className="text-5xl xl:text-6xl 2xl:text-7xl font-light text-black dark:text-white tracking-[0.2em] whitespace-nowrap">
@@ -54,8 +78,15 @@ export default function LoginPage() {
       {/* Right Side - Login Form */}
       <div className="flex-1 flex items-center justify-center p-4 sm:p-6 lg:p-8 xl:p-12 bg-white dark:bg-black min-h-screen lg:min-h-0">
         <div className="w-full max-w-sm sm:max-w-md space-y-6 sm:space-y-8">
-          <div className="lg:hidden text-center">
+          <div className="lg:hidden text-center flex items-center justify-between">
             <h1 className="text-xl sm:text-2xl font-light text-black dark:text-white tracking-[0.2em]">THIMBLE</h1>
+            <button
+              onClick={toggleTheme}
+              className="p-2 text-neutral-500 hover:text-black dark:hover:text-white transition-colors"
+              aria-label="Toggle theme"
+            >
+              {isDark ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
+            </button>
           </div>
 
           <div className="text-center space-y-2 sm:space-y-3">

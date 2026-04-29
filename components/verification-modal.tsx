@@ -14,7 +14,7 @@ interface VerificationModalProps {
 
 export function VerificationModal({ isOpen, onClose }: VerificationModalProps) {
   const { user, submitVerification, approveVerification } = useStore()
-  const [step, setStep] = useStateState<"upload" | "pending" | "verified">(
+  const [step, setStep] = useState<"upload" | "pending" | "verified">(
     user?.verificationStatus === "verified" ? "verified" : 
     user?.verificationStatus === "pending" ? "pending" : "upload"
   )
@@ -32,8 +32,8 @@ export function VerificationModal({ isOpen, onClose }: VerificationModalProps) {
     selfie: false,
   })
 
-  const idInputRef = useRefRef<HTMLInputElement>(null)
-  const selfieInputRef = useRefRef<HTMLInputElement>(null)
+  const idInputRef = useRef<HTMLInputElement>(null)
+  const selfieInputRef = useRef<HTMLInputElement>(null)
 
   if (!isOpen) return null
 

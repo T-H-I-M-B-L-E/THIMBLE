@@ -15,7 +15,7 @@ import { useEffect } from "react"
 export default function UploadPage() {
   const router = useRouter()
   const { user, isLoading } = useAuth()
-  const fileInputRef = useRefRef<HTMLInputElement>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
   
   const [selectedImage, setSelectedImage] = useState<string | null>(null)
   const [caption, setCaption] = useState("")

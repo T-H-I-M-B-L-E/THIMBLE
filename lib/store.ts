@@ -78,7 +78,7 @@ interface AppState {
   applyToGig: (gigId: string) => void
   
   // Feed
-  addDesignPost: (post: Omit Omit<DesignPost, 'id' | 'createdAt'>) => void
+  addDesignPost: (post: Omit<DesignPost, 'id' | 'createdAt'>) => void
   likePost: (postId: string) => void
 }
 
@@ -256,7 +256,7 @@ const mockDesignPosts: DesignPost[] = [
   },
 ]
 
-export const useStore = create create<AppState>()(
+export const useStore = create<AppState>()(
   persist(
     (set, get) => ({
       user: null,

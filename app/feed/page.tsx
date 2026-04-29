@@ -10,8 +10,8 @@ import { useState } from "react"
 
 export default function FeedPage() {
   const { designPosts, user } = useStore()
-  const [likedPosts, setLikedPosts] = useStateState<Set<string>>(new Set())
-  const [savedPosts, setSavedPosts] = useStateState<Set<string>>(new Set())
+  const [likedPosts, setLikedPosts] = useState<Set<string>>(new Set())
+  const [savedPosts, setSavedPosts] = useState<Set<string>>(new Set())
 
   const toggleLike = (postId: string) => {
     setLikedPosts((prev) => {

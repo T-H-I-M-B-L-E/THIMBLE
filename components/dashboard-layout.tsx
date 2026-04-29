@@ -14,7 +14,8 @@ import {
   LogOut, 
   Shield,
   Menu,
-  X
+  X,
+  Newspaper
 } from "lucide-react"
 import { useState } from "react"
 import { cn } from "@/lib/utils"
@@ -38,6 +39,7 @@ export function DashboardLayout({ children, role }: DashboardLayoutProps) {
 
   const navItems = [
     { href: `/dashboard/${role}`, icon: Home, label: "Dashboard" },
+    { href: `/dashboard/${role}/feed`, icon: Newspaper, label: "Feed" },
     { href: `/dashboard/${role}/gigs`, icon: Briefcase, label: "Gigs" },
     { href: `/dashboard/${role}/messages`, icon: MessageSquare, label: "Messages" },
     { href: `/dashboard/${role}/profile`, icon: User, label: "Profile" },
