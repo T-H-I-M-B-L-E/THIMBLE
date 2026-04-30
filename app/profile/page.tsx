@@ -4,7 +4,7 @@ import { useState } from "react"
 import Image from "next/image"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { useAuth } from "@/lib/auth-context"
+import { useUser } from "@clerk/nextjs"
 import { BottomNav } from "@/components/bottom-nav"
 import { Sidebar } from "@/components/sidebar"
 import { Button } from "@/components/ui/button"
@@ -66,21 +66,16 @@ const savedPosts = [
 
 export default function ProfilePage() {
   const router = useRouter()
-  const { user, isLoading, logout } = useAuth()
+  const { user, isLoaded } = useUser()
   const [isFollowing, setIsFollowing] = useState(false)
 
   useEffect(() => {
-    if (!isLoading && !user) {
+    if (isLoaded && !user) {
       router.push("/auth")
     }
-  }, [user, isLoading, router])
+  }, [user, isLoaded, router])
 
-  const handleLogout = () => {
-    logout()
-    router.push("/auth")
-  }
-
-  if (isLoading) {
+  if (!isLoaded) {
     return (
       <div className="flex min-h-screen items-center justify-center">
         <div className="text-center">
@@ -108,7 +103,7 @@ export default function ProfilePage() {
               <Button variant="ghost" size="icon" className="h-9 w-9 sm:h-10 sm:w-10 text-foreground">
                 <Settings className="h-4 w-4 sm:h-5 sm:w-5" />
               </Button>
-              <Button variant="ghost" size="icon" onClick={handleLogout} className="h-9 w-9 sm:h-10 sm:w-10 text-foreground">
+              <Button variant="ghost" size="icon" className="h-9 w-9 sm:h-10 sm:w-10 text-foreground">
                 <LogOut className="h-4 w-4 sm:h-5 sm:w-5" />
               </Button>
             </div>
@@ -121,23 +116,23 @@ export default function ProfilePage() {
           <div className="px-3 sm:px-4 py-4 sm:py-6 border-b border-border">
             <div className="flex items-start gap-3 sm:gap-4">
               <Avatar className="h-16 w-16 sm:h-20 sm:w-20 border-2 border-border flex-shrink-0">
-                <AvatarImage src={user.avatar} alt={user.name} />
+                <AvatarImage src={user.imageUrl} alt={user.fullName || ""} />
                 <AvatarFallback className="bg-secondary text-foreground text-xl sm:text-2xl">
-                  {user.name.charAt(0)}
+                  {(user.fullName || user.username || "U").charAt(0)}
                 </AvatarFallback>
               </Avatar>
 
               <div className="flex-1 min-w-0">
-                <h2 className="text-lg sm:text-xl font-semibold text-foreground truncate">{user.name}</h2>
+                <h2 className="text-lg sm:text-xl font-semibold text-foreground truncate">{user.fullName}</h2>
                 <p className="text-sm text-muted-foreground">@{user.username}</p>
-                <p className="text-xs sm:text-sm text-primary mt-0.5">{user.role || "Creative"}</p>
+                <p className="text-xs sm:text-sm text-primary mt-0.5">Creative</p>
               </div>
             </div>
 
             {/* Bio */}
             <div className="mt-3 sm:mt-4 space-y-2">
               <p className="text-foreground text-sm">
-                {user.bio || "Fashion designer & creative director. Exploring the intersection of art and fashion."}
+                {(user.unsafeMetadata?.bio as string) || "Fashion designer & creative director. Exploring the intersection of art and fashion."}
               </p>
               <div className="flex flex-wrap gap-3 sm:gap-4 text-xs sm:text-sm text-muted-foreground">
                 <span className="flex items-center gap-1">

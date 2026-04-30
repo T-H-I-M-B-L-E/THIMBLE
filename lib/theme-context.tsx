@@ -44,10 +44,8 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     applyTheme(newTheme)
   }
 
-  // Prevent flash of wrong theme
-  if (!mounted) {
-    return <>{children}</>
-  }
+  // Prevent flash of wrong theme - still render children with context
+  // to avoid "useTheme must be used within ThemeProvider" errors during SSR
 
   return (
     <ThemeContext.Provider value={{ theme, toggleTheme }}>

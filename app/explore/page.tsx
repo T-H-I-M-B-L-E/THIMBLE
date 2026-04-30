@@ -4,7 +4,7 @@ import { useState } from "react"
 import Image from "next/image"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { useAuth } from "@/lib/auth-context"
+import { useUser } from "@clerk/nextjs"
 import { BottomNav } from "@/components/bottom-nav"
 import { Sidebar } from "@/components/sidebar"
 import { Search } from "lucide-react"
@@ -82,15 +82,15 @@ const categories = ["All", "Fashion", "Editorial", "Photography", "Street Style"
 
 export default function ExplorePage() {
   const router = useRouter()
-  const { user, isLoading } = useAuth()
+  const { user, isLoaded } = useUser()
   const [searchQuery, setSearchQuery] = useState("")
   const [selectedCategory, setSelectedCategory] = useState("All")
 
   useEffect(() => {
-    if (!isLoading && !user) {
+    if (isLoaded && !user) {
       router.push("/auth")
     }
-  }, [user, isLoading, router])
+  }, [user, isLoaded, router])
 
   const filteredPosts = explorePosts.filter((post) => {
     const matchesSearch = post.author.toLowerCase().includes(searchQuery.toLowerCase())
@@ -98,7 +98,7 @@ export default function ExplorePage() {
     return matchesSearch && matchesCategory
   })
 
-  if (isLoading) {
+  if (!isLoaded) {
     return (
       <div className="flex min-h-screen items-center justify-center">
         <div className="text-center">

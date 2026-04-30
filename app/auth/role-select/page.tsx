@@ -1,10 +1,11 @@
 "use client"
 
+import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
+import { useUser } from "@clerk/nextjs"
 import { useStore, type UserRole } from "@/lib/store"
-import { Button } from "@/components/ui/button"
+import { useTheme } from "@/lib/theme-context"
 import { User, Palette, Factory, Camera, Building2, Sun, Moon } from "lucide-react"
-import { useState, useEffect } from "react"
 
 const roles: { id: UserRole; label: string; description: string; icon: React.ElementType }[] = [
   {
@@ -41,25 +42,57 @@ const roles: { id: UserRole; label: string; description: string; icon: React.Ele
 
 export default function RoleSelectPage() {
   const router = useRouter()
-  const { setRole, user } = useStore()
-  const [isDark, setIsDark] = useState(false)
+  const { user, isLoaded } = useUser()
+  const { setRole } = useStore()
+  const { theme, toggleTheme } = useTheme()
+  const [mounted, setMounted] = useState(false)
+  const isDark = theme === "dark"
 
+  // Prevent hydration mismatch
   useEffect(() => {
-    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches
-    setIsDark(prefersDark)
-    if (prefersDark) {
-      document.documentElement.classList.add('dark')
-    }
+    setMounted(true)
   }, [])
 
-  const toggleTheme = () => {
-    setIsDark(!isDark)
-    document.documentElement.classList.toggle('dark')
-  }
+  // Handle redirects in useEffect to avoid setState during render
+  useEffect(() => {
+    if (!isLoaded) return
 
-  const handleSelectRole = (role: UserRole) => {
-    setRole(role)
-    router.push(`/dashboard/${role}`)
+    // If not signed in with Clerk, redirect to auth
+    if (!user) {
+      router.push("/auth")
+      return
+    }
+
+    // If role already set in Clerk metadata, redirect to dashboard
+    const clerkRole = user.publicMetadata?.role as string | undefined
+    if (clerkRole) {
+      router.push(`/dashboard/${clerkRole}`)
+    }
+  }, [isLoaded, user, router])
+
+  const handleSelectRole = async (role: UserRole) => {
+    if (!user) return
+
+    try {
+      // Update Clerk user metadata with role
+      await user.update({
+        unsafeMetadata: {
+          ...user.unsafeMetadata,
+          role: role,
+        },
+      })
+
+      // Also update local store for UI state
+      setRole(role)
+
+      // Redirect to dashboard
+      router.push(`/dashboard/${role}`)
+    } catch (error) {
+      console.error("Failed to update role:", error)
+      // Still redirect even if metadata update fails
+      setRole(role)
+      router.push(`/dashboard/${role}`)
+    }
   }
 
   return (

@@ -2,21 +2,28 @@
 
 import { useEffect } from "react"
 import { useRouter } from "next/navigation"
-import { useStore } from "@/lib/store"
+import { useUser } from "@clerk/nextjs"
 
 export default function HomePage() {
   const router = useRouter()
-  const { isAuthenticated, user } = useStore()
+  const { user, isLoaded } = useUser()
 
   useEffect(() => {
-    if (!isAuthenticated) {
+    if (!isLoaded) return
+
+    if (!user) {
+      // Not signed in → go to auth
       router.push("/auth")
-    } else if (user?.role) {
-      router.push(`/dashboard/${user.role}`)
     } else {
-      router.push("/auth/role-select")
+      // Check if role is set in Clerk metadata
+      const role = user.publicMetadata?.role || user.unsafeMetadata?.role
+      if (role) {
+        router.push(`/dashboard/${role}`)
+      } else {
+        router.push("/auth/role-select")
+      }
     }
-  }, [isAuthenticated, user, router])
+  }, [user, isLoaded, router])
 
   return (
     <div className="min-h-screen flex items-center justify-center">

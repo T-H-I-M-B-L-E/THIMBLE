@@ -61,22 +61,22 @@ interface AppState {
   isAuthenticated: boolean
   gigs: Gig[]
   designPosts: DesignPost[]
-  
+
   // Actions
   signup: (data: { fullName: string; email: string; phone: string; password: string }) => void
   setRole: (role: UserRole) => void
   login: (email: string, password: string) => boolean
   logout: () => void
   updateProfile: (data: Partial<User>) => void
-  
+
   // Verification
   submitVerification: (documents: { idDocument?: string; selfie?: string; website?: string }) => void
   approveVerification: () => void
-  
+
   // Gigs
   postGig: (gig: Omit<Gig, 'id' | 'applications'>) => void
   applyToGig: (gigId: string) => void
-  
+
   // Feed
   addDesignPost: (post: Omit<DesignPost, 'id' | 'createdAt'>) => void
   likePost: (postId: string) => void
