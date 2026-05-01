@@ -6,13 +6,32 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Search, MapPin, DollarSign, Calendar } from "lucide-react"
-import { useState, use } from "react"
+import { useState, useEffect, use } from "react"
+import Image from "next/image"
 
 export default function GigsPage({ params }: { params: Promise<{ role: string }> }) {
   const { role } = use(params)
-  const { gigs, user, applyToGig } = useStore()
+  const { user, applyToGig } = useStore()
+  const [gigs, setGigs] = useState<any[]>([])
+  const [isLoading, setIsLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState("")
   const isVerified = user?.verificationStatus === "verified"
+
+  useEffect(() => {
+    fetchGigs()
+  }, [])
+
+  const fetchGigs = async () => {
+    try {
+      const res = await fetch("http://localhost:3001/api/gigs")
+      const data = await res.json()
+      setGigs(data)
+    } catch (err) {
+      console.error("Failed to fetch gigs:", err)
+    } finally {
+      setIsLoading(false)
+    }
+  }
 
   const filteredGigs = gigs.filter(gig =>
     gig.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -22,14 +41,21 @@ export default function GigsPage({ params }: { params: Promise<{ role: string }>
   return (
     <DashboardLayout role={role}>
       <div className="mb-6">
-        <h1 className="text-2xl font-light mb-2">Gigs & Opportunities</h1>
-        <p className="text-neutral-500">
+        <h1 className="text-2xl font-light mb-2 uppercase tracking-widest">Marketplace</h1>
+        <p className="text-neutral-500 text-sm">
           {isVerified 
-            ? "Browse and apply to available opportunities"
-            : "Verification required to apply to gigs"
+            ? "Browse and apply to live creative opportunities."
+            : "Complete verification to unlock gig applications."
           }
         </p>
       </div>
+
+      {isLoading ? (
+         <div className="flex justify-center py-20">
+           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-black dark:border-white"></div>
+         </div>
+      ) : (
+        <>
 
       {/* Search */}
       <div className="relative mb-6">
@@ -50,11 +76,14 @@ export default function GigsPage({ params }: { params: Promise<{ role: string }>
               <div className="flex flex-col sm:flex-row gap-4">
                 {/* Poster Info */}
                 <div className="flex items-start gap-3 sm:w-48 flex-shrink-0">
-                  <img
-                    src={gig.postedByAvatar}
-                    alt={gig.postedBy}
-                    className="w-10 h-10 rounded-full object-cover"
-                  />
+                  <div className="relative w-10 h-10 rounded-full overflow-hidden">
+                    <Image
+                      src={gig.postedByAvatar || "/placeholder-avatar.png"}
+                      alt={gig.postedBy}
+                      fill
+                      className="object-cover"
+                    />
+                  </div>
                   <div>
                     <p className="font-medium text-sm">{gig.postedBy}</p>
                     <p className="text-xs text-neutral-500 capitalize">{gig.postedByRole}</p>
@@ -105,6 +134,8 @@ export default function GigsPage({ params }: { params: Promise<{ role: string }>
           </div>
         )}
       </div>
-    </DashboardLayout>
+    </>
+  )}
+</DashboardLayout>
   )
 }

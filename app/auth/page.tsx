@@ -12,7 +12,7 @@ import { Eye, EyeOff, Sun, Moon } from "lucide-react"
 
 export default function LoginPage() {
   const router = useRouter()
-  const signInObj = useSignIn()
+  const { isLoaded: isSignInLoaded, signIn, setActive } = useSignIn() as any
   const { user, isLoaded: isUserLoaded } = useUser()
   const { setRole } = useStore()
   const { theme, toggleTheme } = useTheme()
@@ -36,7 +36,7 @@ export default function LoginPage() {
       if (role) {
         router.push(`/dashboard/${role}`)
       } else {
-        router.push("/auth/role-select")
+        router.push("/onboarding")
       }
     }
   }, [user, isUserLoaded, router])
@@ -45,42 +45,22 @@ export default function LoginPage() {
     e.preventDefault()
     setError("")
 
-    setIsLoading(true)
-
-    const signIn = (signInObj as any)?.signIn
-    const setActive = (signInObj as any)?.setActive
-
-    if (!signIn || !setActive) {
+    if (!isSignInLoaded || !signIn) {
       setError("Authentication not ready. Please try again.")
-      setIsLoading(false)
       return
     }
 
+    setIsLoading(true)
+
     try {
-      const result = await signIn.create({
+      const result = await (signIn as any).create({
         identifier: formData.email,
         password: formData.password,
       })
 
-      // Handle result which might be an error object
-      if ('error' in result && result.error) {
-        throw result.error
-      }
-
-      // Type assertion for successful result
-      const successResult = result as any
-
-      if (successResult.status === "complete") {
-        await setActive({ session: successResult.createdSessionId })
-
-        // Check if user has role in metadata
-        const userRole = successResult.userData?.publicMetadata?.role as string | undefined
-        if (userRole) {
-          setRole(userRole as any)
-          router.push(`/dashboard/${userRole}`)
-        } else {
-          router.push("/auth/role-select")
-        }
+      if (result.status === "complete") {
+        await (setActive as any)({ session: result.createdSessionId })
+        router.push("/onboarding")
       } else {
         setError("Sign in failed. Please check your credentials.")
       }
@@ -189,7 +169,7 @@ export default function LoginPage() {
 
               <Button
                 type="submit"
-                disabled={isLoading || !(signInObj as any)?.isLoaded}
+                disabled={isLoading || !isSignInLoaded}
                 className="w-full h-11 sm:h-12 rounded-none bg-black text-white hover:bg-neutral-800 font-normal uppercase tracking-widest text-xs sm:text-sm mt-2 sm:mt-0"
               >
                 {isLoading ? "Signing in..." : "Sign in"}

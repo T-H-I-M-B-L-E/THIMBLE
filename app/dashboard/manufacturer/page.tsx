@@ -5,6 +5,7 @@ import { DashboardLayout } from "@/components/dashboard-layout"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { DollarSign, Package, MessageSquare, TrendingUp } from "lucide-react"
+import Image from "next/image"
 
 export default function ManufacturerDashboard() {
   const { user } = useStore()
@@ -90,12 +91,19 @@ export default function ManufacturerDashboard() {
             </CardHeader>
             <CardContent className="space-y-4">
               {[
-                { designer: "Elena Moreau", project: "Summer Dress Collection", quantity: "200 units", deadline: "2 weeks" },
-                { designer: "Marcus Studio", project: "Streetwear Line", quantity: "500 units", deadline: "1 month" },
-                { designer: "Luna Designs", project: "Evening Gowns", quantity: "50 units", deadline: "3 weeks" },
+                { designer: "Elena Moreau", project: "Summer Dress Collection", quantity: "200 units", deadline: "2 weeks", avatar: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100&h=100&fit=crop" },
+                { designer: "Marcus Studio", project: "Streetwear Line", quantity: "500 units", deadline: "1 month", avatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop" },
+                { designer: "Luna Designs", project: "Evening Gowns", quantity: "50 units", deadline: "3 weeks", avatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&h=100&fit=crop" },
               ].map((req, i) => (
                 <div key={i} className="flex items-start gap-4 p-3 border border-neutral-200 dark:border-neutral-800">
-                  <div className="w-10 h-10 rounded-full bg-neutral-200 dark:bg-neutral-800" />
+                  <div className="relative w-10 h-10 rounded-full overflow-hidden flex-shrink-0">
+                    <Image
+                      src={req.avatar}
+                      alt={req.designer}
+                      fill
+                      className="object-cover"
+                    />
+                  </div>
                   <div className="flex-1">
                     <h3 className="font-medium">{req.designer}</h3>
                     <p className="text-sm text-neutral-500">{req.project}</p>

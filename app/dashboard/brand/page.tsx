@@ -5,6 +5,7 @@ import { DashboardLayout } from "@/components/dashboard-layout"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Plus, Users, Bookmark, MessageSquare, TrendingUp } from "lucide-react"
+import Image from "next/image"
 
 export default function BrandDashboard() {
   const { user, gigs } = useStore()
@@ -120,12 +121,19 @@ export default function BrandDashboard() {
             </CardHeader>
             <CardContent className="space-y-3">
               {[
-                { name: "Sofia Laurent", role: "Model", location: "Paris", match: "98%" },
-                { name: "Marcus Chen", role: "Photographer", location: "NYC", match: "95%" },
-                { name: "Elena Moreau", role: "Designer", location: "Milan", match: "92%" },
+                { name: "Sofia Laurent", role: "Model", location: "Paris", match: "98%", avatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&h=100&fit=crop" },
+                { name: "Marcus Chen", role: "Photographer", location: "NYC", match: "95%", avatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop" },
+                { name: "Elena Moreau", role: "Designer", location: "Milan", match: "92%", avatar: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100&h=100&fit=crop" },
               ].map((talent, i) => (
                 <div key={i} className="flex items-center gap-3 p-3 border border-neutral-200 dark:border-neutral-800">
-                  <div className="w-10 h-10 rounded-full bg-neutral-200 dark:bg-neutral-800" />
+                  <div className="relative w-10 h-10 rounded-full overflow-hidden flex-shrink-0">
+                    <Image
+                      src={talent.avatar}
+                      alt={talent.name}
+                      fill
+                      className="object-cover"
+                    />
+                  </div>
                   <div className="flex-1">
                     <h3 className="font-medium text-sm">{talent.name}</h3>
                     <p className="text-xs text-neutral-500">{talent.role} • {talent.location}</p>
@@ -149,11 +157,18 @@ export default function BrandDashboard() {
             </CardHeader>
             <CardContent className="space-y-3">
               {[
-                { name: "Luna Designs", type: "Design Studio", saved: "2 days ago" },
-                { name: "Studio Noir", type: "Photography", saved: "1 week ago" },
+                { name: "Luna Designs", type: "Design Studio", saved: "2 days ago", avatar: "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=100&h=100&fit=crop" },
+                { name: "Studio Noir", type: "Photography", saved: "1 week ago", avatar: "https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=100&h=100&fit=crop" },
               ].map((creative, i) => (
                 <div key={i} className="flex items-center gap-3 p-2 hover:bg-neutral-50 dark:hover:bg-neutral-900 cursor-pointer">
-                  <div className="w-8 h-8 rounded-full bg-neutral-200 dark:bg-neutral-800" />
+                  <div className="relative w-8 h-8 rounded-full overflow-hidden flex-shrink-0">
+                    <Image
+                      src={creative.avatar}
+                      alt={creative.name}
+                      fill
+                      className="object-cover"
+                    />
+                  </div>
                   <div className="flex-1">
                     <p className="font-medium text-sm">{creative.name}</p>
                     <p className="text-xs text-neutral-500">{creative.type}</p>

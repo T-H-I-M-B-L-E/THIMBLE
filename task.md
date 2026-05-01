@@ -1,0 +1,24 @@
+# THIMBLE Project Tasks
+
+- [x] **Audit & Compile Checks**
+    - [x] Initial build audit
+    - [x] Identify critical production blockers
+- [x] **Clerk Signup Flow Fix**
+    - [x] Fix 400 error in email verification
+    - [x] Implement auto-set for missing username
+    - [x] Refactor to signal-based Clerk v7 pattern
+- [/] **Dashboard & Page Completion**
+    - [x] Feed page optimization
+    - [/] Gigs page optimization
+    - [ ] Messages page completion
+    - [/] Profile page optimization
+    - [ ] Role-based dashboard views
+- [x] **Performance & Design Polish**
+    - [x] Optimize images across core pages
+    - [x] Standardize responsive breakpoints
+    - [x] Implement smooth transitions and micro-animations
+    - [x] Global typography refinement (Inter/Outfit)
+- [ ] **Code Quality & Maintenance**
+    - [ ] Middleware migration to proxy style
+    - [ ] Remove redundant code and unused assets
+    - [ ] Enable strict TypeScript and fix remaining errors

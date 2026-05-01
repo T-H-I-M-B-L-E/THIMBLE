@@ -20,7 +20,7 @@ export default function HomePage() {
       if (role) {
         router.push(`/dashboard/${role}`)
       } else {
-        router.push("/auth/role-select")
+        router.push("/onboarding")
       }
     }
   }, [user, isLoaded, router])

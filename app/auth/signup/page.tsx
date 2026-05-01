@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
+import Link from "next/link"
 import { useClerk, useSignUp, useUser } from "@clerk/nextjs"
 import { useStore } from "@/lib/store"
 import { useTheme } from "@/lib/theme-context"
@@ -28,13 +29,10 @@ export default function SignupPage() {
   const router = useRouter()
   const [isMounted, setIsMounted] = useState(false)
   const clerk = useClerk()
-  const signUpState = useSignUp()
-  // Clerk v7: useSignUp() exposes a signal-like object.
-  // In practice, `signUp` and `setActive` live on the hook result (not on signUp itself).
-  const signUp = (signUpState as any)?.signUp ?? null
-  // In Clerk v7, setActive comes from useClerk() (session manager).
-  const setActive = (clerk as any)?.setActive ?? null
-  const isSignUpLoaded = (signUpState as any)?.fetchStatus !== 'loading' && !!signUp
+  const signUpState = useSignUp() as any
+  const isSignUpLoaded = signUpState.isLoaded || (isMounted && !!signUpState.signUp)
+  const signUp = signUpState.signUp
+  const setActive = (clerk as any).setActive
   const { user, isLoaded: isUserLoaded } = useUser()
   const { signup } = useStore()
   const { theme, toggleTheme } = useTheme()
@@ -67,7 +65,7 @@ export default function SignupPage() {
       if (role) {
         router.push(`/dashboard/${role}`)
       } else {
-        router.push("/auth/role-select")
+        router.push("/onboarding")
       }
     }
   }, [user, isUserLoaded, router])
@@ -138,21 +136,17 @@ export default function SignupPage() {
     }
 
     // Check if signUp is available
-    console.log("signUpState:", signUpState)
-
-    // We can still create the user even if we can't activate a session yet.
     if (!isSignUpLoaded || !signUp) {
-      console.error("Clerk not ready", {
-        fetchStatus: (signUpState as any)?.fetchStatus,
-        hasSignUp: !!signUp,
-        hasSetActive: !!setActive,
-        errors: (signUpState as any)?.errors,
+      console.error("Clerk initialization state:", {
+        isSignUpLoaded,
+        signUpExists: !!signUp,
+        setActiveExists: !!setActive,
       })
       setErrors((prev) => ({
         ...prev,
-        email:
-          (signUpState as any)?.errors?.[0]?.message ??
-          "Authentication not ready. Refresh the page and try again.",
+        email: !isSignUpLoaded 
+          ? "Authentication service is still loading. Please wait a moment." 
+          : "Authentication system is unavailable. Please refresh the page.",
       }))
       return
     }
@@ -160,8 +154,7 @@ export default function SignupPage() {
     setIsLoading(true)
 
     try {
-      // Clerk v7 (signal-based): `create()` updates signUpState.
-      // We pass phone in metadata for now to avoid 422 errors unless required as a top-level field.
+      // Clerk v7 (signal-based): `create()` updates the signup object.
       await signUp.create({
         emailAddress: formData.email,
         username: formData.username,
@@ -174,44 +167,34 @@ export default function SignupPage() {
         },
       })
 
-      const updatedSignUp = (signUpState as any)?.signUp ?? signUp
-      const clerkErrors = (signUpState as any)?.errors
-
-      console.log("Clerk signUp full state:", updatedSignUp)
       console.log("Clerk signUp after create:", {
-        status: updatedSignUp?.status,
-        createdSessionId: updatedSignUp?.createdSessionId,
-        errors: clerkErrors,
-        unverifiedFields: (updatedSignUp as any)?.unverifiedFields,
-        missingFields: (updatedSignUp as any)?.missingFields,
-        verifications: !!updatedSignUp?.verifications,
+        status: signUp.status,
+        createdSessionId: signUp.createdSessionId,
+        unverifiedFields: (signUp as any)?.unverifiedFields,
+        missingFields: (signUp as any)?.missingFields,
+        verifications: !!signUp?.verifications,
       })
 
-      if (clerkErrors?.length) {
-        setErrors((prev) => ({
-          ...prev,
-          email: clerkErrors?.[0]?.message ?? "Sign up failed. Please try again.",
-        }))
-        setIsLoading(false)
-        return
-      }
-
-      if (updatedSignUp?.status === "complete") {
-        if (setActive && updatedSignUp?.createdSessionId) {
-          await setActive({ session: updatedSignUp.createdSessionId })
+      if (signUp.status === "complete") {
+        if (setActive && signUp.createdSessionId) {
+          await setActive({ session: signUp.createdSessionId })
         }
         signup(formData)
-        router.push("/feed")
-      } else if (updatedSignUp?.status === "missing_requirements") {
-        // If there are unverified fields, start verification
-        if ((updatedSignUp as any)?.unverifiedFields?.length > 0) {
+        router.push("/onboarding")
+      } else if (signUp.status === "missing_requirements") {
+        // If there are unverified fields (like email), start verification
+        const unverified = (signUp as any).unverifiedFields || []
+        const missing = (signUp as any).missingFields || []
+        
+        console.log("Signup missing requirements:", { unverified, missing })
+
+        if (unverified.includes("email_address")) {
           try {
-            if (updatedSignUp.verifications?.sendEmailCode) {
-              await updatedSignUp.verifications.sendEmailCode({ strategy: "email_code" })
-            } else if (signUp.prepareEmailAddressVerification) {
-              await signUp.prepareEmailAddressVerification({ strategy: "email_code" })
-            } else {
-              throw new Error("Verification method not found")
+            console.log("Preparing email verification...")
+            if ((signUp as any).prepareVerification) {
+              await (signUp as any).prepareVerification({ strategy: "email_code" })
+            } else if ((signUp as any).prepareEmailAddressVerification) {
+              await (signUp as any).prepareEmailAddressVerification({ strategy: "email_code" })
             }
             setVerifying(true)
           } catch (verifErr: any) {
@@ -221,18 +204,19 @@ export default function SignupPage() {
               email: verifErr.message || "Failed to start email verification.",
             }))
           }
-        } else {
-          // No unverified fields, but still missing requirements? Check missingFields
-          const missing = (updatedSignUp as any)?.missingFields || []
+        } else if (missing.length > 0) {
+          // If email is not unverified but other fields are missing
           setErrors((prev) => ({
             ...prev,
-            email: `Signup paused. Missing requirements: ${missing.join(", ") || "Please check your Clerk dashboard settings."}`,
+            email: `Signup paused. Missing: ${missing.join(", ")}. Please check your form or Clerk settings.`,
           }))
+        } else {
+          setVerifying(true) // Fallback to verification screen if status is missing_requirements
         }
       } else {
         setErrors((prev) => ({
           ...prev,
-          email: "Sign up resulted in status: " + updatedSignUp?.status,
+          email: "Sign up resulted in status: " + signUp.status,
         }))
       }
     } catch (err: any) {
@@ -248,57 +232,95 @@ export default function SignupPage() {
     if (verificationCode.length < 6) return
 
     console.log("Submitting verification code:", verificationCode)
-    const updatedSignUp = (signUpState as any)?.signUp ?? signUp
+    
+    if (!signUp) {
+      console.error("SignUp object not available")
+      setErrors((prev) => ({ ...prev, email: "Authentication state lost. Please try again." }))
+      return
+    }
 
     setIsLoading(true)
     try {
-      if (updatedSignUp.verifications?.verifyEmailCode) {
-        console.log("Calling verifications.verifyEmailCode...")
-        await updatedSignUp.verifications.verifyEmailCode({ code: verificationCode })
-      } else if (signUp.attemptEmailAddressVerification) {
-        console.log("Calling attemptEmailAddressVerification...")
-        await signUp.attemptEmailAddressVerification({ code: verificationCode })
+      let result
+      // Try multiple possible locations for the verification method (Clerk v7 vs v6 compatibility)
+      const attemptMethod = (signUp as any)?.attemptVerification || (signUpState as any)?.attemptVerification || (signUp as any)?.attemptEmailAddressVerification || (signUpState as any)?.attemptEmailAddressVerification
+
+      if (attemptMethod) {
+        // Determine if we need to pass strategy (v7) or just code (v6)
+        if ((signUp as any).attemptVerification || (signUpState as any).attemptVerification) {
+          result = await (attemptMethod.bind(signUp || signUpState))({
+            strategy: "email_code",
+            code: verificationCode,
+          })
+        } else {
+          result = await (attemptMethod.bind(signUp || signUpState))({
+            code: verificationCode,
+          })
+        }
       } else {
-        throw new Error("Verification method not found")
+        console.error("Clerk Methods missing. Available keys on signUp:", Object.keys(signUp || {}))
+        console.error("Available keys on signUpState:", Object.keys(signUpState || {}))
+        throw new Error("Verification system not initialized. Please refresh.")
+      }
+
+      console.log("Verification successful, result:", {
+        status: result.status,
+        unverified: result.unverifiedFields,
+        missing: result.missingFields,
+        sessionId: result.createdSessionId,
+      })
+
+      if (result.status === "complete") {
+        if (setActive && result.createdSessionId) {
+          await setActive({ session: result.createdSessionId })
+        }
+        signup(formData)
+        router.push("/onboarding")
+      } else {
+        // If still missing requirements (like username or phone), report them
+        const missing = [...(result.unverifiedFields || []), ...(result.missingFields || [])]
+        console.log("Signup still incomplete, missing:", missing)
+        
+        // AUTO-FIX: If username is missing, try to update it automatically
+        if (missing.includes("username") && formData.username) {
+          try {
+            console.log("Attempting to auto-set missing username...")
+            await signUp.update({ username: formData.username })
+          } catch (e) {
+            console.error("Auto-set username failed:", e)
+          }
+        }
+
+        setErrors((prev) => ({
+          ...prev,
+          email: `Incomplete. Still needs: ${missing.join(", ") || result.status}`,
+        }))
       }
     } catch (err: any) {
       console.error("Verification error:", err)
-      const isAlreadyVerified = err.message?.includes("already been verified") || 
-                               err.errors?.[0]?.code === "already_verified" ||
-                               err.errors?.[0]?.message?.includes("already been verified")
+      
+      // Handle the case where it's already verified
+      const isAlreadyVerified = 
+        err.message?.includes("already been verified") || 
+        err.errors?.[0]?.code === "already_verified" ||
+        err.errors?.[0]?.message?.includes("already been verified")
 
-      if (!isAlreadyVerified) {
-        const errorMessage = err.errors?.[0]?.message || err.message || "Verification failed"
-        setErrors((prev) => ({ ...prev, email: errorMessage }))
-        setIsLoading(false)
-        return
+      if (isAlreadyVerified) {
+        console.log("Already verified, checking current status...")
+        // If already verified, check the current status of the signUp object
+        if (signUp.status === "complete" && setActive && signUp.createdSessionId) {
+          await setActive({ session: signUp.createdSessionId })
+          signup(formData)
+          router.push("/onboarding")
+          return
+        }
       }
-      console.log("Already verified, proceeding...")
-    }
 
-    // Check final state
-    const finalSignUp = (signUpState as any)?.signUp
-    console.log("Final status after verification:", {
-      status: finalSignUp?.status,
-      unverified: (finalSignUp as any)?.unverifiedFields,
-      missing: (finalSignUp as any)?.missingFields,
-      sessionId: finalSignUp?.createdSessionId,
-    })
-    
-    if (finalSignUp?.status === "complete" || finalSignUp?.createdSessionId) {
-      if (setActive && finalSignUp?.createdSessionId) {
-        await setActive({ session: finalSignUp.createdSessionId })
-      }
-      signup(formData)
-      router.push("/feed")
-    } else {
-      const missing = [...((finalSignUp as any)?.unverifiedFields || []), ...((finalSignUp as any)?.missingFields || [])]
-      setErrors((prev) => ({
-        ...prev,
-        email: `Incomplete. Still needs: ${missing.join(", ") || finalSignUp?.status}`,
-      }))
+      const errorMessage = err.errors?.[0]?.message || err.message || "Verification failed"
+      setErrors((prev) => ({ ...prev, email: errorMessage }))
+    } finally {
+      setIsLoading(false)
     }
-    setIsLoading(false)
   }
 
   const getPasswordStrength = () => {
@@ -342,7 +364,7 @@ export default function SignupPage() {
 
       {/* Right Side - Signup Form */}
       <div className="flex-1 flex items-start lg:items-center justify-center px-4 sm:px-6 lg:px-8 xl:px-12 py-6 sm:py-8 lg:py-0 bg-white dark:bg-black min-h-screen lg:min-h-0">
-        <div className="w-full max-w-sm sm:max-w-md space-y-4 sm:space-y-6 lg:space-y-8">
+        <div className="w-full max-w-sm sm:max-w-md space-y-4 sm:space-y-6 lg:space-y-8 animate-fade-in">
           <div className="lg:hidden flex items-center justify-between mb-2">
             <h1 className="text-lg sm:text-xl font-light text-black dark:text-white tracking-[0.2em]">THIMBLE</h1>
             <button
@@ -542,10 +564,10 @@ export default function SignupPage() {
 
                 <Button
                   type="submit"
-                  disabled={isLoading}
+                  disabled={isLoading || !isSignUpLoaded}
                   className="w-full h-11 sm:h-12 rounded-none bg-black text-white hover:bg-neutral-800 font-normal uppercase tracking-widest text-xs sm:text-sm mt-2 sm:mt-0"
                 >
-                  {isLoading ? "Creating..." : "Continue"}
+                  {isLoading ? "Creating..." : !isSignUpLoaded ? "Loading..." : "Continue"}
                 </Button>
               </form>
             ) : (
@@ -599,11 +621,12 @@ export default function SignupPage() {
                       onClick={async () => {
                         setIsLoading(true)
                         try {
-                          const updatedSignUp = (signUpState as any)?.signUp ?? signUp
-                          if (updatedSignUp.verifications?.sendEmailCode) {
-                            await updatedSignUp.verifications.sendEmailCode({ strategy: "email_code" })
-                          } else if (signUp.prepareEmailAddressVerification) {
-                            await signUp.prepareEmailAddressVerification({ strategy: "email_code" })
+                          if ((signUp as any).verifications?.sendEmailCode) {
+                            await (signUp as any).verifications.sendEmailCode({ strategy: "email_code" })
+                          } else if ((signUp as any).prepareVerification) {
+                            await (signUp as any).prepareVerification({ strategy: "email_code" })
+                          } else if ((signUp as any).prepareEmailAddressVerification) {
+                            await (signUp as any).prepareEmailAddressVerification({ strategy: "email_code" })
                           }
                           alert("A new code has been sent to your email.")
                         } catch (err: any) {
@@ -636,7 +659,7 @@ export default function SignupPage() {
 
           <p className="text-xs text-center text-neutral-400 pb-4 sm:pb-0">
             Already have an account?{" "}
-            <a href="/auth" className="text-neutral-600 hover:text-black dark:hover:text-white transition-colors">Sign in</a>
+            <Link href="/auth" className="text-neutral-600 hover:text-black dark:hover:text-white transition-colors">Sign in</Link>
           </p>
         </div>
       </div>

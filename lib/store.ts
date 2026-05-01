@@ -59,6 +59,7 @@ export interface DesignPost {
 interface AppState {
   user: User | null
   isAuthenticated: boolean
+  hasSeenWelcome: boolean
   gigs: Gig[]
   designPosts: DesignPost[]
 
@@ -80,6 +81,8 @@ interface AppState {
   // Feed
   addDesignPost: (post: Omit<DesignPost, 'id' | 'createdAt'>) => void
   likePost: (postId: string) => void
+  setUser: (user: User | null) => void
+  setHasSeenWelcome: (value: boolean) => void
 }
 
 const mockGigs: Gig[] = [
@@ -261,6 +264,7 @@ export const useStore = create<AppState>()(
     (set, get) => ({
       user: null,
       isAuthenticated: false,
+      hasSeenWelcome: true, // Default to true so it doesn't show on every refresh unless triggered
       gigs: mockGigs,
       designPosts: mockDesignPosts,
 
@@ -376,6 +380,10 @@ export const useStore = create<AppState>()(
           ),
         })
       },
+      
+      setUser: (user) => set({ user, isAuthenticated: !!user }),
+
+      setHasSeenWelcome: (value) => set({ hasSeenWelcome: value }),
     }),
     {
       name: 'thimble-storage',

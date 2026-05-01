@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useRef } from "react"
+import Image from "next/image"
 import { useStore } from "@/lib/store"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -118,23 +119,26 @@ export function VerificationModal({ isOpen, onClose }: VerificationModalProps) {
                     )}
                   </button>
                 ) : (
-                  <div className="relative">
-                    <img
+                  <div className="relative w-full h-48 border border-neutral-200 dark:border-neutral-800">
+                    <Image
                       src={previews.idDocument}
                       alt="ID Document"
-                      className="w-full h-48 object-cover border border-neutral-200 dark:border-neutral-800"
+                      fill
+                      className="object-cover"
                     />
                     <button
                       onClick={() => removeFile("idDocument")}
-                      className="absolute top-2 right-2 p-1 bg-black/50 text-white hover:bg-black/70"
+                      className="absolute top-2 right-2 p-1 bg-black/50 text-white hover:bg-black/70 z-10"
                     >
                       <X className="h-4 w-4" />
                     </button>
-                    <p className="text-xs text-green-600 mt-1 flex items-center gap-1">
-                      <CheckCircle className="h-3 w-3" />
-                      ID uploaded successfully
-                    </p>
                   </div>
+                )}
+                {previews.idDocument && (
+                  <p className="text-xs text-green-600 mt-1 flex items-center gap-1">
+                    <CheckCircle className="h-3 w-3" />
+                    ID uploaded successfully
+                  </p>
                 )}
                 <input
                   ref={idInputRef}
@@ -172,23 +176,26 @@ export function VerificationModal({ isOpen, onClose }: VerificationModalProps) {
                     )}
                   </button>
                 ) : (
-                  <div className="relative">
-                    <img
+                  <div className="relative w-full h-48 border border-neutral-200 dark:border-neutral-800">
+                    <Image
                       src={previews.selfie}
                       alt="Selfie"
-                      className="w-full h-48 object-cover border border-neutral-200 dark:border-neutral-800"
+                      fill
+                      className="object-cover"
                     />
                     <button
                       onClick={() => removeFile("selfie")}
-                      className="absolute top-2 right-2 p-1 bg-black/50 text-white hover:bg-black/70"
+                      className="absolute top-2 right-2 p-1 bg-black/50 text-white hover:bg-black/70 z-10"
                     >
                       <X className="h-4 w-4" />
                     </button>
-                    <p className="text-xs text-green-600 mt-1 flex items-center gap-1">
-                      <CheckCircle className="h-3 w-3" />
-                      Selfie uploaded successfully
-                    </p>
                   </div>
+                )}
+                {previews.selfie && (
+                  <p className="text-xs text-green-600 mt-1 flex items-center gap-1">
+                    <CheckCircle className="h-3 w-3" />
+                    Selfie uploaded successfully
+                  </p>
                 )}
                 <input
                   ref={selfieInputRef}

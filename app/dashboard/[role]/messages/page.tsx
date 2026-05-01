@@ -3,8 +3,12 @@
 import { DashboardLayout } from "@/components/dashboard-layout"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Search, Send } from "lucide-react"
-import { useState, use } from "react"
+import { Search, Send, Circle, ArrowLeft } from "lucide-react"
+import { useState, use, useRef, useEffect } from "react"
+import Image from "next/image"
+import { useSocket } from "@/hooks/use-socket"
+import { useStore } from "@/lib/store"
+import { cn } from "@/lib/utils"
 
 const mockConversations = [
   {
@@ -14,6 +18,7 @@ const mockConversations = [
     lastMessage: "We love your portfolio! Are you available next week?",
     time: "2h ago",
     unread: true,
+    avatar: "https://images.unsplash.com/photo-1560250097-0b93528c311a?w=100&h=100&fit=crop"
   },
   {
     id: "2",
@@ -22,6 +27,7 @@ const mockConversations = [
     lastMessage: "Can you send over the final shots from our last shoot?",
     time: "5h ago",
     unread: false,
+    avatar: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100&h=100&fit=crop"
   },
   {
     id: "3",
@@ -30,22 +36,51 @@ const mockConversations = [
     lastMessage: "Your order is ready for shipment.",
     time: "1d ago",
     unread: false,
+    avatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop"
   },
 ]
 
 export default function MessagesPage({ params }: { params: Promise<{ role: string }> }) {
   const { role } = use(params)
+  const { user } = useStore()
   const [selectedChat, setSelectedChat] = useState<string | null>(null)
   const [messageInput, setMessageInput] = useState("")
+  const scrollRef = useRef<HTMLDivElement>(null)
+  
+  const { messages, sendMessage, isConnected } = useSocket("ws://localhost:3001/ws", user)
+
+  useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight
+    }
+  }, [messages])
+
+  const handleSend = () => {
+    if (messageInput.trim()) {
+      sendMessage(messageInput)
+      setMessageInput("")
+    }
+  }
 
   return (
     <DashboardLayout role={role}>
       <div className="h-[calc(100vh-8rem)] border border-neutral-200 dark:border-neutral-800">
-        <div className="grid md:grid-cols-3 h-full">
+        <div className="flex h-full overflow-hidden">
           {/* Conversations List */}
-          <div className="border-r border-neutral-200 dark:border-neutral-800">
+          <div className={cn(
+            "w-full md:w-1/3 border-r border-neutral-200 dark:border-neutral-800 flex flex-col",
+            selectedChat ? "hidden md:flex" : "flex"
+          )}>
             <div className="p-4 border-b border-neutral-200 dark:border-neutral-800">
-              <h2 className="font-medium mb-3">Messages</h2>
+              <div className="flex items-center justify-between mb-3">
+                <h2 className="font-medium">Messages</h2>
+                <div className="flex items-center gap-1">
+                  <Circle className={`h-2 w-2 fill-current ${isConnected ? "text-green-500" : "text-red-500"}`} />
+                  <span className="text-[10px] uppercase tracking-wider text-neutral-400">
+                    {isConnected ? "Live" : "Offline"}
+                  </span>
+                </div>
+              </div>
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-neutral-400" />
                 <Input
@@ -54,25 +89,25 @@ export default function MessagesPage({ params }: { params: Promise<{ role: strin
                 />
               </div>
             </div>
-            <div className="overflow-y-auto">
+            <div className="overflow-y-auto flex-1">
               {mockConversations.map((conv) => (
                 <button
                   key={conv.id}
                   onClick={() => setSelectedChat(conv.id)}
-                  className={`w-full p-4 flex items-start gap-3 hover:bg-neutral-50 dark:hover:bg-neutral-900 border-b border-neutral-100 dark:border-neutral-800 text-left ${
+                  className={`w-full p-4 flex items-start gap-3 hover:bg-neutral-50 dark:hover:bg-neutral-900 border-b border-neutral-100 dark:border-neutral-800 text-left transition-colors ${
                     selectedChat === conv.id ? "bg-neutral-50 dark:bg-neutral-900" : ""
                   }`}
                 >
-                  <div className="w-10 h-10 rounded-full bg-neutral-200 dark:bg-neutral-800 flex-shrink-0" />
+                  <div className="w-10 h-10 rounded-full bg-neutral-200 dark:bg-neutral-900 flex-shrink-0" />
                   <div className="flex-1 min-w-0">
                     <div className="flex justify-between items-center mb-1">
                       <p className="font-medium text-sm truncate">{conv.name}</p>
-                      <span className="text-xs text-neutral-400">{conv.time}</span>
+                      <span className="text-[10px] text-neutral-400 uppercase">{conv.time}</span>
                     </div>
                     <p className="text-xs text-neutral-500 truncate">{conv.lastMessage}</p>
                   </div>
                   {conv.unread && (
-                    <div className="w-2 h-2 rounded-full bg-primary flex-shrink-0 mt-2" />
+                    <div className="w-1.5 h-1.5 rounded-full bg-black dark:bg-white flex-shrink-0 mt-2" />
                   )}
                 </button>
               ))}
@@ -80,56 +115,81 @@ export default function MessagesPage({ params }: { params: Promise<{ role: strin
           </div>
 
           {/* Chat Area */}
-          <div className="md:col-span-2 flex flex-col">
+          <div className={cn(
+            "flex-1 flex flex-col min-w-0",
+            !selectedChat ? "hidden md:flex" : "flex"
+          )}>
             {selectedChat ? (
               <>
                 {/* Chat Header */}
                 <div className="p-4 border-b border-neutral-200 dark:border-neutral-800 flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-neutral-200 dark:bg-neutral-800" />
-                  <div>
-                    <p className="font-medium">
+                  <Button 
+                    variant="ghost" 
+                    size="icon" 
+                    onClick={() => setSelectedChat(null)}
+                    className="md:hidden mr-1"
+                  >
+                    <ArrowLeft className="h-5 w-5" />
+                  </Button>
+                  <div className="w-10 h-10 rounded-full bg-neutral-200 dark:bg-neutral-900" />
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium truncate">
                       {mockConversations.find((c) => c.id === selectedChat)?.name}
                     </p>
-                    <p className="text-xs text-neutral-500">
+                    <p className="text-xs text-neutral-500 uppercase tracking-wider">
                       {mockConversations.find((c) => c.id === selectedChat)?.role}
                     </p>
                   </div>
                 </div>
 
                 {/* Messages */}
-                <div className="flex-1 p-4 overflow-y-auto">
+                <div ref={scrollRef} className="flex-1 p-4 overflow-y-auto bg-neutral-50/50 dark:bg-neutral-900/20">
                   <div className="space-y-4">
-                    <div className="flex justify-start">
-                      <div className="bg-neutral-100 dark:bg-neutral-900 px-4 py-2 max-w-[70%]">
-                        <p className="text-sm">Hi! We came across your profile and love your work.</p>
+                    {messages.length === 0 && (
+                      <div className="text-center py-8 text-neutral-400 text-sm">
+                        No messages yet. Say hello!
                       </div>
-                    </div>
-                    <div className="flex justify-end">
-                      <div className="bg-black text-white px-4 py-2 max-w-[70%]">
-                        <p className="text-sm">Thank you! I&apos;d love to hear more about the opportunity.</p>
+                    )}
+                    {messages.map((msg, i) => (
+                      <div key={i} className={`flex ${msg.userId === user?.id ? "justify-end" : "justify-start"}`}>
+                        <div className={`max-w-[70%] px-4 py-2 ${
+                          msg.userId === user?.id 
+                            ? "bg-black text-white rounded-l-lg rounded-tr-lg" 
+                            : "bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-r-lg rounded-tl-lg"
+                        }`}>
+                          {msg.userId !== user?.id && (
+                            <p className="text-[10px] font-medium mb-1 text-neutral-400 uppercase tracking-wider">{msg.name}</p>
+                          )}
+                          <p className="text-sm">{msg.content}</p>
+                          <p className={`text-[9px] mt-1 text-right ${msg.userId === user?.id ? "text-white/50" : "text-neutral-400"}`}>
+                            {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          </p>
+                        </div>
                       </div>
-                    </div>
-                    <div className="flex justify-start">
-                      <div className="bg-neutral-100 dark:bg-neutral-900 px-4 py-2 max-w-[70%]">
-                        <p className="text-sm">We have a campaign coming up next week. Are you available?</p>
-                      </div>
-                    </div>
+                    ))}
                   </div>
                 </div>
 
                 {/* Input */}
                 <div className="p-4 border-t border-neutral-200 dark:border-neutral-800">
-                  <div className="flex gap-2">
+                  <form 
+                    onSubmit={(e) => { e.preventDefault(); handleSend(); }}
+                    className="flex gap-2"
+                  >
                     <Input
                       placeholder="Type a message..."
                       value={messageInput}
                       onChange={(e) => setMessageInput(e.target.value)}
-                      className="rounded-none border-neutral-300"
+                      className="rounded-none border-neutral-300 focus:border-black transition-soft"
                     />
-                    <Button className="rounded-none bg-black text-white px-4">
+                    <Button 
+                      type="submit"
+                      disabled={!isConnected}
+                      className="rounded-none bg-black text-white px-4 hover:bg-neutral-800 transition-soft"
+                    >
                       <Send className="h-4 w-4" />
                     </Button>
-                  </div>
+                  </form>
                 </div>
               </>
             ) : (

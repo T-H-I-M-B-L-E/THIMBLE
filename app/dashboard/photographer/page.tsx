@@ -98,12 +98,19 @@ export default function PhotographerDashboard() {
             </CardHeader>
             <CardContent className="space-y-3">
               {[
-                { name: "Sofia Laurent", type: "Fashion Model", location: "Paris" },
-                { name: "Marcus Chen", type: "Commercial Model", location: "NYC" },
-                { name: "Elena Moreau", type: "Runway Model", location: "Milan" },
+                { name: "Sofia Laurent", type: "Fashion Model", location: "Paris", avatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&h=100&fit=crop" },
+                { name: "Marcus Chen", type: "Commercial Model", location: "NYC", avatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop" },
+                { name: "Elena Moreau", type: "Runway Model", location: "Milan", avatar: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100&h=100&fit=crop" },
               ].map((model, i) => (
                 <div key={i} className="flex items-center gap-3 p-3 border border-neutral-200 dark:border-neutral-800">
-                  <div className="w-10 h-10 rounded-full bg-neutral-200 dark:bg-neutral-800" />
+                  <div className="relative w-10 h-10 rounded-full overflow-hidden flex-shrink-0">
+                    <Image
+                      src={model.avatar}
+                      alt={model.name}
+                      fill
+                      className="object-cover"
+                    />
+                  </div>
                   <div className="flex-1">
                     <h3 className="font-medium text-sm">{model.name}</h3>
                     <p className="text-xs text-neutral-500">{model.type}</p>

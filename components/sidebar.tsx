@@ -2,6 +2,7 @@
 
 import { Heart, MessageCircle, Search, TrendingUp, Moon, Sun } from "lucide-react"
 import Link from "next/link"
+import Image from "next/image"
 import { useTheme } from "@/lib/theme-context"
 
 const trendingTopics = [
@@ -92,11 +93,14 @@ export function Sidebar() {
               className="flex items-center justify-between p-2 xl:p-3 rounded-lg hover:bg-secondary transition-colors"
             >
               <Link href="#" className="flex items-center gap-2 xl:gap-3 flex-1 min-w-0">
-                <img
-                  src={account.avatar}
-                  alt={account.name}
-                  className="w-9 h-9 xl:w-10 xl:h-10 rounded-full object-cover flex-shrink-0"
-                />
+                <div className="relative w-9 h-9 xl:w-10 xl:h-10 rounded-full overflow-hidden flex-shrink-0">
+                  <Image
+                    src={account.avatar}
+                    alt={account.name}
+                    fill
+                    className="object-cover"
+                  />
+                </div>
                 <div className="min-w-0">
                   <p className="font-medium text-foreground text-sm truncate">{account.name}</p>
                   <p className="text-xs text-muted-foreground truncate">{account.username}</p>
