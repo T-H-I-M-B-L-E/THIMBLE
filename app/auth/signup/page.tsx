@@ -6,6 +6,7 @@ import Link from "next/link"
 import { useClerk, useSignUp, useUser } from "@clerk/nextjs"
 import { useStore } from "@/lib/store"
 import { useTheme } from "@/lib/theme-context"
+import { getPostAuthPath } from "@/lib/platform"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -42,12 +43,19 @@ export default function SignupPage() {
   const [touched, setTouched] = useState<Record<string, boolean>>({})
   const [verifying, setVerifying] = useState(false)
   const [verificationCode, setVerificationCode] = useState("")
-
+  const [resendCooldown, setResendCooldown] = useState(0)
   const isDark = theme === "dark"
 
   useEffect(() => {
     setIsMounted(true)
   }, [])
+
+  useEffect(() => {
+    if (resendCooldown > 0) {
+      const timer = setTimeout(() => setResendCooldown(resendCooldown - 1), 1000)
+      return () => clearTimeout(timer)
+    }
+  }, [resendCooldown])
 
   const [formData, setFormData] = useState({
     fullName: "",
@@ -61,12 +69,7 @@ export default function SignupPage() {
   useEffect(() => {
     if (!isUserLoaded) return
     if (user) {
-      const role = user.publicMetadata?.role as string | undefined
-      if (role) {
-        router.push(`/dashboard/${role}`)
-      } else {
-        router.push("/onboarding")
-      }
+      router.push(getPostAuthPath(user))
     }
   }, [user, isUserLoaded, router])
 
@@ -92,8 +95,8 @@ export default function SignupPage() {
       case "password":
         if (!value) return "Password is required"
         if (value.length < 8) return "Password must be at least 8 characters"
-        if (!/(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/.test(value)) {
-          return "Password must contain uppercase, lowercase, and number"
+        if (!/(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_+={}\[\]|\\:;"'<>,.?/-])/.test(value)) {
+          return "Password must contain uppercase, lowercase, number, and special character"
         }
         return undefined
       default:
@@ -221,8 +224,17 @@ export default function SignupPage() {
       }
     } catch (err: any) {
       console.error("Signup error:", err)
-      const errorMessage = err.errors?.[0]?.message || err.message || "Sign up failed."
-      setErrors((prev) => ({ ...prev, email: errorMessage }))
+      const errCode = err.errors?.[0]?.code
+      if (errCode === "form_identifier_exists") {
+        setErrors((prev) => ({ 
+          ...prev, 
+          email: "This email is already registered. Please sign in instead." 
+        }))
+        setTimeout(() => router.push("/auth"), 3000)
+      } else {
+        const errorMessage = err.errors?.[0]?.message || err.message || "Sign up failed."
+        setErrors((prev) => ({ ...prev, email: errorMessage }))
+      }
     }
     setIsLoading(false)
   }
@@ -458,10 +470,22 @@ export default function SignupPage() {
                     }`}
                   />
                   {errors.email && touched.email && (
-                    <p className="text-xs text-red-500 flex items-center gap-1">
-                      <X className="h-3 w-3" />
-                      {errors.email}
-                    </p>
+                    <div className="space-y-2">
+                      <p className="text-xs text-red-500 flex items-center gap-1">
+                        <X className="h-3 w-3" />
+                        {errors.email}
+                      </p>
+                      {errors.email === "This email is already registered. Please sign in instead." && (
+                        <Button 
+                          type="button" 
+                          variant="outline" 
+                          onClick={() => router.push("/auth")}
+                          className="w-full h-8 text-xs rounded-none border-black dark:border-white text-black dark:text-white"
+                        >
+                          Go to Login
+                        </Button>
+                      )}
+                    </div>
                   )}
                 </div>
 
@@ -628,16 +652,16 @@ export default function SignupPage() {
                           } else if ((signUp as any).prepareEmailAddressVerification) {
                             await (signUp as any).prepareEmailAddressVerification({ strategy: "email_code" })
                           }
-                          alert("A new code has been sent to your email.")
+                          setResendCooldown(60)
                         } catch (err: any) {
                           alert(err.message || "Failed to resend code")
                         }
                         setIsLoading(false)
                       }}
-                      disabled={isLoading}
+                      disabled={isLoading || resendCooldown > 0}
                       className="text-xs text-neutral-500 hover:text-black font-normal uppercase tracking-widest"
                     >
-                      Resend Code
+                      {resendCooldown > 0 ? `Resend Code (${resendCooldown}s)` : "Resend Code"}
                     </Button>
 
                     <Button

@@ -15,6 +15,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
 import { uploadToCloudinary } from "@/lib/cloudinary"
 import { cn } from "@/lib/utils"
+import { getDashboardFeedPath, getPostAuthPath, normalizeWebsiteUrl } from "@/lib/platform"
 
 const roles: { id: UserRole; label: string; description: string; icon: React.ElementType }[] = [
   { id: "model", label: "Model", description: "Showcase your portfolio and find gigs", icon: User },
@@ -44,6 +45,7 @@ export default function OnboardingPage() {
   const [website, setWebsite] = useState("")
   const [instagram, setInstagram] = useState("")
   const [isUpdating, setIsUpdating] = useState(false)
+  const [submitError, setSubmitError] = useState("")
 
   const isDark = theme === "dark"
 
@@ -56,6 +58,13 @@ export default function OnboardingPage() {
     if (!isLoaded) return
     if (!user) {
       router.push("/auth")
+      return
+    }
+    
+    // If the user has already completed onboarding, redirect to their dashboard
+    const postAuthPath = getPostAuthPath(user)
+    if (postAuthPath !== "/onboarding") {
+      router.push(postAuthPath)
       return
     }
   }, [isLoaded, user, router])
@@ -73,6 +82,7 @@ export default function OnboardingPage() {
   const handleComplete = async () => {
     if (!user || !selectedRole) return
     setIsUpdating(true)
+    setSubmitError("")
 
     try {
       await user.update({
@@ -82,7 +92,7 @@ export default function OnboardingPage() {
           role: selectedRole,
           bio,
           avatarUrl: profilePreview,
-          website,
+          website: normalizeWebsiteUrl(website),
           instagram,
           onboardingCompleted: true,
         },
@@ -91,9 +101,7 @@ export default function OnboardingPage() {
       nextStep("success")
     } catch (error) {
       console.error("Failed to complete onboarding:", error)
-      // Fallback
-      setRole(selectedRole)
-      nextStep("success")
+      setSubmitError("We couldn't save your profile yet. Fix any invalid fields and try again.")
     } finally {
       setIsUpdating(false)
     }
@@ -364,6 +372,9 @@ export default function OnboardingPage() {
             >
               {isUpdating ? "Finalizing Profile..." : "Complete Setup"}
             </Button>
+            {submitError && (
+              <p className="text-sm text-red-500 text-center">{submitError}</p>
+            )}
           </div>
         )}
 
@@ -394,7 +405,7 @@ export default function OnboardingPage() {
               </div>
 
               <Button 
-                onClick={() => router.push(`/dashboard/${selectedRole}`)}
+                onClick={() => router.push(getDashboardFeedPath(selectedRole))}
                 className="w-full h-16 rounded-none bg-black text-white hover:bg-neutral-800 uppercase tracking-[0.3em] text-xs"
               >
                 Enter Dashboard

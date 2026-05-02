@@ -3,6 +3,7 @@
 import { useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { useUser } from "@clerk/nextjs"
+import { getPostAuthPath } from "@/lib/platform"
 
 export default function HomePage() {
   const router = useRouter()
@@ -15,13 +16,7 @@ export default function HomePage() {
       // Not signed in → go to auth
       router.push("/auth")
     } else {
-      // Check if role is set in Clerk metadata
-      const role = user.publicMetadata?.role || user.unsafeMetadata?.role
-      if (role) {
-        router.push(`/dashboard/${role}`)
-      } else {
-        router.push("/onboarding")
-      }
+      router.push(getPostAuthPath(user))
     }
   }, [user, isLoaded, router])
 

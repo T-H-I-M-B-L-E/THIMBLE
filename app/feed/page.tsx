@@ -5,6 +5,7 @@ import { useStore } from "@/lib/store"
 import { Button } from "@/components/ui/button"
 import Image from "next/image"
 import Link from "next/link"
+import { getDashboardFeedPath } from "@/lib/platform"
 
 export default function FeedPage() {
   const { user: storeUser } = useStore()
@@ -19,7 +20,7 @@ export default function FeedPage() {
           </Link>
           <div className="flex items-center gap-3">
             {storeUser ? (
-              <Link href={`/dashboard/${storeUser.role}`} className="relative w-8 h-8 rounded-full overflow-hidden border border-neutral-200 dark:border-neutral-800">
+              <Link href={getDashboardFeedPath(storeUser.role)} className="relative w-8 h-8 rounded-full overflow-hidden border border-neutral-200 dark:border-neutral-800">
                 <Image
                   src={storeUser.avatar || "/placeholder-avatar.png"}
                   alt={storeUser.fullName || "User"}
@@ -52,7 +53,7 @@ export default function FeedPage() {
           <Link href="/explore" className="flex flex-col items-center gap-1 p-2 text-neutral-400">
             <span className="text-[10px]">Explore</span>
           </Link>
-          <Link href={storeUser ? `/dashboard/${storeUser.role}` : "/auth/signup"} className="flex flex-col items-center gap-1 p-2 text-neutral-400">
+          <Link href={storeUser?.role ? `/dashboard/${storeUser.role}/profile` : "/auth/signup"} className="flex flex-col items-center gap-1 p-2 text-neutral-400">
             <span className="text-[10px]">Profile</span>
           </Link>
         </div>

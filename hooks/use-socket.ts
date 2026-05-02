@@ -9,12 +9,17 @@ export interface ChatMessage {
   timestamp: number
 }
 
-export function useSocket(url: string, user: { id: string; fullName: string } | null) {
+export function useSocket(url: string | null, user: { id: string; fullName: string } | null) {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [isConnected, setIsConnected] = useState(false)
   const socketRef = useRef<WebSocket | null>(null)
 
   useEffect(() => {
+    if (!url) {
+      setIsConnected(false)
+      return
+    }
+
     const socket = new WebSocket(url)
     socketRef.current = socket
 

@@ -6,12 +6,15 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Search, MapPin, DollarSign, Calendar } from "lucide-react"
-import { useState, useEffect, use } from "react"
+import { useState, useEffect } from "react"
+import { useParams } from "next/navigation"
 import Image from "next/image"
+import { getApiUrl } from "@/lib/platform"
 
-export default function GigsPage({ params }: { params: Promise<{ role: string }> }) {
-  const { role } = use(params)
-  const { user, applyToGig } = useStore()
+export default function GigsPage() {
+  const params = useParams()
+  const role = params.role as string
+  const { user, gigs: fallbackGigs, applyToGig } = useStore()
   const [gigs, setGigs] = useState<any[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState("")
@@ -22,12 +25,21 @@ export default function GigsPage({ params }: { params: Promise<{ role: string }>
   }, [])
 
   const fetchGigs = async () => {
+    const gigsUrl = getApiUrl("/api/gigs")
+
+    if (!gigsUrl) {
+      setGigs(fallbackGigs)
+      setIsLoading(false)
+      return
+    }
+
     try {
-      const res = await fetch("http://localhost:3001/api/gigs")
+      const res = await fetch(gigsUrl)
       const data = await res.json()
       setGigs(data)
     } catch (err) {
       console.error("Failed to fetch gigs:", err)
+      setGigs(fallbackGigs)
     } finally {
       setIsLoading(false)
     }

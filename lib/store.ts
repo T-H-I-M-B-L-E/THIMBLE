@@ -44,6 +44,7 @@ export interface Gig {
 
 export interface DesignPost {
   id: string
+  userId?: string
   image: string
   description: string
   author: string
@@ -80,12 +81,13 @@ interface AppState {
 
   // Feed
   addDesignPost: (post: Omit<DesignPost, 'id' | 'createdAt'>) => void
+  removeDesignPost: (postId: string) => void
   likePost: (postId: string) => void
   setUser: (user: User | null) => void
   setHasSeenWelcome: (value: boolean) => void
 }
 
-const mockGigs: Gig[] = [
+export const mockGigs: Gig[] = [
   {
     id: '1',
     title: 'Fashion Campaign Model Needed',
@@ -178,7 +180,7 @@ const mockGigs: Gig[] = [
   },
 ]
 
-const mockDesignPosts: DesignPost[] = [
+export const mockDesignPosts: DesignPost[] = [
   {
     id: '1',
     image: 'https://images.unsplash.com/photo-1558171813-4c088753af8f?w=800&h=1000&fit=crop',
@@ -370,6 +372,12 @@ export const useStore = create<AppState>()(
           createdAt: 'Just now',
         }
         set({ designPosts: [newPost, ...get().designPosts] })
+      },
+
+      removeDesignPost: (postId) => {
+        set({
+          designPosts: get().designPosts.filter((post) => post.id !== postId),
+        })
       },
 
       likePost: (postId) => {

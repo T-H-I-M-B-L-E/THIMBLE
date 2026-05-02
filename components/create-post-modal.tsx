@@ -10,6 +10,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tag, Users, Search, ImageIcon, X } from "lucide-react"
 import Image from "next/image"
 import { uploadToCloudinary } from "@/lib/cloudinary"
+import { useStore } from "@/lib/store"
+import { getApiUrl } from "@/lib/platform"
 
 interface CreatePostModalProps {
   isOpen: boolean
@@ -19,6 +21,7 @@ interface CreatePostModalProps {
 }
 
 export function CreatePostModal({ isOpen, onClose, onSuccess, user }: CreatePostModalProps) {
+  const { addDesignPost } = useStore()
   const [caption, setCaption] = useState("")
   const [postType, setPostType] = useState("design")
   const [imageUrl, setImageUrl] = useState("")
@@ -48,26 +51,48 @@ export function CreatePostModal({ isOpen, onClose, onSuccess, user }: CreatePost
 
     setIsSubmitting(true)
     try {
-      const res = await fetch("http://localhost:3001/api/posts", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          userId: user?.id,
-          authorName: user?.fullName || "User",
-          authorAvatar: (user?.unsafeMetadata?.avatarUrl as string) || user?.imageUrl || "",
-          imageUrl: imageUrl,
-          description: caption,
-          taggedUsers: taggedUsers
+      const payload = {
+        userId: user?.id,
+        authorName: user?.fullName || "User",
+        authorAvatar: (user?.unsafeMetadata?.avatarUrl as string) || user?.imageUrl || "",
+        imageUrl: imageUrl,
+        description: caption,
+        taggedUsers: taggedUsers
+      }
+
+      const postsUrl = getApiUrl("/api/posts")
+
+      if (postsUrl) {
+        const res = await fetch(postsUrl, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
         })
-      })
-      if (res.ok) {
+
+        if (!res.ok) {
+          throw new Error("Failed to publish post.")
+        }
+      } else {
+        addDesignPost({
+          userId: user?.id,
+          image: imageUrl,
+          description: caption,
+          author: user?.fullName || "User",
+          authorRole: (user?.unsafeMetadata?.role as any) || null,
+          authorAvatar: (user?.unsafeMetadata?.avatarUrl as string) || user?.imageUrl || "",
+          authorVerified: true,
+          likes: 0,
+          comments: 0,
+          tags: taggedUsers,
+        })
+      }
+
         onSuccess()
         onClose()
         setCaption("")
         setImageUrl("")
         setTaggedUsers([])
         setUploadProgress(0)
-      }
     } catch (err) {
       console.error(err)
     } finally {
@@ -77,12 +102,12 @@ export function CreatePostModal({ isOpen, onClose, onSuccess, user }: CreatePost
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[500px] rounded-none border-neutral-200 dark:border-neutral-800 p-0 overflow-hidden bg-white dark:bg-black">
-        <DialogHeader className="p-6 border-b border-neutral-100 dark:border-neutral-900 bg-neutral-50/50 dark:bg-neutral-900/50">
+      <DialogContent className="w-full max-w-none h-[100dvh] sm:h-auto sm:w-[95vw] sm:max-w-[500px] rounded-none border-0 sm:border sm:border-neutral-200 dark:sm:border-neutral-800 p-0 overflow-y-auto sm:overflow-hidden bg-white dark:bg-black flex flex-col">
+        <DialogHeader className="p-6 border-b border-neutral-100 dark:border-neutral-900 bg-neutral-50/50 dark:bg-neutral-900/50 shrink-0">
           <DialogTitle className="text-xl font-heading font-light tracking-widest uppercase">Create New Post</DialogTitle>
         </DialogHeader>
-        <form onSubmit={handleSubmit} className="p-6 space-y-6">
-          <div className="grid grid-cols-2 gap-4">
+        <form onSubmit={handleSubmit} className="p-6 space-y-6 flex-1 overflow-y-auto sm:overflow-visible">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label className="text-[10px] uppercase tracking-widest text-neutral-500 font-medium">Content Type</Label>
               <Select value={postType} onValueChange={setPostType}>
