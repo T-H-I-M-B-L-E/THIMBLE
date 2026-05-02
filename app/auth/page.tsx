@@ -2,9 +2,10 @@
 
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
-import { useSignIn, useUser } from "@clerk/nextjs"
+import { useSignIn, useUser, useClerk } from "@clerk/nextjs"
 import { useStore } from "@/lib/store"
 import { useTheme } from "@/lib/theme-context"
+import { getPostAuthPath } from "@/lib/platform"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -12,9 +13,12 @@ import { Eye, EyeOff, Sun, Moon } from "lucide-react"
 
 export default function LoginPage() {
   const router = useRouter()
-  const { isLoaded: isSignInLoaded, signIn, setActive } = useSignIn() as any
+  const clerk = useClerk()
+  const signInState = useSignIn() as any
+  const isSignInLoaded = signInState.isLoaded?.value ?? signInState.isLoaded ?? !!signInState.signIn
+  const signIn = signInState.signIn?.value ?? signInState.signIn ?? signInState
+  const setActive = clerk.setActive
   const { user, isLoaded: isUserLoaded } = useUser()
-  const { setRole } = useStore()
   const { theme, toggleTheme } = useTheme()
   const [isLoading, setIsLoading] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
@@ -30,14 +34,9 @@ export default function LoginPage() {
   useEffect(() => {
     if (!isUserLoaded) return
 
-    // If already signed in with Clerk, check for role
+    // If already signed in with Clerk, check for onboarding status
     if (user) {
-      const role = user.publicMetadata?.role as string | undefined
-      if (role) {
-        router.push(`/dashboard/${role}`)
-      } else {
-        router.push("/onboarding")
-      }
+      router.push(getPostAuthPath(user))
     }
   }, [user, isUserLoaded, router])
 
@@ -56,18 +55,42 @@ export default function LoginPage() {
       const result = await (signIn as any).create({
         identifier: formData.email,
         password: formData.password,
-      })
+      }).catch((e: any) => e)
 
-      if (result.status === "complete") {
+      // Clerk v7 sometimes returns errors in the result instead of throwing
+      if (result?.errors || result?.error) {
+        throw result
+      }
+
+      if (result?.status === "complete") {
         await (setActive as any)({ session: result.createdSessionId })
-        router.push("/onboarding")
+        // The useEffect will handle the redirection after the session is set
       } else {
+        console.warn("Sign in result:", result)
         setError("Sign in failed. Please check your credentials.")
       }
     } catch (err: any) {
-      setError(err.errors?.[0]?.message || err.message || "Invalid credentials")
+      console.error("Login catch block:", err)
+      const errors = err.errors || (err.error ? [err.error] : [])
+      const errCode = errors?.[0]?.code
+      const errMessage = errors?.[0]?.message || err.message || ""
+      
+      if (errCode === "session_exists" || errMessage.includes("already signed in")) {
+        if (user) {
+          router.push(getPostAuthPath(user))
+        } else {
+          router.push("/")
+        }
+      } else if (errCode === "form_identifier_not_found") {
+        setError("No account found with this email. Create an account instead.")
+      } else if (errCode === "form_password_incorrect") {
+        setError("Invalid email or password")
+      } else {
+        setError(errMessage || "Invalid credentials")
+      }
+    } finally {
+      setIsLoading(false)
     }
-    setIsLoading(false)
   }
 
   return (
@@ -116,8 +139,20 @@ export default function LoginPage() {
           </div>
 
           {error && (
-            <div className="rounded-none border border-black dark:border-white p-3 sm:p-4 text-sm text-black dark:text-white bg-transparent">
-              {error}
+            <div className="space-y-3">
+              <div className="rounded-none border border-black dark:border-white p-3 sm:p-4 text-sm text-black dark:text-white bg-transparent">
+                {error}
+              </div>
+              {error === "No account found with this email. Create an account instead." && (
+                <Button 
+                  type="button" 
+                  variant="outline" 
+                  onClick={() => router.push("/auth/signup")}
+                  className="w-full h-11 sm:h-12 rounded-none border-black dark:border-white text-black dark:text-white uppercase tracking-widest text-xs sm:text-sm"
+                >
+                  Sign Up
+                </Button>
+              )}
             </div>
           )}
 
@@ -143,7 +178,11 @@ export default function LoginPage() {
                   <Label htmlFor="password" className="text-xs font-normal uppercase tracking-widest text-neutral-500">
                     Password
                   </Label>
-                  <button type="button" className="text-xs text-neutral-500 hover:text-black transition-colors">
+                  <button 
+                    type="button" 
+                    onClick={() => router.push("/auth/forgot-password")}
+                    className="text-xs text-neutral-500 hover:text-black transition-colors"
+                  >
                     Forgot?
                   </button>
                 </div>

@@ -1,11 +1,12 @@
 "use client"
 
-import { use } from "react"
+import { useParams } from "next/navigation"
 import { DashboardLayout } from "@/components/dashboard-layout"
 import { FeedView } from "@/components/feed-view"
 
-export default function FeedPage({ params }: { params: Promise<{ role: string }> }) {
-  const { role } = use(params)
+export default function FeedPage() {
+  const params = useParams()
+  const role = params.role as string
 
   return (
     <DashboardLayout role={role}>

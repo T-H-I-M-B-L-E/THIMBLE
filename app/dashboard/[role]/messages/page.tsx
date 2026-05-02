@@ -4,11 +4,12 @@ import { DashboardLayout } from "@/components/dashboard-layout"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Search, Send, Circle, ArrowLeft } from "lucide-react"
-import { useState, use, useRef, useEffect } from "react"
-import Image from "next/image"
+import { useState, useRef, useEffect } from "react"
+import { useParams } from "next/navigation"
 import { useSocket } from "@/hooks/use-socket"
 import { useStore } from "@/lib/store"
 import { cn } from "@/lib/utils"
+import { getWebSocketUrl } from "@/lib/platform"
 
 const mockConversations = [
   {
@@ -40,14 +41,16 @@ const mockConversations = [
   },
 ]
 
-export default function MessagesPage({ params }: { params: Promise<{ role: string }> }) {
-  const { role } = use(params)
+export default function MessagesPage() {
+  const params = useParams()
+  const role = params.role as string
   const { user } = useStore()
   const [selectedChat, setSelectedChat] = useState<string | null>(null)
   const [messageInput, setMessageInput] = useState("")
   const scrollRef = useRef<HTMLDivElement>(null)
+  const websocketUrl = getWebSocketUrl() ? `${getWebSocketUrl()}/ws` : null
   
-  const { messages, sendMessage, isConnected } = useSocket("ws://localhost:3001/ws", user)
+  const { messages, sendMessage, isConnected } = useSocket(websocketUrl, user)
 
   useEffect(() => {
     if (scrollRef.current) {

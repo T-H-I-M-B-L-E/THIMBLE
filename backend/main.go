@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"log"
+	"os"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
@@ -49,7 +50,14 @@ var dbPool *pgxpool.Pool
 
 func main() {
 	var err error
-	connStr := "postgresql://localhost:5432/thimble_chat"
+	connStr := os.Getenv("DATABASE_URL")
+	if connStr == "" {
+		connStr = "postgresql://localhost:5432/thimble_chat"
+	}
+	allowedOrigins := os.Getenv("CORS_ALLOWED_ORIGINS")
+	if allowedOrigins == "" {
+		allowedOrigins = "*"
+	}
 	dbPool, err = pgxpool.New(context.Background(), connStr)
 	if err != nil {
 		log.Fatal("Unable to connect to database:", err)
@@ -57,7 +65,10 @@ func main() {
 	defer dbPool.Close()
 
 	app := fiber.New()
-	app.Use(cors.New())
+	app.Use(cors.New(cors.Config{
+		AllowOrigins: allowedOrigins,
+		AllowHeaders: "Origin, Content-Type, Accept, Authorization",
+	}))
 
 	// WebSocket Endpoint
 	app.Get("/ws", websocket.New(func(c *websocket.Conn) {
@@ -186,6 +197,11 @@ func main() {
 		return c.JSON(gigs)
 	})
 
-	log.Println("Server starting on :3001")
-	log.Fatal(app.Listen(":3001"))
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "3001"
+	}
+
+	log.Printf("Server starting on :%s", port)
+	log.Fatal(app.Listen(":" + port))
 }

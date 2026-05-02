@@ -8,6 +8,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
 import { Camera, Instagram, Globe, X, User as UserIcon } from "lucide-react"
 import { uploadToCloudinary } from "@/lib/cloudinary"
+import { normalizeWebsiteUrl } from "@/lib/platform"
 
 interface EditProfileModalProps {
   isOpen: boolean
@@ -66,7 +67,7 @@ export function EditProfileModal({ isOpen, onClose, user }: EditProfileModalProp
           ...user.unsafeMetadata,
           bio,
           avatarUrl,
-          website,
+          website: normalizeWebsiteUrl(website),
           instagram,
         }
       })
@@ -80,12 +81,12 @@ export function EditProfileModal({ isOpen, onClose, user }: EditProfileModalProp
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[500px] rounded-none border-neutral-200 dark:border-neutral-800 p-0 overflow-hidden bg-white dark:bg-black">
-        <DialogHeader className="p-6 border-b border-neutral-100 dark:border-neutral-900 bg-neutral-50/50 dark:bg-neutral-900/50">
+      <DialogContent className="w-full max-w-none h-[100dvh] sm:h-auto sm:w-[95vw] sm:max-w-[500px] rounded-none border-0 sm:border sm:border-neutral-200 dark:sm:border-neutral-800 p-0 overflow-hidden bg-white dark:bg-black flex flex-col">
+        <DialogHeader className="p-6 border-b border-neutral-100 dark:border-neutral-900 bg-neutral-50/50 dark:bg-neutral-900/50 shrink-0">
           <DialogTitle className="text-xl font-light tracking-widest uppercase">Edit Profile</DialogTitle>
         </DialogHeader>
         
-        <form onSubmit={handleSubmit} className="p-6 space-y-6 max-h-[70vh] overflow-y-auto">
+        <form onSubmit={handleSubmit} className="p-6 space-y-6 flex-1 overflow-y-auto sm:max-h-[70vh]">
           {/* Avatar Section */}
           <div className="flex flex-col items-center gap-4 py-4">
             <div className="relative group">
@@ -131,7 +132,7 @@ export function EditProfileModal({ isOpen, onClose, user }: EditProfileModalProp
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label className="text-[10px] uppercase tracking-widest text-neutral-500 flex items-center gap-2">
                   <Instagram className="h-3 w-3" /> Instagram

@@ -1,9 +1,9 @@
 /**
- * Universal Upload Helper (Now using Uploadcare)
- * Handles uploading files to the cloud with real-time progress.
+ * Universal Upload Helper using Uploadcare.
+ * Handles uploading files with real-time progress updates.
  */
 
-export const uploadToCloudinary = async (
+export const uploadMediaAsset = async (
   file: File, 
   onProgress?: (progress: number) => void
 ): Promise<string> => {
@@ -51,3 +51,5 @@ export const uploadToCloudinary = async (
     xhr.send(formData);
   });
 };
+
+export const uploadToCloudinary = uploadMediaAsset;
