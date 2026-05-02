@@ -1,6 +1,6 @@
 "use client"
 
-import { Heart, MessageCircle, Search, TrendingUp, Moon, Sun } from "lucide-react"
+import { Heart, MessageCircle, Search, TrendingUp, Moon, Sun, ArrowRight } from "lucide-react"
 import Link from "next/link"
 import Image from "next/image"
 import { useTheme } from "@/lib/theme-context"
@@ -34,13 +34,13 @@ export function Sidebar() {
   const { theme, toggleTheme } = useTheme()
 
   return (
-    <aside className="hidden lg:flex flex-col w-72 xl:w-80 border-l border-border bg-background/50 p-4 xl:p-6 space-y-6 xl:space-y-8 fixed right-0 top-0 h-screen overflow-y-auto">
+    <aside className="hidden lg:flex flex-col w-72 xl:w-80 border-l border-neutral-200 dark:border-neutral-800 bg-white dark:bg-black p-6 xl:p-8 space-y-10 fixed right-0 top-0 h-screen overflow-y-auto">
       {/* Header with theme toggle */}
-      <div className="flex items-center justify-between pt-2">
-        <h2 className="text-xs xl:text-sm font-semibold text-muted-foreground uppercase tracking-wider">Explore</h2>
+      <div className="flex items-center justify-between">
+        <h2 className="text-luxury text-neutral-400">Curated For You</h2>
         <button
           onClick={toggleTheme}
-          className="p-2 rounded-lg hover:bg-secondary transition-colors text-foreground"
+          className="p-2 text-neutral-500 hover:text-black dark:hover:text-white transition-soft"
           aria-label="Toggle theme"
         >
           {theme === "dark" ? (
@@ -51,33 +51,36 @@ export function Sidebar() {
         </button>
       </div>
 
-      {/* Search */}
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+      {/* Search - Minimalist */}
+      <div className="relative border-b border-neutral-200 dark:border-neutral-800 pb-2">
+        <Search className="absolute left-0 top-1/2 -translate-y-1/2 h-4 w-4 text-neutral-400" />
         <input
           type="text"
-          placeholder="Search creatives, tags..."
-          className="w-full pl-10 pr-4 py-2 rounded-full bg-secondary border border-border text-foreground text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+          placeholder="DISCOVER..."
+          className="w-full pl-8 py-2 bg-transparent text-foreground text-xs uppercase tracking-[0.2em] placeholder:text-neutral-500 focus:outline-none"
         />
       </div>
 
       {/* Trending Section */}
       <div>
-        <div className="flex items-center gap-2 mb-3 xl:mb-4">
-          <TrendingUp className="h-4 w-4 text-primary" />
-          <h3 className="font-semibold text-foreground text-sm">What's trending</h3>
+        <div className="flex items-center gap-2 mb-6">
+          <TrendingUp className="h-4 w-4 text-neutral-400" />
+          <h3 className="font-serif text-lg tracking-wide">The Zeitgeist</h3>
         </div>
-        <div className="space-y-2 xl:space-y-3">
+        <div className="space-y-4">
           {trendingTopics.map((topic) => (
             <Link
               key={topic.tag}
               href="#"
-              className="block p-2 xl:p-3 rounded-lg hover:bg-secondary transition-colors group"
+              className="block group"
             >
-              <p className="font-medium text-foreground text-sm group-hover:text-primary transition-colors">
-                {topic.tag}
-              </p>
-              <p className="text-xs text-muted-foreground">{topic.posts.toLocaleString()} posts</p>
+              <div className="flex items-center justify-between">
+                <p className="font-light text-sm group-hover:text-neutral-500 transition-colors">
+                  {topic.tag}
+                </p>
+                <ArrowRight className="h-3 w-3 opacity-0 group-hover:opacity-100 transition-opacity -translate-x-2 group-hover:translate-x-0 transition-transform duration-500" />
+              </div>
+              <p className="text-[10px] font-mono text-neutral-400 mt-1">{topic.posts.toLocaleString()} EDITOR PICKS</p>
             </Link>
           ))}
         </div>
@@ -85,28 +88,28 @@ export function Sidebar() {
 
       {/* Suggested Accounts */}
       <div>
-        <h3 className="font-semibold text-foreground text-sm mb-3 xl:mb-4">Suggested for you</h3>
-        <div className="space-y-2 xl:space-y-3">
+        <h3 className="font-serif text-lg tracking-wide mb-6">Voices to Follow</h3>
+        <div className="space-y-6">
           {suggestedAccounts.map((account) => (
             <div
               key={account.username}
-              className="flex items-center justify-between p-2 xl:p-3 rounded-lg hover:bg-secondary transition-colors"
+              className="flex items-center justify-between group"
             >
-              <Link href="#" className="flex items-center gap-2 xl:gap-3 flex-1 min-w-0">
-                <div className="relative w-9 h-9 xl:w-10 xl:h-10 rounded-full overflow-hidden flex-shrink-0">
+              <Link href="#" className="flex items-center gap-4 flex-1 min-w-0">
+                <div className="relative w-10 h-10 rounded-full overflow-hidden flex-shrink-0 border border-neutral-100 dark:border-neutral-900">
                   <Image
                     src={account.avatar}
                     alt={account.name}
                     fill
-                    className="object-cover"
+                    className="object-cover transition-transform duration-700 group-hover:scale-110"
                   />
                 </div>
                 <div className="min-w-0">
-                  <p className="font-medium text-foreground text-sm truncate">{account.name}</p>
-                  <p className="text-xs text-muted-foreground truncate">{account.username}</p>
+                  <p className="font-medium text-sm truncate">{account.name}</p>
+                  <p className="text-[10px] text-neutral-400 uppercase tracking-widest truncate mt-0.5">{account.username}</p>
                 </div>
               </Link>
-              <button className="ml-2 px-2.5 xl:px-3 py-1 rounded-full bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 transition-colors flex-shrink-0">
+              <button className="ml-2 text-[10px] uppercase tracking-[0.2em] font-medium border-b border-transparent hover:border-black dark:hover:border-white pb-0.5 transition-colors">
                 Follow
               </button>
             </div>
@@ -115,17 +118,17 @@ export function Sidebar() {
       </div>
 
       {/* Footer */}
-      <div className="text-xs text-muted-foreground space-y-1 pt-4 border-t border-border">
-        <p>© 2026 THIMBLE. All rights reserved.</p>
-        <div className="flex gap-3 xl:gap-4 flex-wrap">
-          <Link href="#" className="hover:text-foreground transition-colors">
-            Privacy
+      <div className="text-[10px] text-neutral-400 space-y-4 pt-8 border-t border-neutral-200 dark:border-neutral-800 uppercase tracking-widest mt-auto">
+        <p>© 2026 THIMBLE.</p>
+        <div className="flex flex-col gap-2">
+          <Link href="#" className="hover:text-black dark:hover:text-white transition-colors w-max">
+            Manifesto
           </Link>
-          <Link href="#" className="hover:text-foreground transition-colors">
-            Terms
+          <Link href="#" className="hover:text-black dark:hover:text-white transition-colors w-max">
+            Privacy Policy
           </Link>
-          <Link href="#" className="hover:text-foreground transition-colors">
-            Cookies
+          <Link href="#" className="hover:text-black dark:hover:text-white transition-colors w-max">
+            Brand Guidelines
           </Link>
         </div>
       </div>

@@ -3,6 +3,7 @@
 import Link from "next/link"
 import Image from "next/image"
 import { usePathname, useRouter } from "next/navigation"
+import { useClerk } from "@clerk/nextjs"
 import { useStore } from "@/lib/store"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -30,12 +31,14 @@ interface DashboardLayoutProps {
 export function DashboardLayout({ children, role }: DashboardLayoutProps) {
   const router = useRouter()
   const pathname = usePathname()
+  const { signOut } = useClerk()
   const { user, logout } = useStore()
   const [showVerification, setShowVerification] = useState(false)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
 
-  const handleLogout = () => {
-    logout()
+  const handleLogout = async () => {
+    logout() // Clear local store
+    await signOut() // Clear Clerk session
     router.push("/auth")
   }
 
@@ -138,7 +141,11 @@ export function DashboardLayout({ children, role }: DashboardLayoutProps) {
           <Link href="/" className="text-lg font-light tracking-[0.2em]">
             THIMBLE
           </Link>
-          <button onClick={() => setMobileMenuOpen(!mobileMenuOpen)}>
+          <button 
+            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            className="flex items-center justify-center min-h-[44px] min-w-[44px] -mr-2 text-neutral-600 dark:text-neutral-300"
+            aria-label="Toggle Menu"
+          >
             {mobileMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
           </button>
         </div>
@@ -149,14 +156,18 @@ export function DashboardLayout({ children, role }: DashboardLayoutProps) {
         mobileMenuOpen ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"
       )}>
         <div className={cn(
-          "fixed inset-y-0 left-0 w-full max-w-xs bg-white dark:bg-black border-r border-neutral-200 dark:border-neutral-800 p-6 flex flex-col transition-transform duration-300",
+          "fixed inset-y-0 left-0 w-full max-w-xs bg-white dark:bg-black border-r border-neutral-200 dark:border-neutral-800 p-6 flex flex-col transition-transform duration-300 overflow-y-auto",
           mobileMenuOpen ? "translate-x-0" : "-translate-x-full"
         )}>
           <div className="flex items-center justify-between mb-8">
             <Link href="/" className="text-xl font-light tracking-[0.2em]">
               THIMBLE
             </Link>
-            <button onClick={() => setMobileMenuOpen(false)}>
+            <button 
+              onClick={() => setMobileMenuOpen(false)}
+              className="flex items-center justify-center min-h-[44px] min-w-[44px] -mr-2 text-neutral-600 dark:text-neutral-300"
+              aria-label="Close Menu"
+            >
               <X className="h-6 w-6" />
             </button>
           </div>
@@ -183,7 +194,7 @@ export function DashboardLayout({ children, role }: DashboardLayoutProps) {
                 href={item.href}
                 onClick={() => setMobileMenuOpen(false)}
                 className={cn(
-                  "flex items-center gap-4 px-4 py-3 text-sm transition-colors",
+                  "flex items-center gap-4 px-4 py-3 min-h-[44px] text-sm transition-colors",
                   pathname === item.href
                     ? "bg-black text-white dark:bg-white dark:text-black"
                     : "text-neutral-600 hover:bg-neutral-50 dark:hover:bg-neutral-900"
@@ -195,7 +206,7 @@ export function DashboardLayout({ children, role }: DashboardLayoutProps) {
             ))}
           </nav>
 
-          <div className="mt-auto space-y-4 pt-6 border-t border-neutral-200 dark:border-neutral-800">
+          <div className="mt-8 space-y-4 pt-6 border-t border-neutral-200 dark:border-neutral-800">
             {user?.verificationStatus !== "verified" && (
               <Button
                 onClick={() => {
@@ -203,7 +214,7 @@ export function DashboardLayout({ children, role }: DashboardLayoutProps) {
                   setMobileMenuOpen(false)
                 }}
                 variant="outline"
-                className="w-full rounded-none"
+                className="w-full rounded-none min-h-[44px]"
               >
                 <Shield className="h-4 w-4 mr-2" />
                 Get Verified
@@ -212,7 +223,7 @@ export function DashboardLayout({ children, role }: DashboardLayoutProps) {
             <Button
               variant="ghost"
               onClick={handleLogout}
-              className="w-full justify-start gap-4 text-neutral-600 hover:text-red-500"
+              className="w-full justify-start gap-4 text-neutral-600 hover:text-red-500 min-h-[44px]"
             >
               <LogOut className="h-5 w-5" />
               Logout
@@ -223,8 +234,8 @@ export function DashboardLayout({ children, role }: DashboardLayoutProps) {
       </div>
 
       {/* Main Content */}
-      <main className="flex-1 lg:ml-64 pt-16 lg:pt-0 animate-fade-in">
-        <div className="p-4 sm:p-6 lg:p-8 max-w-6xl">
+      <main className="flex-1 lg:ml-64 pt-[72px] lg:pt-0 animate-fade-in w-full overflow-x-hidden">
+        <div className="p-4 sm:p-6 lg:p-8 max-w-6xl mx-auto w-full">
           <VerificationBanner />
           {children}
         </div>
@@ -235,3 +246,4 @@ export function DashboardLayout({ children, role }: DashboardLayoutProps) {
     </div>
   )
 }
+
