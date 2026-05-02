@@ -122,6 +122,8 @@ Do it in this order:
 4. Deploy frontend on Vercel
 5. Test signup, login, onboarding, feed, gigs, and chat
 
+This order reduces confusion because the frontend needs the backend URL before the final Vercel deploy.
+
 ## Important Notes
 
 ### 1. Frontend can still work without the backend URL
