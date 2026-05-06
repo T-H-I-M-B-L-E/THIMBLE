@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tag, Users, Search, ImageIcon, X } from "lucide-react"
 import Image from "next/image"
-import { uploadToCloudinary } from "@/lib/cloudinary"
+import { uploadFile } from "@/lib/upload"
 import { useStore } from "@/lib/store"
 import { getApiUrl } from "@/lib/platform"
 
@@ -34,7 +34,7 @@ export function CreatePostModal({ isOpen, onClose, onSuccess, user }: CreatePost
     const file = e.target.files?.[0]
     if (file) {
       try {
-        const url = await uploadToCloudinary(file, (progress) => {
+        const url = await uploadFile(file, (progress) => {
           setUploadProgress(progress)
         })
         setImageUrl(url)

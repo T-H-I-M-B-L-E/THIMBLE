@@ -272,7 +272,7 @@ export const useStore = create<AppState>()(
 
       signup: (data) => {
         const newUser: User = {
-          id: Math.random().toString(36).substr(2, 9),
+          id: crypto.randomUUID(),
           fullName: data.fullName,
           email: data.email,
           phone: data.phone,
@@ -298,7 +298,7 @@ export const useStore = create<AppState>()(
 
       login: (email, password) => {
         const mockUser: User = {
-          id: Math.random().toString(36).substr(2, 9),
+          id: crypto.randomUUID(),
           fullName: email.split('@')[0],
           email,
           phone: '',
@@ -350,7 +350,7 @@ export const useStore = create<AppState>()(
       postGig: (gigData) => {
         const newGig: Gig = {
           ...gigData,
-          id: Math.random().toString(36).substr(2, 9),
+          id: crypto.randomUUID(),
           applications: 0,
         }
         set({ gigs: [newGig, ...get().gigs] })
@@ -368,7 +368,7 @@ export const useStore = create<AppState>()(
       addDesignPost: (postData) => {
         const newPost: DesignPost = {
           ...postData,
-          id: Math.random().toString(36).substr(2, 9),
+          id: crypto.randomUUID(),
           createdAt: 'Just now',
         }
         set({ designPosts: [newPost, ...get().designPosts] })
