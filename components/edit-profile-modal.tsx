@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
 import { Camera, Instagram, Globe, X, User as UserIcon } from "lucide-react"
-import { uploadToCloudinary } from "@/lib/cloudinary"
+import { uploadFile } from "@/lib/upload"
 import { normalizeWebsiteUrl } from "@/lib/platform"
 
 interface EditProfileModalProps {
@@ -39,7 +39,7 @@ export function EditProfileModal({ isOpen, onClose, user }: EditProfileModalProp
     const file = e.target.files?.[0]
     if (file) {
       try {
-        const url = await uploadToCloudinary(file, (progress) => {
+        const url = await uploadFile(file, (progress) => {
           setUploadProgress(progress)
         })
         setAvatarUrl(url)

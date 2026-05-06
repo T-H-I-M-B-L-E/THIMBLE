@@ -5,8 +5,13 @@ import (
 	"encoding/json"
 	"log"
 	"os"
+	"strconv"
+	"strings"
+	"sync"
 	"time"
 
+	clerk "github.com/clerk/clerk-sdk-go/v2"
+	clerkjwt "github.com/clerk/clerk-sdk-go/v2/jwt"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
 	"github.com/gofiber/websocket/v2"
@@ -45,19 +50,63 @@ type Gig struct {
 	CreatedAt      time.Time `json:"createdAt"`
 }
 
-var clients = make(map[*websocket.Conn]bool)
+// clients maps each WebSocket connection to the authenticated userId.
+var (
+	clients   = make(map[*websocket.Conn]string)
+	clientsMu sync.RWMutex
+)
+
 var dbPool *pgxpool.Pool
 
+// clerkAuth validates a Bearer token and stores the subject (userId) in locals.
+func clerkAuth(c *fiber.Ctx) error {
+	authHeader := c.Get("Authorization")
+	if !strings.HasPrefix(authHeader, "Bearer ") {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
+	}
+	token := strings.TrimPrefix(authHeader, "Bearer ")
+
+	claims, err := clerkjwt.Verify(context.Background(), &clerkjwt.VerifyParams{Token: token})
+	if err != nil {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
+	}
+
+	c.Locals("userId", claims.Subject)
+	return c.Next()
+}
+
+// wsAuth validates a token query param before upgrading to WebSocket.
+func wsAuth(c *fiber.Ctx) error {
+	token := c.Query("token")
+	if token == "" {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
+	}
+	claims, err := clerkjwt.Verify(context.Background(), &clerkjwt.VerifyParams{Token: token})
+	if err != nil {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
+	}
+	c.Locals("userId", claims.Subject)
+	return c.Next()
+}
+
 func main() {
-	var err error
+	secretKey := os.Getenv("CLERK_SECRET_KEY")
+	if secretKey == "" {
+		log.Fatal("CLERK_SECRET_KEY environment variable is required")
+	}
+	clerk.SetKey(secretKey)
+
 	connStr := os.Getenv("DATABASE_URL")
 	if connStr == "" {
 		connStr = "postgresql://localhost:5432/thimble_chat"
 	}
+
 	allowedOrigins := os.Getenv("CORS_ALLOWED_ORIGINS")
 	if allowedOrigins == "" {
-		allowedOrigins = "*"
+		log.Fatal("CORS_ALLOWED_ORIGINS environment variable is required")
 	}
+
+	var err error
 	dbPool, err = pgxpool.New(context.Background(), connStr)
 	if err != nil {
 		log.Fatal("Unable to connect to database:", err)
@@ -70,13 +119,18 @@ func main() {
 		AllowHeaders: "Origin, Content-Type, Accept, Authorization",
 	}))
 
-	// WebSocket Endpoint
-	app.Get("/ws", websocket.New(func(c *websocket.Conn) {
-		clients[c] = true
-		log.Println("New client connected")
+	// WebSocket — auth via ?token= query param before upgrade
+	app.Get("/ws", wsAuth, websocket.New(func(c *websocket.Conn) {
+		userId, _ := c.Locals("userId").(string)
 
-		// Load chat history
-		rows, err := dbPool.Query(context.Background(), 
+		clientsMu.Lock()
+		clients[c] = userId
+		clientsMu.Unlock()
+
+		log.Printf("Client connected: %s", userId)
+
+		// Send last 50 messages as history
+		rows, err := dbPool.Query(context.Background(),
 			"SELECT user_id, name, content, timestamp FROM messages ORDER BY id DESC LIMIT 50")
 		if err == nil {
 			var history []Message
@@ -87,7 +141,6 @@ func main() {
 				}
 			}
 			rows.Close()
-
 			for _, msg := range history {
 				msgBytes, _ := json.Marshal(msg)
 				c.WriteMessage(websocket.TextMessage, msgBytes)
@@ -95,7 +148,9 @@ func main() {
 		}
 
 		defer func() {
+			clientsMu.Lock()
 			delete(clients, c)
+			clientsMu.Unlock()
 			c.Close()
 		}()
 
@@ -110,24 +165,42 @@ func main() {
 				continue
 			}
 
-			// Save to database
+			// Enforce server-side userId — ignore whatever the client sent
+			msg.UserId = userId
+
 			_, err = dbPool.Exec(context.Background(),
 				"INSERT INTO messages (user_id, name, content, timestamp) VALUES ($1, $2, $3, $4)",
 				msg.UserId, msg.Name, msg.Content, msg.Timestamp)
-
-			// Broadcast
-			for client := range clients {
-				client.WriteMessage(mt, msgBytes)
+			if err != nil {
+				log.Printf("Failed to save message: %v", err)
 			}
+
+			out, _ := json.Marshal(msg)
+
+			clientsMu.RLock()
+			for client := range clients {
+				client.WriteMessage(mt, out)
+			}
+			clientsMu.RUnlock()
 		}
 	}))
 
-	// Feed API Endpoints
+	// Feed API — read is public, writes require auth
 	app.Get("/api/posts", func(c *fiber.Ctx) error {
-		rows, err := dbPool.Query(context.Background(), 
-			"SELECT id, user_id, author_name, author_avatar, image_url, description, likes, tagged_users, created_at FROM posts ORDER BY created_at DESC")
+		limit := 20
+		offset := 0
+		if l, err := strconv.Atoi(c.Query("limit")); err == nil && l > 0 && l <= 100 {
+			limit = l
+		}
+		if o, err := strconv.Atoi(c.Query("offset")); err == nil && o >= 0 {
+			offset = o
+		}
+
+		rows, err := dbPool.Query(context.Background(),
+			"SELECT id, user_id, author_name, author_avatar, image_url, description, likes, tagged_users, created_at FROM posts ORDER BY created_at DESC LIMIT $1 OFFSET $2",
+			limit, offset)
 		if err != nil {
-			return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+			return c.Status(500).JSON(fiber.Map{"error": "failed to fetch posts"})
 		}
 		defer rows.Close()
 
@@ -135,8 +208,7 @@ func main() {
 		for rows.Next() {
 			var p Post
 			var taggedJSON []byte
-			err := rows.Scan(&p.Id, &p.UserId, &p.AuthorName, &p.AuthorAvatar, &p.ImageUrl, &p.Description, &p.Likes, &taggedJSON, &p.CreatedAt)
-			if err == nil {
+			if err := rows.Scan(&p.Id, &p.UserId, &p.AuthorName, &p.AuthorAvatar, &p.ImageUrl, &p.Description, &p.Likes, &taggedJSON, &p.CreatedAt); err == nil {
 				json.Unmarshal(taggedJSON, &p.TaggedUsers)
 				posts = append(posts, p)
 			}
@@ -147,10 +219,29 @@ func main() {
 		return c.JSON(posts)
 	})
 
-	app.Post("/api/posts", func(c *fiber.Ctx) error {
+	app.Post("/api/posts", clerkAuth, func(c *fiber.Ctx) error {
+		userId, _ := c.Locals("userId").(string)
+
 		var p Post
 		if err := c.BodyParser(&p); err != nil {
-			return c.Status(400).JSON(fiber.Map{"error": err.Error()})
+			return c.Status(400).JSON(fiber.Map{"error": "invalid request body"})
+		}
+
+		// Validate required fields
+		if strings.TrimSpace(p.ImageUrl) == "" {
+			return c.Status(400).JSON(fiber.Map{"error": "imageUrl is required"})
+		}
+		if len(p.Description) > 2000 {
+			return c.Status(400).JSON(fiber.Map{"error": "description exceeds 2000 characters"})
+		}
+		if len(p.AuthorName) > 100 {
+			return c.Status(400).JSON(fiber.Map{"error": "authorName exceeds 100 characters"})
+		}
+
+		// Always use the authenticated userId — never trust the client
+		p.UserId = userId
+		if p.TaggedUsers == nil {
+			p.TaggedUsers = []string{}
 		}
 
 		taggedJSON, _ := json.Marshal(p.TaggedUsers)
@@ -158,36 +249,41 @@ func main() {
 		err := dbPool.QueryRow(context.Background(),
 			"INSERT INTO posts (user_id, author_name, author_avatar, image_url, description, tagged_users) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, created_at",
 			p.UserId, p.AuthorName, p.AuthorAvatar, p.ImageUrl, p.Description, taggedJSON).Scan(&p.Id, &p.CreatedAt)
-		
 		if err != nil {
-			return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+			return c.Status(500).JSON(fiber.Map{"error": "failed to create post"})
 		}
 
 		return c.Status(201).JSON(p)
 	})
 
-	app.Delete("/api/posts/:id", func(c *fiber.Ctx) error {
-		id := c.Params("id")
-		_, err := dbPool.Exec(context.Background(), "DELETE FROM posts WHERE id = $1", id)
+	app.Delete("/api/posts/:id", clerkAuth, func(c *fiber.Ctx) error {
+		userId, _ := c.Locals("userId").(string)
+		postId := c.Params("id")
+
+		result, err := dbPool.Exec(context.Background(),
+			"DELETE FROM posts WHERE id = $1 AND user_id = $2", postId, userId)
 		if err != nil {
-			return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+			return c.Status(500).JSON(fiber.Map{"error": "failed to delete post"})
 		}
+		if result.RowsAffected() == 0 {
+			return c.Status(404).JSON(fiber.Map{"error": "post not found or not yours"})
+		}
+
 		return c.SendStatus(204)
 	})
 
 	app.Get("/api/gigs", func(c *fiber.Ctx) error {
-		rows, err := dbPool.Query(context.Background(), 
+		rows, err := dbPool.Query(context.Background(),
 			"SELECT id, title, description, location, payment, posted_by, posted_by_role, posted_by_avatar, applications, created_at FROM gigs ORDER BY created_at DESC")
 		if err != nil {
-			return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+			return c.Status(500).JSON(fiber.Map{"error": "failed to fetch gigs"})
 		}
 		defer rows.Close()
 
 		var gigs []Gig
 		for rows.Next() {
 			var g Gig
-			err := rows.Scan(&g.Id, &g.Title, &g.Description, &g.Location, &g.Payment, &g.PostedBy, &g.PostedByRole, &g.PostedByAvatar, &g.Applications, &g.CreatedAt)
-			if err == nil {
+			if err := rows.Scan(&g.Id, &g.Title, &g.Description, &g.Location, &g.Payment, &g.PostedBy, &g.PostedByRole, &g.PostedByAvatar, &g.Applications, &g.CreatedAt); err == nil {
 				gigs = append(gigs, g)
 			}
 		}

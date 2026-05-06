@@ -1,10 +1,5 @@
-/**
- * Universal Upload Helper using Uploadcare.
- * Handles uploading files with real-time progress updates.
- */
-
-export const uploadMediaAsset = async (
-  file: File, 
+export const uploadFile = async (
+  file: File,
   onProgress?: (progress: number) => void
 ): Promise<string> => {
   const publicKey = process.env.NEXT_PUBLIC_UPLOADCARE_PUBLIC_KEY || "demopublickey";
@@ -19,7 +14,7 @@ export const uploadMediaAsset = async (
   formData.append("file", file);
 
   const xhr = new XMLHttpRequest();
-  
+
   return new Promise((resolve, reject) => {
     xhr.open("POST", "https://upload.uploadcare.com/base/");
 
@@ -34,15 +29,12 @@ export const uploadMediaAsset = async (
       if (xhr.status === 200) {
         try {
           const response = JSON.parse(xhr.responseText);
-          // Uploadcare returns a UUID. We format it into a CDN URL.
           const fileId = response.file;
-          const url = `https://ucarecdn.com/${fileId}/`;
-          resolve(url);
-        } catch (e) {
+          resolve(`https://ucarecdn.com/${fileId}/`);
+        } catch {
           reject(new Error("Failed to parse Uploadcare response"));
         }
       } else {
-        console.error("Uploadcare Error:", xhr.responseText);
         reject(new Error("Upload failed. Please try again."));
       }
     };
@@ -51,5 +43,3 @@ export const uploadMediaAsset = async (
     xhr.send(formData);
   });
 };
-
-export const uploadToCloudinary = uploadMediaAsset;

@@ -13,7 +13,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
-import { uploadToCloudinary } from "@/lib/cloudinary"
+import { uploadFile } from "@/lib/upload"
 import { cn } from "@/lib/utils"
 import { getDashboardFeedPath, getPostAuthPath, normalizeWebsiteUrl } from "@/lib/platform"
 
@@ -248,7 +248,7 @@ export default function OnboardingPage() {
                       const file = e.target.files?.[0]
                       if (file) {
                         try {
-                          const url = await uploadToCloudinary(file, (p) => setUploadProgress(p))
+                          const url = await uploadFile(file, (p) => setUploadProgress(p))
                           setProfilePreview(url)
                         } catch (err) {
                           console.error(err)
