@@ -22,8 +22,8 @@ export async function POST(request: NextRequest) {
 
     const data = await res.json()
 
-    // Verify the user is an admin
-    if (!data.user?.isAdmin) {
+    // Verify the user is an admin (isAdmin is top-level in the response, not inside user)
+    if (!data.isAdmin) {
       return NextResponse.json({ error: 'Access denied — not an admin' }, { status: 403 })
     }
 
