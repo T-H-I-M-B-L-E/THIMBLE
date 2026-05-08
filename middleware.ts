@@ -42,13 +42,29 @@ export async function middleware(req: NextRequest) {
     hostname === 'admin.localhost'
 
   if (isAdminSubdomain) {
-    const token = req.cookies.get('auth_token')?.value
+    const isLoginPage = pathname === '/login' || pathname === '/admin/login'
+
+    // Always rewrite /login → /admin/login
+    if (pathname === '/login') {
+      const url = req.nextUrl.clone()
+      url.pathname = '/admin/login'
+      return NextResponse.rewrite(url)
+    }
+
+    // Allow the login page through without auth
+    if (isLoginPage) return NextResponse.next()
+
+    const token = req.cookies.get('admin_token')?.value
     if (!token) {
-      return NextResponse.redirect('https://tvimble.tech/auth')
+      const url = req.nextUrl.clone()
+      url.pathname = '/admin/login'
+      return NextResponse.rewrite(url)
     }
     const payload = await verifyJWT(token)
     if (!payload) {
-      return NextResponse.redirect('https://tvimble.tech/auth')
+      const url = req.nextUrl.clone()
+      url.pathname = '/admin/login'
+      return NextResponse.rewrite(url)
     }
 
     // Rewrite to /admin prefix (unless already there)

@@ -1,9 +1,11 @@
-import { redirect } from 'next/navigation'
-import { getUserFromToken } from '@/lib/jwt-middleware'
+import { cookies } from 'next/headers'
+import { verifyJWT } from '@/lib/jwt-middleware'
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
-  const user = await getUserFromToken()
-  if (!user) redirect('https://tvimble.tech/auth')
+  const cookieStore = await cookies()
+  const token = cookieStore.get('admin_token')?.value
+  const user = token ? await verifyJWT(token) : null
+  if (!user) return null // middleware handles redirect to /admin/login
 
   return (
     <div className="min-h-screen bg-neutral-950 text-white flex">

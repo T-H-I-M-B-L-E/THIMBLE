@@ -386,10 +386,11 @@ func handleLogin(c *fiber.Ctx) error {
 	// Get user
 	var user User
 	var hashedPassword string
+	var isAdmin bool
 	var avatarUrl, bio, location, website, verificationStatus *string
 	err := dbPool.QueryRow(context.Background(),
-		"SELECT id, email, password_hash, full_name, role, avatar_url, bio, location, website, verification_status, followers, following, posts FROM users WHERE email = $1",
-		req.Email).Scan(&user.ID, &user.Email, &hashedPassword, &user.FullName, &user.Role, &avatarUrl, &bio, &location, &website, &verificationStatus, &user.Followers, &user.Following, &user.Posts)
+		"SELECT id, email, password_hash, full_name, role, avatar_url, bio, location, website, verification_status, followers, following, posts, is_admin FROM users WHERE email = $1",
+		req.Email).Scan(&user.ID, &user.Email, &hashedPassword, &user.FullName, &user.Role, &avatarUrl, &bio, &location, &website, &verificationStatus, &user.Followers, &user.Following, &user.Posts, &isAdmin)
 
 	if err != nil {
 		log.Printf("Login scan error for %s: %v", req.Email, err)
@@ -422,9 +423,10 @@ func handleLogin(c *fiber.Ctx) error {
 		SameSite: "Lax",
 	})
 
-	return c.Status(200).JSON(AuthResponse{
-		Token: token,
-		User:  user,
+	return c.Status(200).JSON(fiber.Map{
+		"token":   token,
+		"user":    user,
+		"isAdmin": isAdmin,
 	})
 }
 
