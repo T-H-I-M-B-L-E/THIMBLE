@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { requireAdminToken } from '@/lib/adminAuth'
 
 export async function GET(request: NextRequest) {
-  const token = request.cookies.get('admin_token')?.value
-  if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const auth = await requireAdminToken(request)
+  if (auth.error) return auth.error
 
   try {
     const res = await fetch(

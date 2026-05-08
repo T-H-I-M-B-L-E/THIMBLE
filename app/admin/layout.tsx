@@ -35,11 +35,25 @@ function AdminLayoutInner({ children }: { children: React.ReactNode }) {
   const [emailStats, setEmailStats] = useState<EmailStats | null>(null)
   const [togglingEmail, setTogglingEmail] = useState(false)
   const [adminName, setAdminName] = useState('')
+  const [authChecked, setAuthChecked] = useState(false)
   const pathname = usePathname()
 
   useEffect(() => {
     const stored = sessionStorage.getItem('admin_name') || ''
     setAdminName(stored.split(' ')[0])
+  }, [])
+
+  // Client-side auth gate — verify the session is still valid before rendering anything
+  useEffect(() => {
+    fetch('/api/admin/stats', { credentials: 'include' })
+      .then(r => {
+        if (r.status === 401 || r.status === 403) {
+          window.location.replace('/admin/login')
+        } else {
+          setAuthChecked(true)
+        }
+      })
+      .catch(() => setAuthChecked(true))
   }, [])
 
   useEffect(() => { setSidebarOpen(false) }, [pathname])
@@ -92,6 +106,10 @@ function AdminLayoutInner({ children }: { children: React.ReactNode }) {
 
   const isActive = (href: string) =>
     href === '/admin' ? pathname === '/admin' : pathname.startsWith(href)
+
+  if (!authChecked) {
+    return <div className="min-h-screen bg-neutral-950" />
+  }
 
   return (
     <div className="min-h-screen bg-neutral-950 text-white flex">

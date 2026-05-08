@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { requireAdminToken } from '@/lib/adminAuth'
 
 export async function GET(request: NextRequest) {
-  const token = request.cookies.get('admin_token')?.value
-  if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const auth = await requireAdminToken(request)
+  if (auth.error) return auth.error
 
   const apiBase = process.env.API_BASE_URL || process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8080'
   const res = await fetch(`${apiBase}/admin/stats`, {
-    headers: { Authorization: `Bearer ${token}` },
+    headers: { Authorization: `Bearer ${auth.token}` },
   })
-  const data = await res.json()
-  return NextResponse.json(data, { status: res.status })
+  return NextResponse.json(await res.json(), { status: res.status })
 }

@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { jwtVerify } from 'jose'
 
-// Read lazily so process.env.JWT_SECRET is picked up at call time (also helps tests)
 function getJWTSecret(): Uint8Array {
   return new TextEncoder().encode(
     process.env.JWT_SECRET || 'fallback-secret-key-change-in-production'
@@ -25,75 +24,92 @@ async function verifyJWT(token: string) {
   try {
     const verified = await jwtVerify(token, getJWTSecret())
     return verified.payload
-  } catch (error) {
+  } catch {
     return null
   }
+}
+
+function addSecurityHeaders(res: NextResponse): NextResponse {
+  res.headers.set('X-Frame-Options', 'DENY')
+  res.headers.set('X-Content-Type-Options', 'nosniff')
+  res.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin')
+  res.headers.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=()')
+  return res
+}
+
+function loginRedirect(req: NextRequest): NextResponse {
+  const url = req.nextUrl.clone()
+  url.pathname = '/admin/login'
+  // Strip any query params that could leak info
+  url.search = ''
+  const res = NextResponse.redirect(url)
+  // Clear any stale/tampered admin_token
+  res.cookies.set('admin_token', '', { maxAge: 0, path: '/' })
+  return addSecurityHeaders(res)
 }
 
 export async function middleware(req: NextRequest) {
   const pathname = req.nextUrl.pathname
   const hostname = req.headers.get('host') || ''
 
-  // ── Admin subdomain routing ──────────────────────────────────────────────
-  // Requests to admin.tvimble.com (or admin.tvimble.tech / admin.localhost)
-  // are rewritten so /  → /admin  and  /users → /admin/users etc.
-  const isAdminSubdomain =
-    hostname.startsWith('admin.') ||
-    hostname === 'admin.localhost'
+  // ── Admin routing ────────────────────────────────────────────────────────
+  // Protect on both the subdomain AND direct /admin/* paths on the main domain
+  const isAdminSubdomain = hostname.startsWith('admin.') || hostname === 'admin.localhost'
+  const isAdminPath = pathname.startsWith('/admin')
 
-  if (isAdminSubdomain) {
+  if (isAdminSubdomain || isAdminPath) {
     const isLoginPage = pathname === '/login' || pathname === '/admin/login'
     const isSplashPage = pathname === '/admin/splash'
 
-    // Always rewrite /login → /admin/login
-    if (pathname === '/login') {
+    // Rewrite bare /login → /admin/login on subdomain
+    if (isAdminSubdomain && pathname === '/login') {
       const url = req.nextUrl.clone()
       url.pathname = '/admin/login'
       return NextResponse.rewrite(url)
     }
 
-    // Allow the login page, splash screen, and all API routes through without auth
-    if (isLoginPage || isSplashPage || pathname.startsWith('/api/')) return NextResponse.next()
-
-    const token = req.cookies.get('admin_token')?.value
-    if (!token) {
-      const url = req.nextUrl.clone()
-      url.pathname = '/admin/login'
-      return NextResponse.redirect(url)
+    // Login and splash pass through — no token needed
+    if (isLoginPage || isSplashPage) {
+      return addSecurityHeaders(NextResponse.next())
     }
 
-    // Rewrite to /admin prefix (unless already there)
-    if (!pathname.startsWith('/admin') && !pathname.startsWith('/api')) {
+    // API routes pass through — each handler verifies the token independently
+    if (pathname.startsWith('/api/admin/')) {
+      return NextResponse.next()
+    }
+
+    // Everything else requires a valid admin token
+    const token = req.cookies.get('admin_token')?.value
+    if (!token) return loginRedirect(req)
+
+    // Verify the JWT is genuine and unexpired
+    const payload = await verifyJWT(token)
+    if (!payload) return loginRedirect(req)
+
+    // Must be an admin
+    if (!payload.isAdmin) return loginRedirect(req)
+
+    // On subdomain: rewrite to /admin prefix if not already there
+    if (isAdminSubdomain && !pathname.startsWith('/admin') && !pathname.startsWith('/api')) {
       const url = req.nextUrl.clone()
       url.pathname = `/admin${pathname === '/' ? '' : pathname}`
-      return NextResponse.rewrite(url)
+      return addSecurityHeaders(NextResponse.rewrite(url))
     }
-    return NextResponse.next()
+
+    return addSecurityHeaders(NextResponse.next())
   }
 
   // ── Regular app routes ───────────────────────────────────────────────────
-  // Skip middleware for non-protected routes
   if (!isProtectedRoute(pathname)) {
     return NextResponse.next()
   }
 
-  // Get JWT from cookies
   const token = req.cookies.get('auth_token')?.value
+  if (!token) return NextResponse.redirect(new URL('/auth', req.url))
 
-  if (!token) {
-    // No token, redirect to auth
-    return NextResponse.redirect(new URL('/auth', req.url))
-  }
-
-  // Verify JWT
   const payload = await verifyJWT(token)
+  if (!payload) return NextResponse.redirect(new URL('/auth', req.url))
 
-  if (!payload) {
-    // Invalid token, redirect to auth
-    return NextResponse.redirect(new URL('/auth', req.url))
-  }
-
-  // Token is valid, continue
   return NextResponse.next()
 }
 
