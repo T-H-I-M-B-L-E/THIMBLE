@@ -7,23 +7,25 @@ async function getToken(request: NextRequest) {
   return request.cookies.get('auth_token')?.value
 }
 
-export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const payload = await getUserFromToken()
   if (!payload) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const { id } = await params
   const token = await getToken(request)
-  const res = await fetch(`${apiBase()}/admin/users/${params.id}`, {
+  const res = await fetch(`${apiBase()}/admin/users/${id}`, {
     headers: { Authorization: `Bearer ${token}` },
   })
   const data = await res.json()
   return NextResponse.json(data, { status: res.status })
 }
 
-export async function PATCH(request: NextRequest, { params }: { params: { id: string } }) {
+export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const payload = await getUserFromToken()
   if (!payload) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const { id } = await params
   const token = await getToken(request)
   const body = await request.json()
-  const res = await fetch(`${apiBase()}/admin/users/${params.id}`, {
+  const res = await fetch(`${apiBase()}/admin/users/${id}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
     body: JSON.stringify(body),
@@ -32,11 +34,12 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
   return NextResponse.json(data, { status: res.status })
 }
 
-export async function DELETE(request: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const payload = await getUserFromToken()
   if (!payload) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const { id } = await params
   const token = await getToken(request)
-  const res = await fetch(`${apiBase()}/admin/users/${params.id}`, {
+  const res = await fetch(`${apiBase()}/admin/users/${id}`, {
     method: 'DELETE',
     headers: { Authorization: `Bearer ${token}` },
   })
