@@ -494,11 +494,16 @@ func handleResetPassword(c *fiber.Ctx) error {
 	}
 
 	// Update password
-	_, err = dbPool.Exec(context.Background(),
+	result, err := dbPool.Exec(context.Background(),
 		"UPDATE users SET password_hash = $1, updated_at = CURRENT_TIMESTAMP WHERE email = $2",
 		string(hashedPassword), req.Email)
 	if err != nil {
+		log.Printf("Reset password DB error for %s: %v", req.Email, err)
 		return c.Status(500).JSON(fiber.Map{"error": "failed to reset password"})
+	}
+	if result.RowsAffected() == 0 {
+		log.Printf("Reset password: no user found with email %s", req.Email)
+		return c.Status(404).JSON(fiber.Map{"error": "user not found"})
 	}
 
 	return c.Status(200).JSON(fiber.Map{"success": true})
