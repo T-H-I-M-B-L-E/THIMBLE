@@ -14,7 +14,6 @@ export function useAuth(): AuthHook {
   const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
-    // Fetch user data from API route that reads the JWT cookie
     const fetchUser = async () => {
       try {
         const controller = new AbortController()
@@ -31,8 +30,7 @@ export function useAuth(): AuthHook {
         } else {
           setUser(null)
         }
-      } catch (error) {
-        console.error('Failed to fetch user:', error)
+      } catch {
         setUser(null)
       } finally {
         setIsLoading(false)
@@ -40,6 +38,18 @@ export function useAuth(): AuthHook {
     }
 
     fetchUser()
+
+    // Re-fetch when the tab regains focus — picks up admin changes instantly
+    const onFocus = () => fetchUser()
+    window.addEventListener('focus', onFocus)
+
+    // Poll every 30s so changes reflect even if the tab stays open
+    const interval = setInterval(fetchUser, 30_000)
+
+    return () => {
+      window.removeEventListener('focus', onFocus)
+      clearInterval(interval)
+    }
   }, [])
 
   const logout = async () => {
