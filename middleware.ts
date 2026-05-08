@@ -51,8 +51,8 @@ export async function middleware(req: NextRequest) {
       return NextResponse.rewrite(url)
     }
 
-    // Allow the login page through without auth
-    if (isLoginPage) return NextResponse.next()
+    // Allow the login page and all API routes through without auth
+    if (isLoginPage || pathname.startsWith('/api/')) return NextResponse.next()
 
     const token = req.cookies.get('admin_token')?.value
     if (!token) {
