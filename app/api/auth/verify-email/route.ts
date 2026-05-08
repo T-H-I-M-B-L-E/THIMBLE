@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 
 export async function POST(request: NextRequest) {
   try {
-    const { email, code } = await request.json()
+    const { email, code, password, fullName } = await request.json()
 
     if (!email || !code) {
       return NextResponse.json(
@@ -18,7 +18,7 @@ export async function POST(request: NextRequest) {
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ email, code }),
+      body: JSON.stringify({ email, code, password, fullName }),
     })
 
     if (!response.ok) {

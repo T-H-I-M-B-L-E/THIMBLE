@@ -156,6 +156,8 @@ export default function SignupPage() {
         body: JSON.stringify({
           email: tempEmail,
           code: verificationCode,
+          password: formData.password,
+          fullName: formData.fullName,
         }),
         credentials: "include",
       })
