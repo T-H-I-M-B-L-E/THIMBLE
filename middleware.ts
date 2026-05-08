@@ -59,7 +59,7 @@ export async function middleware(req: NextRequest) {
     if (!token) {
       const url = req.nextUrl.clone()
       url.pathname = '/admin/login'
-      return NextResponse.rewrite(url)
+      return NextResponse.redirect(url)
     }
 
     // Rewrite to /admin prefix (unless already there)
