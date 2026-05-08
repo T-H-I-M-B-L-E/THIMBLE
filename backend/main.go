@@ -399,7 +399,7 @@ func handleVerifyEmail(c *fiber.Ctx) error {
 		ID:       userId,
 		Email:    req.Email,
 		FullName: fullName,
-		Role:     "model",
+		Role:     "",
 	}
 
 	return c.Status(200).JSON(AuthResponse{

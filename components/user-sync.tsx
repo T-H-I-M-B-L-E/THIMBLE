@@ -22,7 +22,7 @@ export function UserSync() {
         fullName: user.fullName || "",
         email: user.email,
         phone: user.phone || "",
-        role: (user.role as UserRole) ?? null,
+        role: (user.role || null) as UserRole,
         avatar: user.avatar,
         bio: user.bio || "",
         location: user.location || "",
