@@ -257,6 +257,23 @@ func handleSignup(c *fiber.Ctx) error {
 		return c.Status(400).JSON(fiber.Map{"error": "email already registered"})
 	}
 
+	// Hash password upfront so we can store it pending verification
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": "failed to process signup"})
+	}
+
+	// Store pending signup so verify-email doesn't need the password resent
+	_, err = dbPool.Exec(context.Background(),
+		`INSERT INTO pending_signups (email, password_hash, full_name, created_at)
+		 VALUES ($1, $2, $3, NOW())
+		 ON CONFLICT (email) DO UPDATE SET password_hash = $2, full_name = $3, created_at = NOW()`,
+		req.Email, string(hashedPassword), req.FullName)
+	if err != nil {
+		log.Printf("Failed to save pending signup: %v", err)
+		return c.Status(500).JSON(fiber.Map{"error": "failed to process signup"})
+	}
+
 	// Generate verification code
 	code := generateVerificationCode()
 	expiresAt := time.Now().Add(10 * time.Minute)
@@ -275,8 +292,6 @@ func handleSignup(c *fiber.Ctx) error {
 		return c.Status(500).JSON(fiber.Map{"error": "failed to send verification email"})
 	}
 
-	// Store signup data temporarily (in a separate table would be better, but for now return response)
-	// The frontend will send this data again with the verification code
 	return c.Status(200).JSON(SignupResponse{
 		VerificationRequired: true,
 		ExpiresIn:            "10m",
@@ -306,28 +321,27 @@ func handleVerifyEmail(c *fiber.Ctx) error {
 		return c.Status(400).JSON(fiber.Map{"error": "invalid or expired verification code"})
 	}
 
-	// Get signup data from request (frontend should resend this)
-	// For now, get from request body with password and fullName
-	var signupData SignupRequest
-	if err := c.BodyParser(&signupData); err != nil || signupData.Password == "" || signupData.FullName == "" {
-		return c.Status(400).JSON(fiber.Map{"error": "password and fullName are required"})
-	}
-
-	// Hash password
-	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(signupData.Password), bcrypt.DefaultCost)
+	// Fetch pending signup data
+	var hashedPassword, fullName string
+	err = dbPool.QueryRow(context.Background(),
+		"SELECT password_hash, full_name FROM pending_signups WHERE email = $1",
+		req.Email).Scan(&hashedPassword, &fullName)
 	if err != nil {
-		return c.Status(500).JSON(fiber.Map{"error": "failed to create user"})
+		return c.Status(400).JSON(fiber.Map{"error": "signup session not found, please sign up again"})
 	}
 
 	// Create user
 	userId := uuid.New().String()
 	_, err = dbPool.Exec(context.Background(),
 		"INSERT INTO users (id, email, password_hash, full_name, role) VALUES ($1, $2, $3, $4, $5)",
-		userId, req.Email, string(hashedPassword), signupData.FullName, "model")
+		userId, req.Email, hashedPassword, fullName, "model")
 	if err != nil {
 		log.Printf("Failed to create user: %v", err)
 		return c.Status(500).JSON(fiber.Map{"error": "failed to create user"})
 	}
+
+	// Clean up pending signup
+	dbPool.Exec(context.Background(), "DELETE FROM pending_signups WHERE email = $1", req.Email)
 
 	// Generate JWT
 	token, err := generateJWT(userId, req.Email)
@@ -348,7 +362,7 @@ func handleVerifyEmail(c *fiber.Ctx) error {
 	user := User{
 		ID:       userId,
 		Email:    req.Email,
-		FullName: signupData.FullName,
+		FullName: fullName,
 		Role:     "model",
 	}
 
@@ -666,6 +680,19 @@ func main() {
 		log.Fatal("Unable to connect to database:", err)
 	}
 	defer dbPool.Close()
+
+	// Ensure pending_signups table exists
+	_, err = dbPool.Exec(context.Background(), `
+		CREATE TABLE IF NOT EXISTS pending_signups (
+			email        TEXT PRIMARY KEY,
+			password_hash TEXT NOT NULL,
+			full_name    TEXT NOT NULL,
+			created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
+		)
+	`)
+	if err != nil {
+		log.Fatal("Failed to create pending_signups table:", err)
+	}
 
 	app := fiber.New()
 	app.Use(cors.New(cors.Config{
