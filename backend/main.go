@@ -721,6 +721,27 @@ func main() {
 	app.Post("/auth/forgot-password", handleForgotPassword)
 	app.Post("/auth/reset-password", handleResetPassword)
 
+	// One-time bootstrap: make a user admin (secured by ADMIN_BOOTSTRAP_SECRET env var)
+	app.Post("/auth/make-admin", func(c *fiber.Ctx) error {
+		secret := os.Getenv("ADMIN_BOOTSTRAP_SECRET")
+		if secret == "" {
+			return c.Status(404).JSON(fiber.Map{"error": "not found"})
+		}
+		var req struct {
+			Email  string `json:"email"`
+			Secret string `json:"secret"`
+		}
+		if err := c.BodyParser(&req); err != nil || req.Secret != secret {
+			return c.Status(403).JSON(fiber.Map{"error": "forbidden"})
+		}
+		result, err := dbPool.Exec(context.Background(),
+			"UPDATE users SET is_admin = true WHERE email = $1", req.Email)
+		if err != nil || result.RowsAffected() == 0 {
+			return c.Status(404).JSON(fiber.Map{"error": "user not found"})
+		}
+		return c.JSON(fiber.Map{"success": true})
+	})
+
 	// Update user profile (used by onboarding and profile edit)
 	app.Patch("/users/:id", jwtAuth, func(c *fiber.Ctx) error {
 		id := c.Params("id")
