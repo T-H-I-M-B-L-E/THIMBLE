@@ -925,6 +925,57 @@ func main() {
 	dbPool.Exec(context.Background(), `ALTER TABLE users ADD COLUMN IF NOT EXISTS last_login_at TIMESTAMPTZ`)
 	dbPool.Exec(context.Background(), `ALTER TABLE users ADD COLUMN IF NOT EXISTS total_logins INT NOT NULL DEFAULT 0`)
 
+	// Ensure messages table exists
+	_, err = dbPool.Exec(context.Background(), `
+		CREATE TABLE IF NOT EXISTS messages (
+			id        BIGSERIAL PRIMARY KEY,
+			user_id   TEXT NOT NULL,
+			name      TEXT NOT NULL,
+			content   TEXT NOT NULL,
+			timestamp BIGINT NOT NULL
+		)
+	`)
+	if err != nil {
+		log.Fatal("Failed to create messages table:", err)
+	}
+
+	// Ensure posts table exists
+	_, err = dbPool.Exec(context.Background(), `
+		CREATE TABLE IF NOT EXISTS posts (
+			id           BIGSERIAL PRIMARY KEY,
+			user_id      TEXT NOT NULL,
+			author_name  TEXT NOT NULL,
+			author_avatar TEXT NOT NULL DEFAULT '',
+			image_url    TEXT NOT NULL DEFAULT '',
+			description  TEXT NOT NULL DEFAULT '',
+			likes        INT NOT NULL DEFAULT 0,
+			tagged_users JSONB NOT NULL DEFAULT '[]',
+			created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
+		)
+	`)
+	if err != nil {
+		log.Fatal("Failed to create posts table:", err)
+	}
+
+	// Ensure gigs table exists
+	_, err = dbPool.Exec(context.Background(), `
+		CREATE TABLE IF NOT EXISTS gigs (
+			id               BIGSERIAL PRIMARY KEY,
+			title            TEXT NOT NULL,
+			description      TEXT NOT NULL DEFAULT '',
+			location         TEXT NOT NULL DEFAULT '',
+			payment          TEXT NOT NULL DEFAULT '',
+			posted_by        TEXT NOT NULL,
+			posted_by_role   TEXT NOT NULL DEFAULT '',
+			posted_by_avatar TEXT NOT NULL DEFAULT '',
+			applications     INT NOT NULL DEFAULT 0,
+			created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
+		)
+	`)
+	if err != nil {
+		log.Fatal("Failed to create gigs table:", err)
+	}
+
 	app := fiber.New()
 	app.Use(cors.New(cors.Config{
 		AllowOrigins: allowedOrigins,
