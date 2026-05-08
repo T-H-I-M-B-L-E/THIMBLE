@@ -32,7 +32,35 @@ async function verifyJWT(token: string) {
 
 export async function middleware(req: NextRequest) {
   const pathname = req.nextUrl.pathname
+  const hostname = req.headers.get('host') || ''
 
+  // ── Admin subdomain routing ──────────────────────────────────────────────
+  // Requests to admin.tvimble.com (or admin.tvimble.tech / admin.localhost)
+  // are rewritten so /  → /admin  and  /users → /admin/users etc.
+  const isAdminSubdomain =
+    hostname.startsWith('admin.') ||
+    hostname === 'admin.localhost'
+
+  if (isAdminSubdomain) {
+    const token = req.cookies.get('auth_token')?.value
+    if (!token) {
+      return NextResponse.redirect(new URL('/auth', req.url))
+    }
+    const payload = await verifyJWT(token)
+    if (!payload) {
+      return NextResponse.redirect(new URL('/auth', req.url))
+    }
+
+    // Rewrite to /admin prefix (unless already there)
+    if (!pathname.startsWith('/admin') && !pathname.startsWith('/api')) {
+      const url = req.nextUrl.clone()
+      url.pathname = `/admin${pathname === '/' ? '' : pathname}`
+      return NextResponse.rewrite(url)
+    }
+    return NextResponse.next()
+  }
+
+  // ── Regular app routes ───────────────────────────────────────────────────
   // Skip middleware for non-protected routes
   if (!isProtectedRoute(pathname)) {
     return NextResponse.next()

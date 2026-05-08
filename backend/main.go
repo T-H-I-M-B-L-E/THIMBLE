@@ -38,6 +38,27 @@ type User struct {
 	Posts              int    `json:"posts"`
 }
 
+type AdminUserView struct {
+	ID                 string    `json:"id"`
+	Email              string    `json:"email"`
+	FullName           string    `json:"fullName"`
+	Role               string    `json:"role"`
+	VerificationStatus string    `json:"verificationStatus"`
+	IsAdmin            bool      `json:"isAdmin"`
+	CreatedAt          time.Time `json:"createdAt"`
+	Followers          int       `json:"followers"`
+	Following          int       `json:"following"`
+	Posts              int       `json:"posts"`
+}
+
+type AdminStats struct {
+	TotalUsers           int `json:"totalUsers"`
+	TodaySignups         int `json:"todaySignups"`
+	WeekSignups          int `json:"weekSignups"`
+	PendingVerifications int `json:"pendingVerifications"`
+	VerifiedUsers        int `json:"verifiedUsers"`
+}
+
 type Message struct {
 	UserId    string `json:"userId"`
 	Name      string `json:"name"`
@@ -196,6 +217,23 @@ func jwtAuth(c *fiber.Ctx) error {
 
 	c.Locals("userId", claims.UserID)
 	c.Locals("email", claims.Email)
+	return c.Next()
+}
+
+// adminAuth middleware - must run AFTER jwtAuth. Checks is_admin flag in DB.
+func adminAuth(c *fiber.Ctx) error {
+	userId, ok := c.Locals("userId").(string)
+	if !ok || userId == "" {
+		return c.Status(401).JSON(fiber.Map{"error": "unauthorized"})
+	}
+
+	var isAdmin bool
+	err := dbPool.QueryRow(context.Background(),
+		"SELECT is_admin FROM users WHERE id = $1", userId).Scan(&isAdmin)
+	if err != nil || !isAdmin {
+		return c.Status(403).JSON(fiber.Map{"error": "forbidden: admin access required"})
+	}
+
 	return c.Next()
 }
 
@@ -468,6 +506,139 @@ func wsAuth(c *fiber.Ctx) error {
 	return c.Next()
 }
 
+func handleAdminStats(c *fiber.Ctx) error {
+	ctx := context.Background()
+	var stats AdminStats
+	dbPool.QueryRow(ctx, "SELECT COUNT(*) FROM users").Scan(&stats.TotalUsers)
+	dbPool.QueryRow(ctx, "SELECT COUNT(*) FROM users WHERE created_at >= CURRENT_DATE").Scan(&stats.TodaySignups)
+	dbPool.QueryRow(ctx, "SELECT COUNT(*) FROM users WHERE created_at >= NOW() - INTERVAL '7 days'").Scan(&stats.WeekSignups)
+	dbPool.QueryRow(ctx, "SELECT COUNT(*) FROM users WHERE verification_status = 'pending'").Scan(&stats.PendingVerifications)
+	dbPool.QueryRow(ctx, "SELECT COUNT(*) FROM users WHERE verification_status = 'verified'").Scan(&stats.VerifiedUsers)
+	return c.JSON(stats)
+}
+
+func handleAdminListUsers(c *fiber.Ctx) error {
+	ctx := context.Background()
+	search := c.Query("search", "")
+	role := c.Query("role", "")
+
+	query := `SELECT id, email, full_name, role, verification_status, is_admin, created_at, followers, following, posts FROM users WHERE 1=1`
+	args := []interface{}{}
+	argIdx := 1
+
+	if search != "" {
+		query += fmt.Sprintf(" AND (email ILIKE $%d OR full_name ILIKE $%d)", argIdx, argIdx+1)
+		args = append(args, "%"+search+"%", "%"+search+"%")
+		argIdx += 2
+	}
+
+	if role != "" {
+		query += fmt.Sprintf(" AND role = $%d", argIdx)
+		args = append(args, role)
+		argIdx++
+	}
+
+	query += " ORDER BY created_at DESC"
+
+	rows, err := dbPool.Query(ctx, query, args...)
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": "failed to fetch users"})
+	}
+	defer rows.Close()
+
+	var users []AdminUserView
+	for rows.Next() {
+		var u AdminUserView
+		if err := rows.Scan(&u.ID, &u.Email, &u.FullName, &u.Role, &u.VerificationStatus, &u.IsAdmin, &u.CreatedAt, &u.Followers, &u.Following, &u.Posts); err == nil {
+			users = append(users, u)
+		}
+	}
+	if users == nil {
+		users = []AdminUserView{}
+	}
+	return c.JSON(users)
+}
+
+func handleAdminGetUser(c *fiber.Ctx) error {
+	ctx := context.Background()
+	id := c.Params("id")
+
+	var u AdminUserView
+	err := dbPool.QueryRow(ctx,
+		`SELECT id, email, full_name, role, verification_status, is_admin, created_at, followers, following, posts FROM users WHERE id = $1`, id).Scan(
+		&u.ID, &u.Email, &u.FullName, &u.Role, &u.VerificationStatus, &u.IsAdmin, &u.CreatedAt, &u.Followers, &u.Following, &u.Posts)
+	if err != nil {
+		return c.Status(404).JSON(fiber.Map{"error": "user not found"})
+	}
+	return c.JSON(u)
+}
+
+func handleAdminUpdateUser(c *fiber.Ctx) error {
+	ctx := context.Background()
+	id := c.Params("id")
+
+	var body struct {
+		Role               *string `json:"role"`
+		VerificationStatus *string `json:"verificationStatus"`
+		IsAdmin            *bool   `json:"isAdmin"`
+	}
+
+	if err := c.BodyParser(&body); err != nil {
+		return c.Status(400).JSON(fiber.Map{"error": "invalid request body"})
+	}
+
+	setClauses := []string{}
+	args := []interface{}{}
+	argIdx := 1
+
+	if body.Role != nil {
+		setClauses = append(setClauses, fmt.Sprintf("role = $%d", argIdx))
+		args = append(args, *body.Role)
+		argIdx++
+	}
+	if body.VerificationStatus != nil {
+		setClauses = append(setClauses, fmt.Sprintf("verification_status = $%d", argIdx))
+		args = append(args, *body.VerificationStatus)
+		argIdx++
+	}
+	if body.IsAdmin != nil {
+		setClauses = append(setClauses, fmt.Sprintf("is_admin = $%d", argIdx))
+		args = append(args, *body.IsAdmin)
+		argIdx++
+	}
+
+	if len(setClauses) == 0 {
+		return c.Status(400).JSON(fiber.Map{"error": "no fields to update"})
+	}
+
+	setClauses = append(setClauses, "updated_at = CURRENT_TIMESTAMP")
+	query := fmt.Sprintf("UPDATE users SET %s WHERE id = $%d", strings.Join(setClauses, ", "), argIdx)
+	args = append(args, id)
+
+	result, err := dbPool.Exec(ctx, query, args...)
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": "failed to update user"})
+	}
+	if result.RowsAffected() == 0 {
+		return c.Status(404).JSON(fiber.Map{"error": "user not found"})
+	}
+	return c.JSON(fiber.Map{"success": true})
+}
+
+func handleAdminDeleteUser(c *fiber.Ctx) error {
+	ctx := context.Background()
+	id := c.Params("id")
+
+	result, err := dbPool.Exec(ctx, "DELETE FROM users WHERE id = $1", id)
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": "failed to delete user"})
+	}
+	if result.RowsAffected() == 0 {
+		return c.Status(404).JSON(fiber.Map{"error": "user not found"})
+	}
+	return c.SendStatus(204)
+}
+
 func main() {
 	jwtSecret = os.Getenv("JWT_SECRET")
 	if jwtSecret == "" {
@@ -486,7 +657,7 @@ func main() {
 
 	allowedOrigins := os.Getenv("CORS_ALLOWED_ORIGINS")
 	if allowedOrigins == "" {
-		allowedOrigins = "http://localhost:3000,https://tvimble.tech"
+		allowedOrigins = "http://localhost:3000,https://tvimble.tech,https://admin.tvimble.com,https://admin.tvimble.tech"
 	}
 
 	var err error
@@ -678,6 +849,14 @@ func main() {
 		}
 		return c.JSON(gigs)
 	})
+
+	// Admin routes (JWT + is_admin required)
+	adminGroup := app.Group("/admin", jwtAuth, adminAuth)
+	adminGroup.Get("/stats", handleAdminStats)
+	adminGroup.Get("/users", handleAdminListUsers)
+	adminGroup.Get("/users/:id", handleAdminGetUser)
+	adminGroup.Patch("/users/:id", handleAdminUpdateUser)
+	adminGroup.Delete("/users/:id", handleAdminDeleteUser)
 
 	port := os.Getenv("PORT")
 	if port == "" {

@@ -13,6 +13,7 @@ CREATE TABLE IF NOT EXISTS users (
     location VARCHAR(255),
     website VARCHAR(255),
     verification_status VARCHAR(50) DEFAULT 'unverified',
+    is_admin BOOLEAN DEFAULT FALSE,
     followers INTEGER DEFAULT 0,
     following INTEGER DEFAULT 0,
     posts INTEGER DEFAULT 0,
@@ -80,3 +81,9 @@ CREATE TRIGGER trigger_update_conversation_timestamp
     AFTER INSERT ON messages
     FOR EACH ROW
     EXECUTE FUNCTION update_conversation_timestamp();
+
+-- Migration: add is_admin to existing databases (safe to run multiple times)
+ALTER TABLE users ADD COLUMN IF NOT EXISTS is_admin BOOLEAN DEFAULT FALSE;
+
+-- To make yourself an admin, run:
+-- UPDATE users SET is_admin = TRUE WHERE email = 'your@email.com';
