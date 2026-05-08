@@ -714,6 +714,31 @@ func main() {
 	app.Post("/auth/forgot-password", handleForgotPassword)
 	app.Post("/auth/reset-password", handleResetPassword)
 
+	// Temporary debug endpoint - remove after fixing login
+	app.Post("/debug/check-password", func(c *fiber.Ctx) error {
+		var req struct {
+			Email    string `json:"email"`
+			Password string `json:"password"`
+		}
+		if err := c.BodyParser(&req); err != nil {
+			return c.Status(400).JSON(fiber.Map{"error": "bad request"})
+		}
+		var hash string
+		err := dbPool.QueryRow(context.Background(),
+			"SELECT password_hash FROM users WHERE email = $1", req.Email).Scan(&hash)
+		if err != nil {
+			return c.JSON(fiber.Map{"userFound": false, "err": err.Error()})
+		}
+		bcryptErr := bcrypt.CompareHashAndPassword([]byte(hash), []byte(req.Password))
+		return c.JSON(fiber.Map{
+			"userFound":    true,
+			"hashLen":      len(hash),
+			"hashPrefix":   hash[:10],
+			"bcryptMatch":  bcryptErr == nil,
+			"bcryptErr":    fmt.Sprintf("%v", bcryptErr),
+		})
+	})
+
 	// WebSocket (protected)
 	app.Get("/ws", wsAuth, websocket.New(func(c *websocket.Conn) {
 		userId, _ := c.Locals("userId").(string)
