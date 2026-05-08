@@ -334,7 +334,7 @@ func handleVerifyEmail(c *fiber.Ctx) error {
 	userId := uuid.New().String()
 	_, err = dbPool.Exec(context.Background(),
 		"INSERT INTO users (id, email, password_hash, full_name, role) VALUES ($1, $2, $3, $4, $5)",
-		userId, req.Email, hashedPassword, fullName, "model")
+		userId, req.Email, hashedPassword, fullName, "")
 	if err != nil {
 		log.Printf("Failed to create user: %v", err)
 		return c.Status(500).JSON(fiber.Map{"error": "failed to create user"})
@@ -720,6 +720,40 @@ func main() {
 	app.Post("/auth/logout", handleLogout)
 	app.Post("/auth/forgot-password", handleForgotPassword)
 	app.Post("/auth/reset-password", handleResetPassword)
+
+	// Update user profile (used by onboarding and profile edit)
+	app.Patch("/users/:id", jwtAuth, func(c *fiber.Ctx) error {
+		id := c.Params("id")
+		callerID := c.Locals("userId").(string)
+		if callerID != id {
+			return c.Status(403).JSON(fiber.Map{"error": "forbidden"})
+		}
+		var body struct {
+			Role     *string `json:"role"`
+			Bio      *string `json:"bio"`
+			Avatar   *string `json:"avatar"`
+			Website  *string `json:"website"`
+			Location *string `json:"location"`
+		}
+		if err := c.BodyParser(&body); err != nil {
+			return c.Status(400).JSON(fiber.Map{"error": "invalid request body"})
+		}
+		_, err := dbPool.Exec(context.Background(),
+			`UPDATE users SET
+				role = COALESCE($1, role),
+				bio = COALESCE($2, bio),
+				avatar_url = COALESCE($3, avatar_url),
+				website = COALESCE($4, website),
+				location = COALESCE($5, location),
+				updated_at = CURRENT_TIMESTAMP
+			WHERE id = $6`,
+			body.Role, body.Bio, body.Avatar, body.Website, body.Location, id)
+		if err != nil {
+			log.Printf("Failed to update user %s: %v", id, err)
+			return c.Status(500).JSON(fiber.Map{"error": "failed to update profile"})
+		}
+		return c.JSON(fiber.Map{"success": true})
+	})
 
 	// Protected user profile endpoint used by /api/auth/me
 	app.Get("/users/:id", jwtAuth, func(c *fiber.Ctx) error {
