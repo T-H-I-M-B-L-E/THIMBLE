@@ -1,6 +1,9 @@
 "use client"
 
 type AuthLikeUser = {
+  // JWT user shape
+  role?: string | null
+  // Legacy Clerk shape (kept for compatibility during migration)
   unsafeMetadata?: Record<string, unknown>
 }
 
@@ -33,9 +36,21 @@ export const getDashboardFeedPath = (role?: string | null) => {
 }
 
 export const getPostAuthPath = (user?: AuthLikeUser | null) => {
+  if (!user) return "/auth"
+
+  // JWT user: role lives at the top level
+  const jwtRole = typeof user.role === "string" ? user.role : null
+
+  // Legacy Clerk user: role lives inside unsafeMetadata
   const metadata = user?.unsafeMetadata ?? {}
-  const isOnboarded = metadata.onboardingCompleted === true
-  const role = typeof metadata.role === "string" ? metadata.role : null
+  const clerkRole = typeof metadata.role === "string" ? metadata.role : null
+  const clerkOnboarded = metadata.onboardingCompleted === true
+
+  const role = jwtRole || clerkRole
+
+  // For JWT users, having a role means onboarding is complete.
+  // For Clerk users, we check the explicit onboardingCompleted flag.
+  const isOnboarded = !!jwtRole || clerkOnboarded
 
   if (isOnboarded && role) {
     return getDashboardFeedPath(role)

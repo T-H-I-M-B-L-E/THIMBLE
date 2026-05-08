@@ -133,7 +133,7 @@ func sendVerificationEmail(email, code string) error {
 
 	_, err := client.Emails.Send(&resend.SendEmailRequest{
 		From:    "noreply@tvimble.tech",
-		To:      email,
+		To:      []string{email},
 		Subject: fmt.Sprintf("%s is your THIMBLE verification code", code),
 		Html:    fmt.Sprintf(`<p>Your verification code is: <strong>%s</strong></p><p>This code expires in 10 minutes.</p>`, code),
 	})

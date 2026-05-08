@@ -1,9 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { jwtVerify } from 'jose'
 
-const JWT_SECRET = new TextEncoder().encode(
-  process.env.JWT_SECRET || 'fallback-secret-key-change-in-production'
-)
+// Read lazily so process.env.JWT_SECRET is picked up at call time (also helps tests)
+function getJWTSecret(): Uint8Array {
+  return new TextEncoder().encode(
+    process.env.JWT_SECRET || 'fallback-secret-key-change-in-production'
+  )
+}
 
 const protectedRoutes = [
   '/dashboard',
@@ -20,7 +23,7 @@ function isProtectedRoute(pathname: string): boolean {
 
 async function verifyJWT(token: string) {
   try {
-    const verified = await jwtVerify(token, JWT_SECRET)
+    const verified = await jwtVerify(token, getJWTSecret())
     return verified.payload
   } catch (error) {
     return null

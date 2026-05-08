@@ -8,13 +8,16 @@ interface JWTPayload {
   exp: number
 }
 
-const JWT_SECRET = new TextEncoder().encode(
-  process.env.JWT_SECRET || 'fallback-secret-key-change-in-production'
-)
+// Read secret lazily so tests can set process.env.JWT_SECRET before calling verifyJWT
+function getJWTSecret(): Uint8Array {
+  return new TextEncoder().encode(
+    process.env.JWT_SECRET || 'fallback-secret-key-change-in-production'
+  )
+}
 
 export async function verifyJWT(token: string): Promise<JWTPayload | null> {
   try {
-    const verified = await jwtVerify(token, JWT_SECRET)
+    const verified = await jwtVerify(token, getJWTSecret())
     return verified.payload as JWTPayload
   } catch (error) {
     console.error('JWT verification failed:', error)

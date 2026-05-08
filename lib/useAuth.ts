@@ -39,14 +39,16 @@ export function useAuth(): AuthHook {
   }, [])
 
   const logout = async () => {
+    // Always clear client-side state immediately (optimistic)
+    setUser(null)
     try {
       await fetch('/api/auth/logout', {
         method: 'POST',
         credentials: 'include',
       })
-      setUser(null)
     } catch (error) {
-      console.error('Failed to logout:', error)
+      console.error('Failed to clear server session:', error)
+      // User is already cleared client-side; they'll be redirected on next request
     }
   }
 
