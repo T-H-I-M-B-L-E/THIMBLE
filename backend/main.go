@@ -57,13 +57,42 @@ type AdminUserView struct {
 }
 
 type AdminStats struct {
-	TotalUsers           int `json:"totalUsers"`
-	TodaySignups         int `json:"todaySignups"`
-	WeekSignups          int `json:"weekSignups"`
-	PendingVerifications int `json:"pendingVerifications"`
-	VerifiedUsers        int `json:"verifiedUsers"`
-	TotalLogins          int `json:"totalLogins"`
-	AdminCount           int `json:"adminCount"`
+	TotalUsers           int            `json:"totalUsers"`
+	TodaySignups         int            `json:"todaySignups"`
+	WeekSignups          int            `json:"weekSignups"`
+	PendingVerifications int            `json:"pendingVerifications"`
+	VerifiedUsers        int            `json:"verifiedUsers"`
+	UnverifiedUsers      int            `json:"unverifiedUsers"`
+	TotalLogins          int            `json:"totalLogins"`
+	AdminCount           int            `json:"adminCount"`
+	ReturnedUsers        int            `json:"returnedUsers"`
+	NeverLoggedIn        int            `json:"neverLoggedIn"`
+	TotalPosts           int            `json:"totalPosts"`
+	PostsThisWeek        int            `json:"postsThisWeek"`
+	TotalGigs            int            `json:"totalGigs"`
+	RoleBreakdown        []RoleCount    `json:"roleBreakdown"`
+	DailySignups         []DailyCount   `json:"dailySignups"`
+}
+
+type RoleCount struct {
+	Role  string `json:"role"`
+	Count int    `json:"count"`
+}
+
+type DailyCount struct {
+	Date  string `json:"date"`
+	Count int    `json:"count"`
+}
+
+type AuditLog struct {
+	ID         int       `json:"id"`
+	AdminID    string    `json:"adminId"`
+	AdminName  string    `json:"adminName"`
+	Action     string    `json:"action"`
+	TargetID   string    `json:"targetId"`
+	TargetName string    `json:"targetName"`
+	Details    string    `json:"details"`
+	CreatedAt  time.Time `json:"createdAt"`
 }
 
 type Message struct {
@@ -548,14 +577,82 @@ func wsAuth(c *fiber.Ctx) error {
 func handleAdminStats(c *fiber.Ctx) error {
 	ctx := context.Background()
 	var stats AdminStats
+
 	dbPool.QueryRow(ctx, "SELECT COUNT(*) FROM users").Scan(&stats.TotalUsers)
 	dbPool.QueryRow(ctx, "SELECT COUNT(*) FROM users WHERE created_at >= CURRENT_DATE").Scan(&stats.TodaySignups)
 	dbPool.QueryRow(ctx, "SELECT COUNT(*) FROM users WHERE created_at >= NOW() - INTERVAL '7 days'").Scan(&stats.WeekSignups)
 	dbPool.QueryRow(ctx, "SELECT COUNT(*) FROM users WHERE verification_status = 'pending'").Scan(&stats.PendingVerifications)
 	dbPool.QueryRow(ctx, "SELECT COUNT(*) FROM users WHERE verification_status = 'verified'").Scan(&stats.VerifiedUsers)
+	dbPool.QueryRow(ctx, "SELECT COUNT(*) FROM users WHERE verification_status = 'unverified'").Scan(&stats.UnverifiedUsers)
 	dbPool.QueryRow(ctx, "SELECT COALESCE(SUM(total_logins), 0) FROM users").Scan(&stats.TotalLogins)
 	dbPool.QueryRow(ctx, "SELECT COUNT(*) FROM users WHERE is_admin = true").Scan(&stats.AdminCount)
+	dbPool.QueryRow(ctx, "SELECT COUNT(*) FROM users WHERE total_logins > 1").Scan(&stats.ReturnedUsers)
+	dbPool.QueryRow(ctx, "SELECT COUNT(*) FROM users WHERE last_login_at IS NULL").Scan(&stats.NeverLoggedIn)
+	dbPool.QueryRow(ctx, "SELECT COUNT(*) FROM posts").Scan(&stats.TotalPosts)
+	dbPool.QueryRow(ctx, "SELECT COUNT(*) FROM posts WHERE created_at >= NOW() - INTERVAL '7 days'").Scan(&stats.PostsThisWeek)
+	dbPool.QueryRow(ctx, "SELECT COUNT(*) FROM gigs").Scan(&stats.TotalGigs)
+
+	// Role breakdown
+	rows, err := dbPool.Query(ctx, `
+		SELECT COALESCE(NULLIF(role,''), 'unset'), COUNT(*)
+		FROM users GROUP BY 1 ORDER BY 2 DESC`)
+	if err == nil {
+		defer rows.Close()
+		for rows.Next() {
+			var rc RoleCount
+			if rows.Scan(&rc.Role, &rc.Count) == nil {
+				stats.RoleBreakdown = append(stats.RoleBreakdown, rc)
+			}
+		}
+	}
+
+	// Daily signups — last 7 days
+	rows2, err := dbPool.Query(ctx, `
+		SELECT TO_CHAR(d::date, 'Mon DD') AS label, COALESCE(COUNT(u.id), 0)
+		FROM generate_series(NOW() - INTERVAL '6 days', NOW(), '1 day') AS d
+		LEFT JOIN users u ON u.created_at::date = d::date
+		GROUP BY d ORDER BY d`)
+	if err == nil {
+		defer rows2.Close()
+		for rows2.Next() {
+			var dc DailyCount
+			if rows2.Scan(&dc.Date, &dc.Count) == nil {
+				stats.DailySignups = append(stats.DailySignups, dc)
+			}
+		}
+	}
+
 	return c.JSON(stats)
+}
+
+func handleAdminAuditLog(c *fiber.Ctx) error {
+	ctx := context.Background()
+	rows, err := dbPool.Query(ctx, `
+		SELECT a.id, a.admin_id, u.full_name, a.action, a.target_id, a.target_name, a.details, a.created_at
+		FROM admin_audit_log a
+		LEFT JOIN users u ON u.id = a.admin_id
+		ORDER BY a.created_at DESC LIMIT 50`)
+	if err != nil {
+		return c.JSON([]AuditLog{})
+	}
+	defer rows.Close()
+	var logs []AuditLog
+	for rows.Next() {
+		var l AuditLog
+		if rows.Scan(&l.ID, &l.AdminID, &l.AdminName, &l.Action, &l.TargetID, &l.TargetName, &l.Details, &l.CreatedAt) == nil {
+			logs = append(logs, l)
+		}
+	}
+	if logs == nil {
+		logs = []AuditLog{}
+	}
+	return c.JSON(logs)
+}
+
+func writeAuditLog(ctx context.Context, adminID, action, targetID, targetName, details string) {
+	dbPool.Exec(ctx,
+		`INSERT INTO admin_audit_log (admin_id, action, target_id, target_name, details) VALUES ($1, $2, $3, $4, $5)`,
+		adminID, action, targetID, targetName, details)
 }
 
 func handleAdminListUsers(c *fiber.Ctx) error {
@@ -668,12 +765,21 @@ func handleAdminUpdateUser(c *fiber.Ctx) error {
 	if result.RowsAffected() == 0 {
 		return c.Status(404).JSON(fiber.Map{"error": "user not found"})
 	}
+
+	adminID, _ := c.Locals("userId").(string)
+	var targetName string
+	dbPool.QueryRow(ctx, "SELECT full_name FROM users WHERE id = $1", id).Scan(&targetName)
+	writeAuditLog(ctx, adminID, "update_user", id, targetName, fmt.Sprintf("%v", body))
+
 	return c.JSON(fiber.Map{"success": true})
 }
 
 func handleAdminDeleteUser(c *fiber.Ctx) error {
 	ctx := context.Background()
 	id := c.Params("id")
+
+	var targetName string
+	dbPool.QueryRow(ctx, "SELECT full_name FROM users WHERE id = $1", id).Scan(&targetName)
 
 	result, err := dbPool.Exec(ctx, "DELETE FROM users WHERE id = $1", id)
 	if err != nil {
@@ -682,6 +788,10 @@ func handleAdminDeleteUser(c *fiber.Ctx) error {
 	if result.RowsAffected() == 0 {
 		return c.Status(404).JSON(fiber.Map{"error": "user not found"})
 	}
+
+	adminID, _ := c.Locals("userId").(string)
+	writeAuditLog(ctx, adminID, "delete_user", id, targetName, "user deleted")
+
 	return c.SendStatus(204)
 }
 
@@ -976,6 +1086,22 @@ func main() {
 		log.Fatal("Failed to create gigs table:", err)
 	}
 
+	// Ensure audit log table exists
+	_, err = dbPool.Exec(context.Background(), `
+		CREATE TABLE IF NOT EXISTS admin_audit_log (
+			id          BIGSERIAL PRIMARY KEY,
+			admin_id    TEXT NOT NULL,
+			action      TEXT NOT NULL,
+			target_id   TEXT NOT NULL DEFAULT '',
+			target_name TEXT NOT NULL DEFAULT '',
+			details     TEXT NOT NULL DEFAULT '',
+			created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+		)
+	`)
+	if err != nil {
+		log.Fatal("Failed to create admin_audit_log table:", err)
+	}
+
 	app := fiber.New()
 	app.Use(cors.New(cors.Config{
 		AllowOrigins: allowedOrigins,
@@ -1243,6 +1369,7 @@ func main() {
 	adminGroup.Get("/users/:id", handleAdminGetUser)
 	adminGroup.Patch("/users/:id", handleAdminUpdateUser)
 	adminGroup.Delete("/users/:id", handleAdminDeleteUser)
+	adminGroup.Get("/audit-log", handleAdminAuditLog)
 
 	port := os.Getenv("PORT")
 	if port == "" {
