@@ -170,13 +170,40 @@ type Claims struct {
 	jwt.RegisteredClaims
 }
 
+// rooms maps conversationId → set of connections
 var (
-	clients   = make(map[*websocket.Conn]string)
+	clients   = make(map[*websocket.Conn]string)       // legacy global broadcast
+	rooms     = make(map[int]map[*websocket.Conn]string) // conversationId → conn → userId
 	clientsMu sync.RWMutex
 	dbPool    *pgxpool.Pool
 	jwtSecret string
 	resendKey string
 )
+
+type ConversationParticipant struct {
+	ID             int    `json:"id"`
+	ConversationID int    `json:"conversationId"`
+	UserID         string `json:"userId"`
+	UserName       string `json:"userName"`
+	UserAvatar     string `json:"userAvatar"`
+	JoinedAt       string `json:"joinedAt"`
+}
+
+type Conversation struct {
+	ID           int                       `json:"id"`
+	Participants []ConversationParticipant `json:"participants"`
+	LastMessage  *ConvMessage              `json:"lastMessage,omitempty"`
+	UpdatedAt    string                    `json:"updatedAt"`
+}
+
+type ConvMessage struct {
+	ID             int    `json:"id"`
+	ConversationID int    `json:"conversationId"`
+	UserID         string `json:"userId"`
+	Name           string `json:"name"`
+	Content        string `json:"content"`
+	Timestamp      int64  `json:"timestamp"`
+}
 
 // generateVerificationCode generates a 6-digit code
 func generateVerificationCode() string {
@@ -1217,6 +1244,35 @@ func main() {
 		log.Fatal("Failed to create email_log table:", err)
 	}
 
+	dbPool.Exec(context.Background(), `
+		CREATE TABLE IF NOT EXISTS conversations (
+			id         BIGSERIAL PRIMARY KEY,
+			updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+		)
+	`)
+	dbPool.Exec(context.Background(), `
+		CREATE TABLE IF NOT EXISTS conversation_participants (
+			id              BIGSERIAL PRIMARY KEY,
+			conversation_id BIGINT NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
+			user_id         TEXT NOT NULL,
+			user_name       TEXT NOT NULL DEFAULT '',
+			user_avatar     TEXT NOT NULL DEFAULT '',
+			joined_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+			UNIQUE(conversation_id, user_id)
+		)
+	`)
+	dbPool.Exec(context.Background(), `
+		CREATE TABLE IF NOT EXISTS conversation_messages (
+			id              BIGSERIAL PRIMARY KEY,
+			conversation_id BIGINT NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
+			user_id         TEXT NOT NULL,
+			name            TEXT NOT NULL DEFAULT '',
+			content         TEXT NOT NULL,
+			timestamp       BIGINT NOT NULL DEFAULT EXTRACT(EPOCH FROM NOW()) * 1000,
+			created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+		)
+	`)
+
 	app := fiber.New()
 	app.Use(cors.New(cors.Config{
 		AllowOrigins: allowedOrigins,
@@ -1306,37 +1362,31 @@ func main() {
 		return c.JSON(user)
 	})
 
-	// WebSocket (protected)
+	// WebSocket — conversation-scoped rooms
 	app.Get("/ws", wsAuth, websocket.New(func(c *websocket.Conn) {
 		userId, _ := c.Locals("userId").(string)
+		convIdStr := c.Query("conversationId")
+		var convId int
+		fmt.Sscanf(convIdStr, "%d", &convId)
 
 		clientsMu.Lock()
-		clients[c] = userId
-		clientsMu.Unlock()
-
-		log.Printf("Client connected: %s", userId)
-
-		// Send last 50 messages as history
-		rows, err := dbPool.Query(context.Background(),
-			"SELECT user_id, name, content, timestamp FROM messages ORDER BY id DESC LIMIT 50")
-		if err == nil {
-			var history []Message
-			for rows.Next() {
-				var msg Message
-				if err := rows.Scan(&msg.UserId, &msg.Name, &msg.Content, &msg.Timestamp); err == nil {
-					history = append([]Message{msg}, history...)
-				}
+		if convId > 0 {
+			if rooms[convId] == nil {
+				rooms[convId] = make(map[*websocket.Conn]string)
 			}
-			rows.Close()
-			for _, msg := range history {
-				msgBytes, _ := json.Marshal(msg)
-				c.WriteMessage(websocket.TextMessage, msgBytes)
-			}
+			rooms[convId][c] = userId
+		} else {
+			clients[c] = userId
 		}
+		clientsMu.Unlock()
 
 		defer func() {
 			clientsMu.Lock()
-			delete(clients, c)
+			if convId > 0 {
+				delete(rooms[convId], c)
+			} else {
+				delete(clients, c)
+			}
 			clientsMu.Unlock()
 			c.Close()
 		}()
@@ -1352,36 +1402,164 @@ func main() {
 				continue
 			}
 
+			// Typing indicator — broadcast to room only
 			if eventType, ok := eventMap["type"].(string); ok && eventType == "typing" {
-				for client := range clients {
-					client.WriteMessage(mt, msgBytes)
+				clientsMu.RLock()
+				for conn := range rooms[convId] {
+					if conn != c {
+						conn.WriteMessage(mt, msgBytes)
+					}
 				}
+				clientsMu.RUnlock()
 				continue
 			}
 
-			var msg Message
+			var msg ConvMessage
 			if err := json.Unmarshal(msgBytes, &msg); err != nil {
 				continue
 			}
-
-			msg.UserId = userId
-
-			_, err = dbPool.Exec(context.Background(),
-				"INSERT INTO messages (user_id, name, content, timestamp) VALUES ($1, $2, $3, $4)",
-				msg.UserId, msg.Name, msg.Content, msg.Timestamp)
-			if err != nil {
-				log.Printf("Failed to save message: %v", err)
+			msg.UserID = userId
+			if msg.ConversationID == 0 {
+				msg.ConversationID = convId
 			}
+			if msg.Timestamp == 0 {
+				msg.Timestamp = time.Now().UnixMilli()
+			}
+
+			// Persist to DB
+			var insertedID int
+			dbPool.QueryRow(context.Background(),
+				"INSERT INTO conversation_messages (conversation_id, user_id, name, content, timestamp) VALUES ($1, $2, $3, $4, $5) RETURNING id",
+				msg.ConversationID, msg.UserID, msg.Name, msg.Content, msg.Timestamp).Scan(&insertedID)
+			msg.ID = insertedID
+
+			// Update conversation updated_at
+			dbPool.Exec(context.Background(),
+				"UPDATE conversations SET updated_at = NOW() WHERE id = $1", msg.ConversationID)
 
 			out, _ := json.Marshal(msg)
 
+			// Broadcast to everyone in the room
 			clientsMu.RLock()
-			for client := range clients {
-				client.WriteMessage(mt, out)
+			for conn := range rooms[convId] {
+				conn.WriteMessage(mt, out)
 			}
 			clientsMu.RUnlock()
 		}
 	}))
+
+	// Conversations API
+	app.Get("/api/conversations", jwtAuth, func(c *fiber.Ctx) error {
+		userId := c.Query("userId")
+		if userId == "" {
+			userId, _ = c.Locals("userId").(string)
+		}
+		ctx := context.Background()
+		rows, err := dbPool.Query(ctx, `
+			SELECT c.id, c.updated_at
+			FROM conversations c
+			JOIN conversation_participants cp ON cp.conversation_id = c.id
+			WHERE cp.user_id = $1
+			ORDER BY c.updated_at DESC`, userId)
+		if err != nil {
+			return c.JSON([]Conversation{})
+		}
+		defer rows.Close()
+
+		var convs []Conversation
+		for rows.Next() {
+			var conv Conversation
+			var updatedAt time.Time
+			rows.Scan(&conv.ID, &updatedAt)
+			conv.UpdatedAt = updatedAt.Format(time.RFC3339)
+
+			// Load participants
+			pRows, _ := dbPool.Query(ctx,
+				"SELECT id, conversation_id, user_id, user_name, user_avatar, joined_at FROM conversation_participants WHERE conversation_id = $1", conv.ID)
+			if pRows != nil {
+				for pRows.Next() {
+					var p ConversationParticipant
+					var joinedAt time.Time
+					pRows.Scan(&p.ID, &p.ConversationID, &p.UserID, &p.UserName, &p.UserAvatar, &joinedAt)
+					p.JoinedAt = joinedAt.Format(time.RFC3339)
+					conv.Participants = append(conv.Participants, p)
+				}
+				pRows.Close()
+			}
+			if conv.Participants == nil {
+				conv.Participants = []ConversationParticipant{}
+			}
+
+			// Load last message
+			var lm ConvMessage
+			err := dbPool.QueryRow(ctx,
+				"SELECT id, conversation_id, user_id, name, content, timestamp FROM conversation_messages WHERE conversation_id = $1 ORDER BY id DESC LIMIT 1", conv.ID).
+				Scan(&lm.ID, &lm.ConversationID, &lm.UserID, &lm.Name, &lm.Content, &lm.Timestamp)
+			if err == nil {
+				conv.LastMessage = &lm
+			}
+
+			convs = append(convs, conv)
+		}
+		if convs == nil {
+			convs = []Conversation{}
+		}
+		return c.JSON(convs)
+	})
+
+	app.Post("/api/conversations", jwtAuth, func(c *fiber.Ctx) error {
+		userId, _ := c.Locals("userId").(string)
+		ctx := context.Background()
+
+		var req struct {
+			Participants []ConversationParticipant `json:"participants"`
+		}
+		if err := c.BodyParser(&req); err != nil {
+			return c.Status(400).JSON(fiber.Map{"error": "invalid body"})
+		}
+
+		// Create conversation
+		var convId int
+		err := dbPool.QueryRow(ctx, "INSERT INTO conversations DEFAULT VALUES RETURNING id").Scan(&convId)
+		if err != nil {
+			return c.Status(500).JSON(fiber.Map{"error": "failed to create conversation"})
+		}
+
+		// Add creator + provided participants
+		seen := map[string]bool{userId: true}
+		for _, p := range req.Participants {
+			if seen[p.UserID] {
+				continue
+			}
+			seen[p.UserID] = true
+			dbPool.Exec(ctx,
+				"INSERT INTO conversation_participants (conversation_id, user_id, user_name, user_avatar) VALUES ($1, $2, $3, $4) ON CONFLICT DO NOTHING",
+				convId, p.UserID, p.UserName, p.UserAvatar)
+		}
+
+		return c.Status(201).JSON(fiber.Map{"id": convId})
+	})
+
+	app.Get("/api/conversations/:id/messages", jwtAuth, func(c *fiber.Ctx) error {
+		convId := c.Params("id")
+		ctx := context.Background()
+		rows, err := dbPool.Query(ctx,
+			"SELECT id, conversation_id, user_id, name, content, timestamp FROM conversation_messages WHERE conversation_id = $1 ORDER BY timestamp ASC LIMIT 100", convId)
+		if err != nil {
+			return c.JSON([]ConvMessage{})
+		}
+		defer rows.Close()
+		var msgs []ConvMessage
+		for rows.Next() {
+			var m ConvMessage
+			rows.Scan(&m.ID, &m.ConversationID, &m.UserID, &m.Name, &m.Content, &m.Timestamp)
+			msgs = append(msgs, m)
+		}
+		if msgs == nil {
+			msgs = []ConvMessage{}
+		}
+		return c.JSON(msgs)
+	})
 
 	// Posts API
 	app.Get("/api/posts", func(c *fiber.Ctx) error {

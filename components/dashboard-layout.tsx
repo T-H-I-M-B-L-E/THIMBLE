@@ -110,7 +110,6 @@ export function DashboardLayout({ children, role, showRail = false }: DashboardL
                     <item.icon size={18} />
                   </span>
                   <span>{item.label}</span>
-                  {item.label === "Messages" && <span className="t-badge">3</span>}
                 </Link>
               </li>
             ))}

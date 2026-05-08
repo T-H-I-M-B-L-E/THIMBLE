@@ -30,7 +30,6 @@ export function useSocket(
   const socketRef = useRef<WebSocket | null>(null)
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
-  // Reset messages when conversation changes
   useEffect(() => {
     setMessages([])
     setTypingUsers(new Map())
@@ -42,59 +41,56 @@ export function useSocket(
       return
     }
 
-    // Append conversationId to WebSocket URL
-    const wsUrl = `${url}?conversationId=${conversationId}`
-    const socket = new WebSocket(wsUrl)
-    socketRef.current = socket
+    let cancelled = false
+    let socket: WebSocket | null = null
 
-    socket.onopen = () => {
-      console.log("WebSocket connected to conversation", conversationId)
-      setIsConnected(true)
-    }
-
-    socket.onmessage = (event) => {
+    const connect = async () => {
       try {
-        const data = JSON.parse(event.data)
+        // Fetch WS token via API (httpOnly cookie can't be read by JS)
+        const res = await fetch('/api/ws-token', { credentials: 'include' })
+        if (!res.ok || cancelled) return
+        const { token } = await res.json()
+        if (cancelled) return
 
-        // Handle typing events
-        if (data.type === "typing") {
-          const typingEvent = data as TypingEvent
-          setTypingUsers((prev) => {
-            const newMap = new Map(prev)
-            if (typingEvent.isTyping) {
-              newMap.set(typingEvent.userId, typingEvent.name)
-            } else {
-              newMap.delete(typingEvent.userId)
-            }
-            return newMap
-          })
-          return
+        const wsUrl = `${url}?conversationId=${conversationId}&token=${encodeURIComponent(token)}`
+        socket = new WebSocket(wsUrl)
+        socketRef.current = socket
+
+        socket.onopen = () => {
+          if (!cancelled) setIsConnected(true)
         }
 
-        // Handle regular messages
-        const msg = data as ChatMessage
-        console.log("Message received:", msg)
-        setMessages((prev) => {
-          // Avoid duplicates
-          if (prev.some(m => m.id === msg.id)) return prev
-          return [...prev, msg]
-        })
-      } catch (e) {
-        console.error("Failed to parse message:", e)
+        socket.onmessage = (event) => {
+          try {
+            const data = JSON.parse(event.data)
+            if (data.type === "typing") {
+              const e = data as TypingEvent
+              setTypingUsers(prev => {
+                const m = new Map(prev)
+                if (e.isTyping) m.set(e.userId, e.name)
+                else m.delete(e.userId)
+                return m
+              })
+              return
+            }
+            const msg = data as ChatMessage
+            setMessages(prev => prev.some(m => m.id === msg.id) ? prev : [...prev, msg])
+          } catch { /* ignore parse errors */ }
+        }
+
+        socket.onclose = () => { if (!cancelled) setIsConnected(false) }
+        socket.onerror = () => { if (!cancelled) setIsConnected(false) }
+      } catch {
+        if (!cancelled) setIsConnected(false)
       }
     }
 
-    socket.onclose = () => {
-      setIsConnected(false)
-    }
-
-    socket.onerror = (err) => {
-      console.error("WebSocket error:", err)
-      setIsConnected(false)
-    }
+    connect()
 
     return () => {
-      socket.close()
+      cancelled = true
+      socket?.close()
+      socketRef.current = null
     }
   }, [url, conversationId])
 
@@ -113,38 +109,22 @@ export function useSocket(
 
   const sendTypingIndicator = useCallback((isTyping: boolean) => {
     if (socketRef.current?.readyState === WebSocket.OPEN && user && conversationId) {
-      const typingEvent: TypingEvent = {
+      const event: TypingEvent = {
         type: "typing",
         conversationId,
         userId: user.id,
         name: user.fullName,
-        isTyping
+        isTyping,
       }
-      socketRef.current.send(JSON.stringify(typingEvent))
+      socketRef.current.send(JSON.stringify(event))
     }
   }, [user, conversationId])
 
   const handleTyping = useCallback(() => {
-    // Send typing start
     sendTypingIndicator(true)
-    
-    // Clear existing timeout
-    if (typingTimeoutRef.current) {
-      clearTimeout(typingTimeoutRef.current)
-    }
-    
-    // Set new timeout to stop typing after 2 seconds
-    typingTimeoutRef.current = setTimeout(() => {
-      sendTypingIndicator(false)
-    }, 2000)
+    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current)
+    typingTimeoutRef.current = setTimeout(() => sendTypingIndicator(false), 2000)
   }, [sendTypingIndicator])
 
-  return { 
-    messages, 
-    sendMessage, 
-    isConnected, 
-    setMessages,
-    typingUsers,
-    handleTyping
-  }
+  return { messages, sendMessage, isConnected, setMessages, typingUsers, handleTyping }
 }
