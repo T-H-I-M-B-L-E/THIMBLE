@@ -16,6 +16,7 @@ export async function GET(request: NextRequest) {
       headers: {
         Authorization: `Bearer ${request.cookies.get('auth_token')?.value}`,
       },
+      signal: AbortSignal.timeout(5000),
     })
 
     if (!response.ok) {

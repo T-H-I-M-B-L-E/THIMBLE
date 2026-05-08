@@ -17,9 +17,13 @@ export function useAuth(): AuthHook {
     // Fetch user data from API route that reads the JWT cookie
     const fetchUser = async () => {
       try {
+        const controller = new AbortController()
+        const timeout = setTimeout(() => controller.abort(), 5000)
         const response = await fetch('/api/auth/me', {
-          credentials: 'include', // Include cookies
+          credentials: 'include',
+          signal: controller.signal,
         })
+        clearTimeout(timeout)
 
         if (response.ok) {
           const userData = await response.json()
