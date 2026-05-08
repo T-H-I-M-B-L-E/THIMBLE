@@ -3,7 +3,7 @@ import { getUserFromToken } from '@/lib/jwt-middleware'
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const user = await getUserFromToken()
-  if (!user) redirect('/auth')
+  if (!user) redirect('https://tvimble.tech/auth')
 
   return (
     <div className="min-h-screen bg-neutral-950 text-white flex">

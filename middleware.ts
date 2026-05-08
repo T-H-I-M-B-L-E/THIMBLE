@@ -44,11 +44,11 @@ export async function middleware(req: NextRequest) {
   if (isAdminSubdomain) {
     const token = req.cookies.get('auth_token')?.value
     if (!token) {
-      return NextResponse.redirect(new URL('/auth', req.url))
+      return NextResponse.redirect('https://tvimble.tech/auth')
     }
     const payload = await verifyJWT(token)
     if (!payload) {
-      return NextResponse.redirect(new URL('/auth', req.url))
+      return NextResponse.redirect('https://tvimble.tech/auth')
     }
 
     // Rewrite to /admin prefix (unless already there)
