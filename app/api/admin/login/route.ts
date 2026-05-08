@@ -28,11 +28,11 @@ export async function POST(request: NextRequest) {
     }
 
     const response = NextResponse.json({ success: true, fullName: data.fullName || data.user?.fullName || '' })
-    // Session cookie (no maxAge) — expires when the browser is closed, forcing re-login
     response.cookies.set('admin_token', data.token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
+      maxAge: 60 * 60 * 2, // 2 hours
       path: '/',
       domain: process.env.NODE_ENV === 'production' ? '.tvimble.tech' : undefined,
     })
