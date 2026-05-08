@@ -60,12 +60,6 @@ export async function middleware(req: NextRequest) {
       url.pathname = '/admin/login'
       return NextResponse.rewrite(url)
     }
-    const payload = await verifyJWT(token)
-    if (!payload) {
-      const url = req.nextUrl.clone()
-      url.pathname = '/admin/login'
-      return NextResponse.rewrite(url)
-    }
 
     // Rewrite to /admin prefix (unless already there)
     if (!pathname.startsWith('/admin') && !pathname.startsWith('/api')) {
