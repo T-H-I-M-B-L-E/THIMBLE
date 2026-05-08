@@ -386,13 +386,20 @@ func handleLogin(c *fiber.Ctx) error {
 	// Get user
 	var user User
 	var hashedPassword string
+	var avatarUrl, bio, location, website, verificationStatus *string
 	err := dbPool.QueryRow(context.Background(),
 		"SELECT id, email, password_hash, full_name, role, avatar_url, bio, location, website, verification_status, followers, following, posts FROM users WHERE email = $1",
-		req.Email).Scan(&user.ID, &user.Email, &hashedPassword, &user.FullName, &user.Role, &user.AvatarUrl, &user.Bio, &user.Location, &user.Website, &user.VerificationStatus, &user.Followers, &user.Following, &user.Posts)
+		req.Email).Scan(&user.ID, &user.Email, &hashedPassword, &user.FullName, &user.Role, &avatarUrl, &bio, &location, &website, &verificationStatus, &user.Followers, &user.Following, &user.Posts)
 
 	if err != nil {
+		log.Printf("Login scan error for %s: %v", req.Email, err)
 		return c.Status(401).JSON(fiber.Map{"error": "invalid email or password"})
 	}
+	if avatarUrl != nil { user.AvatarUrl = *avatarUrl }
+	if bio != nil { user.Bio = *bio }
+	if location != nil { user.Location = *location }
+	if website != nil { user.Website = *website }
+	if verificationStatus != nil { user.VerificationStatus = *verificationStatus }
 
 	// Verify password
 	if err := bcrypt.CompareHashAndPassword([]byte(hashedPassword), []byte(req.Password)); err != nil {
@@ -714,29 +721,23 @@ func main() {
 	app.Post("/auth/forgot-password", handleForgotPassword)
 	app.Post("/auth/reset-password", handleResetPassword)
 
-	// Temporary debug endpoint - remove after fixing login
-	app.Post("/debug/check-password", func(c *fiber.Ctx) error {
-		var req struct {
-			Email    string `json:"email"`
-			Password string `json:"password"`
-		}
-		if err := c.BodyParser(&req); err != nil {
-			return c.Status(400).JSON(fiber.Map{"error": "bad request"})
-		}
-		var hash string
+	// Protected user profile endpoint used by /api/auth/me
+	app.Get("/users/:id", jwtAuth, func(c *fiber.Ctx) error {
+		id := c.Params("id")
+		var user User
+		var avatarUrl, bio, location, website, verificationStatus *string
 		err := dbPool.QueryRow(context.Background(),
-			"SELECT password_hash FROM users WHERE email = $1", req.Email).Scan(&hash)
+			"SELECT id, email, full_name, role, avatar_url, bio, location, website, verification_status, followers, following, posts FROM users WHERE id = $1",
+			id).Scan(&user.ID, &user.Email, &user.FullName, &user.Role, &avatarUrl, &bio, &location, &website, &verificationStatus, &user.Followers, &user.Following, &user.Posts)
 		if err != nil {
-			return c.JSON(fiber.Map{"userFound": false, "err": err.Error()})
+			return c.Status(404).JSON(fiber.Map{"error": "user not found"})
 		}
-		bcryptErr := bcrypt.CompareHashAndPassword([]byte(hash), []byte(req.Password))
-		return c.JSON(fiber.Map{
-			"userFound":    true,
-			"hashLen":      len(hash),
-			"hashPrefix":   hash[:10],
-			"bcryptMatch":  bcryptErr == nil,
-			"bcryptErr":    fmt.Sprintf("%v", bcryptErr),
-		})
+		if avatarUrl != nil { user.AvatarUrl = *avatarUrl }
+		if bio != nil { user.Bio = *bio }
+		if location != nil { user.Location = *location }
+		if website != nil { user.Website = *website }
+		if verificationStatus != nil { user.VerificationStatus = *verificationStatus }
+		return c.JSON(user)
 	})
 
 	// WebSocket (protected)
