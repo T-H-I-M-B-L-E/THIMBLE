@@ -8,8 +8,9 @@ export async function POST(request: NextRequest) {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
-      maxAge: 0, // This deletes the cookie
+      maxAge: 0,
       path: '/',
+      domain: process.env.NODE_ENV === 'production' ? '.tvimble.tech' : undefined,
     })
 
     return res
