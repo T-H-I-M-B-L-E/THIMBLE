@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 
-const apiBase = () => process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8080'
+const apiBase = () => process.env.API_BASE_URL || process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8080'
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const token = request.cookies.get('admin_token')?.value

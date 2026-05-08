@@ -10,14 +10,17 @@ export async function GET(request: NextRequest) {
     }
 
     // Fetch user data from Go backend
-    const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8080'
-    const response = await fetch(`${apiBaseUrl}/users/${payload.userId}`, {
+    const apiBaseUrl = process.env.API_BASE_URL || process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8080'
+    const userUrl = `${apiBaseUrl}/users/${payload.userId}`
+    const response = await fetch(userUrl, {
       headers: {
         Authorization: `Bearer ${request.cookies.get('auth_token')?.value}`,
       },
     })
 
     if (!response.ok) {
+      const text = await response.text()
+      console.error(`Failed to fetch user from ${userUrl}: ${response.status} ${text}`)
       return NextResponse.json({ error: 'Failed to fetch user' }, { status: response.status })
     }
 

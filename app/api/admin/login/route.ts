@@ -8,7 +8,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Email and password are required' }, { status: 400 })
     }
 
-    const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8080'
+    const apiBaseUrl = process.env.API_BASE_URL || process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8080'
     const res = await fetch(`${apiBaseUrl}/auth/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
