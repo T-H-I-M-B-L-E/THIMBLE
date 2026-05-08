@@ -34,7 +34,13 @@ function AdminLayoutInner({ children }: { children: React.ReactNode }) {
   const [commitEmailsEnabled, setCommitEmailsEnabled] = useState(true)
   const [emailStats, setEmailStats] = useState<EmailStats | null>(null)
   const [togglingEmail, setTogglingEmail] = useState(false)
+  const [adminName, setAdminName] = useState('')
   const pathname = usePathname()
+
+  useEffect(() => {
+    const stored = sessionStorage.getItem('admin_name') || ''
+    setAdminName(stored.split(' ')[0])
+  }, [])
 
   useEffect(() => { setSidebarOpen(false) }, [pathname])
 
@@ -59,6 +65,12 @@ function AdminLayoutInner({ children }: { children: React.ReactNode }) {
       .then(s => { if (s) setEmailStats(s) })
       .catch(() => {})
   }, [])
+
+  async function handleLogout() {
+    await fetch('/api/admin/logout', { method: 'POST', credentials: 'include' }).catch(() => {})
+    sessionStorage.removeItem('admin_name')
+    window.location.href = '/admin/login'
+  }
 
   async function toggleCommitEmails() {
     setTogglingEmail(true)
@@ -101,6 +113,9 @@ function AdminLayoutInner({ children }: { children: React.ReactNode }) {
         <div className="p-6 border-b border-neutral-800">
           <p className="text-xs uppercase tracking-[0.3em] text-neutral-500">THIMBLE</p>
           <p className="text-lg font-light tracking-widest mt-1">Admin</p>
+          {adminName && (
+            <p className="text-xs text-neutral-600 mt-1">Welcome back, {adminName}</p>
+          )}
         </div>
         <nav className="p-4 space-y-1">
           {navLinks.map(link => (
@@ -194,8 +209,19 @@ function AdminLayoutInner({ children }: { children: React.ReactNode }) {
           )}
         </div>
 
-        <div className="p-4 border-t border-neutral-800 shrink-0">
-          <a href="/" className="text-xs text-neutral-600 hover:text-neutral-400 transition-colors">← Back to site</a>
+        <div className="p-4 border-t border-neutral-800 shrink-0 space-y-2">
+          <button
+            onClick={handleLogout}
+            className="w-full flex items-center gap-2 text-xs text-red-500/70 hover:text-red-400 transition-colors py-1"
+          >
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+              <polyline points="16 17 21 12 16 7"/>
+              <line x1="21" y1="12" x2="9" y2="12"/>
+            </svg>
+            Sign out
+          </button>
+          <a href="/" className="text-xs text-neutral-700 hover:text-neutral-500 transition-colors block">← Back to site</a>
         </div>
       </aside>
 

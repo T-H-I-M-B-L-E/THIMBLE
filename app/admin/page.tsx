@@ -83,6 +83,12 @@ export default function AdminDashboard() {
   const [admins, setAdmins] = useState<AdminUser[]>([])
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([])
   const [loading, setLoading] = useState(true)
+  const [adminName, setAdminName] = useState('')
+
+  useEffect(() => {
+    const stored = sessionStorage.getItem('admin_name') || ''
+    setAdminName(stored.split(' ')[0])
+  }, [])
 
   useEffect(() => {
     Promise.all([
@@ -117,8 +123,10 @@ export default function AdminDashboard() {
 
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-light tracking-widest uppercase">Dashboard</h1>
-        <p className="text-neutral-500 text-sm mt-1">Platform overview</p>
+        <h1 className="text-2xl font-light tracking-widest uppercase">
+          {adminName ? `Hey, ${adminName}.` : 'Dashboard'}
+        </h1>
+        <p className="text-neutral-500 text-sm mt-1">Platform overview · {new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })}</p>
       </div>
 
       {/* Primary stats */}

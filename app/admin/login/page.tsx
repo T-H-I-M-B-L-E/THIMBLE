@@ -8,6 +8,7 @@ export default function AdminLoginPage() {
   const [step, setStep] = useState<'greeting' | 'login'>('greeting')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
@@ -29,7 +30,10 @@ export default function AdminLoginPage() {
         setError(data.error || 'Login failed')
         return
       }
-      router.push('/admin')
+      // Store admin name for splash screen personalisation
+      if (data.fullName) sessionStorage.setItem('admin_name', data.fullName)
+      else if (data.user?.fullName) sessionStorage.setItem('admin_name', data.user.fullName)
+      router.push('/admin/splash')
     } catch {
       setError('Something went wrong')
     } finally {
@@ -47,9 +51,7 @@ export default function AdminLoginPage() {
         }`}
       >
         <p className="text-xs uppercase tracking-[0.4em] text-neutral-600 mb-4">THIMBLE ADMIN</p>
-        <h1 className="text-5xl font-light text-white tracking-wide mb-2">
-          {greeting},
-        </h1>
+        <h1 className="text-5xl font-light text-white tracking-wide mb-2">{greeting},</h1>
         <h2 className="text-5xl font-light text-neutral-400 tracking-wide mb-16">Sir.</h2>
         <button
           onClick={() => setStep('login')}
@@ -84,13 +86,36 @@ export default function AdminLoginPage() {
           </div>
           <div>
             <label className="text-xs uppercase tracking-widest text-neutral-500 block mb-2">Password</label>
-            <input
-              type="password"
-              value={password}
-              onChange={e => setPassword(e.target.value)}
-              required
-              className="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-3 text-white text-sm focus:outline-none focus:border-neutral-500 transition-colors"
-            />
+            <div className="relative">
+              <input
+                type={showPassword ? 'text' : 'password'}
+                value={password}
+                onChange={e => setPassword(e.target.value)}
+                required
+                className="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-3 pr-11 text-white text-sm focus:outline-none focus:border-neutral-500 transition-colors"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(v => !v)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-500 hover:text-neutral-300 transition-colors p-1"
+                aria-label={showPassword ? 'Hide password' : 'Show password'}
+              >
+                {showPassword ? (
+                  // Eye-off
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/>
+                    <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/>
+                    <line x1="1" y1="1" x2="23" y2="23"/>
+                  </svg>
+                ) : (
+                  // Eye
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                    <circle cx="12" cy="12" r="3"/>
+                  </svg>
+                )}
+              </button>
+            </div>
           </div>
           {error && <p className="text-red-400 text-sm">{error}</p>}
           <button

@@ -43,6 +43,7 @@ export async function middleware(req: NextRequest) {
 
   if (isAdminSubdomain) {
     const isLoginPage = pathname === '/login' || pathname === '/admin/login'
+    const isSplashPage = pathname === '/admin/splash'
 
     // Always rewrite /login → /admin/login
     if (pathname === '/login') {
@@ -51,8 +52,8 @@ export async function middleware(req: NextRequest) {
       return NextResponse.rewrite(url)
     }
 
-    // Allow the login page and all API routes through without auth
-    if (isLoginPage || pathname.startsWith('/api/')) return NextResponse.next()
+    // Allow the login page, splash screen, and all API routes through without auth
+    if (isLoginPage || isSplashPage || pathname.startsWith('/api/')) return NextResponse.next()
 
     const token = req.cookies.get('admin_token')?.value
     if (!token) {
