@@ -51,8 +51,8 @@ function AdminLayoutInner({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     fetch('/api/admin/settings', { credentials: 'include' })
-      .then(r => r.ok ? r.json() : {})
-      .then(s => { if (s.commit_emails_enabled !== undefined) setCommitEmailsEnabled(s.commit_emails_enabled === 'true') })
+      .then(r => r.ok ? r.json() : {} as Record<string, string>)
+      .then((s: Record<string, string>) => { if (s.commit_emails_enabled !== undefined) setCommitEmailsEnabled(s.commit_emails_enabled === 'true') })
       .catch(() => {})
     fetch('/api/admin/email-stats', { credentials: 'include' })
       .then(r => r.ok ? r.json() : null)
