@@ -753,60 +753,112 @@ func handleGithubWebhook(c *fiber.Ctx) error {
 		return c.SendStatus(200)
 	}
 
-	// Build commit list HTML
-	commitRows := ""
-	for _, commit := range payload.Commits {
-		msg := commit.Message
-		if len(msg) > 80 {
-			msg = msg[:80] + "…"
-		}
-		// Take first line only
-		if idx := strings.Index(msg, "\n"); idx != -1 {
-			msg = msg[:idx]
-		}
-		commitRows += fmt.Sprintf(`
-			<tr>
-				<td style="padding:8px 0;border-bottom:1px solid #262626;font-family:monospace;font-size:12px;color:#a3a3a3">%s</td>
-				<td style="padding:8px 16px;border-bottom:1px solid #262626;font-size:13px;color:#ffffff">%s</td>
-				<td style="padding:8px 0;border-bottom:1px solid #262626;font-size:12px;color:#737373;white-space:nowrap">%s</td>
-			</tr>`, commit.ID[:7], msg, commit.Author.Name)
-	}
-
 	latest := payload.Commits[0]
 	latestMsg := latest.Message
 	if idx := strings.Index(latestMsg, "\n"); idx != -1 {
 		latestMsg = latestMsg[:idx]
 	}
 
+	// Build commit items
+	commitItems := ""
+	for i, commit := range payload.Commits {
+		msg := commit.Message
+		if idx := strings.Index(msg, "\n"); idx != -1 {
+			msg = msg[:idx]
+		}
+		if len(msg) > 72 {
+			msg = msg[:72] + "…"
+		}
+		borderBottom := "border-bottom:1px solid #1f1f1f;"
+		if i == len(payload.Commits)-1 {
+			borderBottom = ""
+		}
+		commitItems += fmt.Sprintf(`
+		<a href="%s" style="display:block;text-decoration:none;padding:14px 0;%s">
+			<table style="width:100%%;border-collapse:collapse"><tr>
+				<td style="width:52px;vertical-align:top;padding-top:1px">
+					<span style="font-family:'Courier New',monospace;font-size:11px;color:#404040;background:#1a1a1a;padding:2px 6px;border-radius:4px;white-space:nowrap">%s</span>
+				</td>
+				<td style="padding-left:12px;vertical-align:top">
+					<p style="margin:0 0 3px;font-size:13px;color:#e5e5e5;line-height:1.4">%s</p>
+					<p style="margin:0;font-size:11px;color:#525252">%s</p>
+				</td>
+			</tr></table>
+		</a>`, commit.URL, borderBottom, commit.ID[:7], msg, commit.Author.Name)
+	}
+
+	pluralS := ""
+	if len(payload.Commits) > 1 {
+		pluralS = "s"
+	}
+
 	html := fmt.Sprintf(`<!DOCTYPE html>
-<html><body style="margin:0;padding:0;background:#0a0a0a;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif">
-<div style="max-width:600px;margin:40px auto;padding:0 20px">
-  <div style="margin-bottom:32px">
-    <p style="margin:0 0 4px;font-size:11px;letter-spacing:0.3em;text-transform:uppercase;color:#525252">THIMBLE</p>
-    <p style="margin:0;font-size:20px;font-weight:300;letter-spacing:0.1em;color:#ffffff">New Commits</p>
-  </div>
-  <div style="background:#171717;border:1px solid #262626;border-radius:12px;padding:24px;margin-bottom:24px">
-    <p style="margin:0 0 16px;font-size:13px;color:#a3a3a3">
-      <strong style="color:#ffffff">%d commit%s</strong> pushed to <strong style="color:#ffffff">%s</strong> by <strong style="color:#ffffff">%s</strong>
-    </p>
-    <table style="width:100%%;border-collapse:collapse">%s</table>
-  </div>
-  <div style="text-align:center;margin-bottom:32px">
-    <a href="https://admin.tvimble.tech" style="display:inline-block;background:#ffffff;color:#000000;text-decoration:none;padding:12px 32px;border-radius:8px;font-size:13px;font-weight:500">View Admin Panel</a>
-  </div>
-  <p style="font-size:11px;color:#404040;text-align:center">You're receiving this because you're a THIMBLE admin.</p>
-</div>
+<html lang="en">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#000000;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased">
+<table width="100%%" cellpadding="0" cellspacing="0" style="background:#000000;min-height:100vh">
+<tr><td align="center" style="padding:48px 20px">
+<table width="100%%" cellpadding="0" cellspacing="0" style="max-width:560px">
+
+  <!-- Header -->
+  <tr><td style="padding-bottom:40px">
+    <p style="margin:0 0 6px;font-size:10px;letter-spacing:0.4em;text-transform:uppercase;color:#333333">THIMBLE</p>
+    <p style="margin:0;font-size:28px;font-weight:200;letter-spacing:0.05em;color:#ffffff;line-height:1.2">Code Update</p>
+  </td></tr>
+
+  <!-- Divider -->
+  <tr><td style="padding-bottom:32px">
+    <div style="height:1px;background:linear-gradient(to right,#ffffff18,#ffffff04)"></div>
+  </td></tr>
+
+  <!-- Meta -->
+  <tr><td style="padding-bottom:24px">
+    <table cellpadding="0" cellspacing="0"><tr>
+      <td style="padding-right:24px">
+        <p style="margin:0 0 2px;font-size:10px;letter-spacing:0.2em;text-transform:uppercase;color:#404040">Pushed by</p>
+        <p style="margin:0;font-size:14px;color:#ffffff">%s</p>
+      </td>
+      <td style="padding-right:24px">
+        <p style="margin:0 0 2px;font-size:10px;letter-spacing:0.2em;text-transform:uppercase;color:#404040">Branch</p>
+        <p style="margin:0;font-size:14px;color:#ffffff;font-family:'Courier New',monospace">main</p>
+      </td>
+      <td>
+        <p style="margin:0 0 2px;font-size:10px;letter-spacing:0.2em;text-transform:uppercase;color:#404040">Commits</p>
+        <p style="margin:0;font-size:14px;color:#ffffff">%d commit%s</p>
+      </td>
+    </tr></table>
+  </td></tr>
+
+  <!-- Commits -->
+  <tr><td style="padding-bottom:32px">
+    <div style="background:#0d0d0d;border:1px solid #1f1f1f;border-radius:12px;padding:4px 20px">
+      %s
+    </div>
+  </td></tr>
+
+  <!-- CTA -->
+  <tr><td style="padding-bottom:40px;text-align:center">
+    <a href="https://admin.tvimble.tech" style="display:inline-block;background:#ffffff;color:#000000;text-decoration:none;padding:14px 40px;border-radius:100px;font-size:13px;font-weight:500;letter-spacing:0.02em">Open Admin Panel</a>
+  </td></tr>
+
+  <!-- Divider -->
+  <tr><td style="padding-bottom:24px">
+    <div style="height:1px;background:linear-gradient(to right,#ffffff04,#ffffff18,#ffffff04)"></div>
+  </td></tr>
+
+  <!-- Footer -->
+  <tr><td>
+    <p style="margin:0;font-size:11px;color:#2a2a2a;text-align:center;letter-spacing:0.05em">THIMBLE · Admin notification · <a href="https://tvimble.tech" style="color:#2a2a2a;text-decoration:none">tvimble.tech</a></p>
+  </td></tr>
+
+</table>
+</td></tr>
+</table>
 </body></html>`,
-		len(payload.Commits),
-		func() string {
-			if len(payload.Commits) == 1 {
-				return ""
-			}
-			return "s"
-		}(),
-		payload.Ref,
 		payload.Pusher.Name,
-		commitRows,
+		len(payload.Commits),
+		pluralS,
+		commitItems,
 	)
 
 	// Send to all admins
