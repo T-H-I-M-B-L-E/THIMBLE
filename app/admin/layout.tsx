@@ -5,7 +5,8 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   const cookieStore = await cookies()
   const token = cookieStore.get('admin_token')?.value
   const user = token ? await verifyJWT(token) : null
-  if (!user) return null // middleware handles redirect to /admin/login
+  // Not logged in — just render the login page without sidebar
+  if (!user) return <>{children}</>
 
   return (
     <div className="min-h-screen bg-neutral-950 text-white flex">
