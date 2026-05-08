@@ -12,6 +12,8 @@ interface AdminUser {
   verificationStatus: string
   isAdmin: boolean
   createdAt: string
+  lastLoginAt: string | null
+  totalLogins: number
   followers: number
   following: number
   posts: number
@@ -83,7 +85,7 @@ function UsersTable() {
   }
 
   return (
-    <div className="p-8">
+    <div className="p-4 sm:p-8">
       <div className="mb-6 flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-light tracking-widest uppercase">Users</h1>
@@ -126,14 +128,16 @@ function UsersTable() {
                   <th className="px-4 py-3 text-xs uppercase tracking-widest text-neutral-500 font-normal">User</th>
                   <th className="px-4 py-3 text-xs uppercase tracking-widest text-neutral-500 font-normal">Role</th>
                   <th className="px-4 py-3 text-xs uppercase tracking-widest text-neutral-500 font-normal">Status</th>
-                  <th className="px-4 py-3 text-xs uppercase tracking-widest text-neutral-500 font-normal">Joined</th>
+                  <th className="px-4 py-3 text-xs uppercase tracking-widest text-neutral-500 font-normal whitespace-nowrap">Last Login</th>
+                  <th className="px-4 py-3 text-xs uppercase tracking-widest text-neutral-500 font-normal whitespace-nowrap">Logins</th>
+                  <th className="px-4 py-3 text-xs uppercase tracking-widest text-neutral-500 font-normal whitespace-nowrap">Joined</th>
                   <th className="px-4 py-3 text-xs uppercase tracking-widest text-neutral-500 font-normal">Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {users.map(u => (
                   <tr key={u.id} className="border-b border-neutral-800/50 hover:bg-neutral-800/30 transition-colors">
-                    <td className="px-4 py-3">
+                    <td className="px-4 py-3 min-w-40">
                       <p className="font-medium text-white">{u.fullName}</p>
                       <p className="text-neutral-500 text-xs mt-0.5">{u.email}</p>
                       {u.isAdmin && <span className="text-xs text-purple-400">admin</span>}
@@ -158,7 +162,15 @@ function UsersTable() {
                         {VERIFICATION.map(v => <option key={v} value={v}>{v}</option>)}
                       </select>
                     </td>
-                    <td className="px-4 py-3 text-neutral-500 text-xs">
+                    <td className="px-4 py-3 text-neutral-400 text-xs whitespace-nowrap">
+                      {u.lastLoginAt
+                        ? new Date(u.lastLoginAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+                        : <span className="text-neutral-600">Never</span>}
+                    </td>
+                    <td className="px-4 py-3 text-purple-400 text-sm font-medium">
+                      {u.totalLogins}
+                    </td>
+                    <td className="px-4 py-3 text-neutral-500 text-xs whitespace-nowrap">
                       {new Date(u.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                     </td>
                     <td className="px-4 py-3">
@@ -166,7 +178,7 @@ function UsersTable() {
                         <button
                           onClick={() => updateUser(u.id, { isAdmin: !u.isAdmin })}
                           disabled={actionLoading === u.id}
-                          className="text-xs px-2 py-1 rounded bg-neutral-800 hover:bg-purple-900 text-neutral-300 hover:text-purple-300 transition-colors"
+                          className="text-xs px-2 py-1 rounded bg-neutral-800 hover:bg-purple-900 text-neutral-300 hover:text-purple-300 transition-colors whitespace-nowrap"
                         >
                           {u.isAdmin ? 'Revoke Admin' : 'Make Admin'}
                         </button>

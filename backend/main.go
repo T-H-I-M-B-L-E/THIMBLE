@@ -39,16 +39,18 @@ type User struct {
 }
 
 type AdminUserView struct {
-	ID                 string    `json:"id"`
-	Email              string    `json:"email"`
-	FullName           string    `json:"fullName"`
-	Role               string    `json:"role"`
-	VerificationStatus string    `json:"verificationStatus"`
-	IsAdmin            bool      `json:"isAdmin"`
-	CreatedAt          time.Time `json:"createdAt"`
-	Followers          int       `json:"followers"`
-	Following          int       `json:"following"`
-	Posts              int       `json:"posts"`
+	ID                 string     `json:"id"`
+	Email              string     `json:"email"`
+	FullName           string     `json:"fullName"`
+	Role               string     `json:"role"`
+	VerificationStatus string     `json:"verificationStatus"`
+	IsAdmin            bool       `json:"isAdmin"`
+	CreatedAt          time.Time  `json:"createdAt"`
+	LastLoginAt        *time.Time `json:"lastLoginAt"`
+	TotalLogins        int        `json:"totalLogins"`
+	Followers          int        `json:"followers"`
+	Following          int        `json:"following"`
+	Posts              int        `json:"posts"`
 }
 
 type AdminStats struct {
@@ -57,6 +59,8 @@ type AdminStats struct {
 	WeekSignups          int `json:"weekSignups"`
 	PendingVerifications int `json:"pendingVerifications"`
 	VerifiedUsers        int `json:"verifiedUsers"`
+	TotalLogins          int `json:"totalLogins"`
+	AdminCount           int `json:"adminCount"`
 }
 
 type Message struct {
@@ -407,6 +411,10 @@ func handleLogin(c *fiber.Ctx) error {
 		return c.Status(401).JSON(fiber.Map{"error": "invalid email or password"})
 	}
 
+	// Record login timestamp and increment counter
+	dbPool.Exec(context.Background(),
+		"UPDATE users SET last_login_at = NOW(), total_logins = total_logins + 1 WHERE id = $1", user.ID)
+
 	// Generate JWT
 	token, err := generateJWT(user.ID, user.Email)
 	if err != nil {
@@ -542,6 +550,8 @@ func handleAdminStats(c *fiber.Ctx) error {
 	dbPool.QueryRow(ctx, "SELECT COUNT(*) FROM users WHERE created_at >= NOW() - INTERVAL '7 days'").Scan(&stats.WeekSignups)
 	dbPool.QueryRow(ctx, "SELECT COUNT(*) FROM users WHERE verification_status = 'pending'").Scan(&stats.PendingVerifications)
 	dbPool.QueryRow(ctx, "SELECT COUNT(*) FROM users WHERE verification_status = 'verified'").Scan(&stats.VerifiedUsers)
+	dbPool.QueryRow(ctx, "SELECT COALESCE(SUM(total_logins), 0) FROM users").Scan(&stats.TotalLogins)
+	dbPool.QueryRow(ctx, "SELECT COUNT(*) FROM users WHERE is_admin = true").Scan(&stats.AdminCount)
 	return c.JSON(stats)
 }
 
@@ -549,8 +559,9 @@ func handleAdminListUsers(c *fiber.Ctx) error {
 	ctx := context.Background()
 	search := c.Query("search", "")
 	role := c.Query("role", "")
+	adminOnly := c.Query("admin", "")
 
-	query := `SELECT id, email, full_name, role, verification_status, is_admin, created_at, followers, following, posts FROM users WHERE 1=1`
+	query := `SELECT id, email, full_name, role, verification_status, is_admin, created_at, last_login_at, total_logins, followers, following, posts FROM users WHERE 1=1`
 	args := []interface{}{}
 	argIdx := 1
 
@@ -566,6 +577,10 @@ func handleAdminListUsers(c *fiber.Ctx) error {
 		argIdx++
 	}
 
+	if adminOnly == "true" {
+		query += " AND is_admin = true"
+	}
+
 	query += " ORDER BY created_at DESC"
 
 	rows, err := dbPool.Query(ctx, query, args...)
@@ -577,7 +592,7 @@ func handleAdminListUsers(c *fiber.Ctx) error {
 	var users []AdminUserView
 	for rows.Next() {
 		var u AdminUserView
-		if err := rows.Scan(&u.ID, &u.Email, &u.FullName, &u.Role, &u.VerificationStatus, &u.IsAdmin, &u.CreatedAt, &u.Followers, &u.Following, &u.Posts); err == nil {
+		if err := rows.Scan(&u.ID, &u.Email, &u.FullName, &u.Role, &u.VerificationStatus, &u.IsAdmin, &u.CreatedAt, &u.LastLoginAt, &u.TotalLogins, &u.Followers, &u.Following, &u.Posts); err == nil {
 			users = append(users, u)
 		}
 	}
@@ -593,8 +608,8 @@ func handleAdminGetUser(c *fiber.Ctx) error {
 
 	var u AdminUserView
 	err := dbPool.QueryRow(ctx,
-		`SELECT id, email, full_name, role, verification_status, is_admin, created_at, followers, following, posts FROM users WHERE id = $1`, id).Scan(
-		&u.ID, &u.Email, &u.FullName, &u.Role, &u.VerificationStatus, &u.IsAdmin, &u.CreatedAt, &u.Followers, &u.Following, &u.Posts)
+		`SELECT id, email, full_name, role, verification_status, is_admin, created_at, last_login_at, total_logins, followers, following, posts FROM users WHERE id = $1`, id).Scan(
+		&u.ID, &u.Email, &u.FullName, &u.Role, &u.VerificationStatus, &u.IsAdmin, &u.CreatedAt, &u.LastLoginAt, &u.TotalLogins, &u.Followers, &u.Following, &u.Posts)
 	if err != nil {
 		return c.Status(404).JSON(fiber.Map{"error": "user not found"})
 	}
@@ -707,6 +722,10 @@ func main() {
 	if err != nil {
 		log.Fatal("Failed to create pending_signups table:", err)
 	}
+
+	// Add last_login_at and total_logins columns if they don't exist
+	dbPool.Exec(context.Background(), `ALTER TABLE users ADD COLUMN IF NOT EXISTS last_login_at TIMESTAMPTZ`)
+	dbPool.Exec(context.Background(), `ALTER TABLE users ADD COLUMN IF NOT EXISTS total_logins INT NOT NULL DEFAULT 0`)
 
 	app := fiber.New()
 	app.Use(cors.New(cors.Config{
