@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
-import { useUser } from "@clerk/nextjs"
+import { useAuth } from "@/lib/useAuth"
 import { useStore, type UserRole } from "@/lib/store"
 import { useTheme } from "@/lib/theme-context"
 import { 
@@ -29,13 +29,13 @@ type OnboardingStep = "welcome" | "role" | "photo" | "bio" | "social" | "success
 
 export default function OnboardingPage() {
   const router = useRouter()
-  const { user, isLoaded } = useUser()
+  const { user, isLoading } = useAuth()
   const { setRole } = useStore()
   const { theme, toggleTheme } = useTheme()
   const [mounted, setMounted] = useState(false)
   const [currentStep, setCurrentStep] = useState<OnboardingStep>("welcome")
   const [direction, setDirection] = useState(1) // 1 for forward, -1 for back
-  
+
   // Form State
   const [selectedRole, setSelectedRole] = useState<UserRole | null>(null)
   const [profilePreview, setProfilePreview] = useState<string | null>(null)
@@ -51,23 +51,23 @@ export default function OnboardingPage() {
 
   useEffect(() => {
     setMounted(true)
-    if (user?.username) setUsername(user.username)
+    if (user?.fullName) setUsername(user.fullName)
   }, [user])
 
   useEffect(() => {
-    if (!isLoaded) return
+    if (isLoading) return
     if (!user) {
       router.push("/auth")
       return
     }
-    
+
     // If the user has already completed onboarding, redirect to their dashboard
     const postAuthPath = getPostAuthPath(user)
     if (postAuthPath !== "/onboarding") {
       router.push(postAuthPath)
       return
     }
-  }, [isLoaded, user, router])
+  }, [isLoading, user, router])
 
   const nextStep = (step: OnboardingStep) => {
     setDirection(1)

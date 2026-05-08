@@ -3,7 +3,7 @@
 import Link from "next/link"
 import Image from "next/image"
 import { usePathname, useRouter } from "next/navigation"
-import { useClerk } from "@clerk/nextjs"
+import { useAuth } from "@/lib/useAuth"
 import { useStore } from "@/lib/store"
 import { VerificationModal } from "./verification-modal"
 import { VerificationBanner } from "./verification-banner"
@@ -21,13 +21,13 @@ interface DashboardLayoutProps {
 export function DashboardLayout({ children, role, showRail = false }: DashboardLayoutProps) {
   const router = useRouter()
   const pathname = usePathname()
-  const { signOut } = useClerk()
+  const { logout: authLogout } = useAuth()
   const { user, logout } = useStore()
   const [showVerification, setShowVerification] = useState(false)
 
   const handleLogout = async () => {
     logout()
-    await signOut()
+    await authLogout()
     router.push("/auth")
   }
 

@@ -2,21 +2,41 @@ package main
 
 import (
 	"context"
+	"crypto/rand"
 	"encoding/json"
+	"fmt"
 	"log"
+	"math/big"
 	"os"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
 
-	clerk "github.com/clerk/clerk-sdk-go/v2"
-	clerkjwt "github.com/clerk/clerk-sdk-go/v2/jwt"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
 	"github.com/gofiber/websocket/v2"
+	"github.com/golang-jwt/jwt/v5"
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/resend/resend-go/v2"
+	"golang.org/x/crypto/bcrypt"
 )
+
+// User represents an authenticated user
+type User struct {
+	ID                 string `json:"id"`
+	Email              string `json:"email"`
+	FullName           string `json:"fullName"`
+	Role               string `json:"role"`
+	AvatarUrl          string `json:"avatarUrl,omitempty"`
+	Bio                string `json:"bio,omitempty"`
+	Location           string `json:"location,omitempty"`
+	Website            string `json:"website,omitempty"`
+	VerificationStatus string `json:"verificationStatus"`
+	Followers          int    `json:"followers"`
+	Following          int    `json:"following"`
+	Posts              int    `json:"posts"`
+}
 
 type Message struct {
 	UserId    string `json:"userId"`
@@ -25,9 +45,8 @@ type Message struct {
 	Timestamp int64  `json:"timestamp"`
 }
 
-// TypingEvent represents a typing indicator
 type TypingEvent struct {
-	Type           string `json:"type"` // "typing"
+	Type           string `json:"type"`
 	ConversationId int    `json:"conversationId"`
 	UserId         string `json:"userId"`
 	Name           string `json:"name"`
@@ -59,51 +78,406 @@ type Gig struct {
 	CreatedAt      time.Time `json:"createdAt"`
 }
 
-// clients maps each WebSocket connection to the authenticated userId.
+// Auth request/response types
+type SignupRequest struct {
+	Email    string `json:"email"`
+	Password string `json:"password"`
+	FullName string `json:"fullName"`
+}
+
+type LoginRequest struct {
+	Email    string `json:"email"`
+	Password string `json:"password"`
+}
+
+type VerifyEmailRequest struct {
+	Email string `json:"email"`
+	Code  string `json:"code"`
+}
+
+type AuthResponse struct {
+	Token string `json:"token"`
+	User  User   `json:"user"`
+}
+
+type SignupResponse struct {
+	VerificationRequired bool   `json:"verificationRequired"`
+	ExpiresIn            string `json:"expiresIn"`
+	Message              string `json:"message"`
+}
+
+// JWT Claims
+type Claims struct {
+	UserID string `json:"userId"`
+	Email  string `json:"email"`
+	jwt.RegisteredClaims
+}
+
 var (
 	clients   = make(map[*websocket.Conn]string)
 	clientsMu sync.RWMutex
+	dbPool    *pgxpool.Pool
+	jwtSecret string
+	resendKey string
 )
 
-var dbPool *pgxpool.Pool
+// generateVerificationCode generates a 6-digit code
+func generateVerificationCode() string {
+	code, _ := rand.Int(rand.Reader, big.NewInt(1000000))
+	return fmt.Sprintf("%06d", code.Int64())
+}
 
-// clerkAuth validates a Bearer token and stores the subject (userId) in locals.
-func clerkAuth(c *fiber.Ctx) error {
+// sendVerificationEmail sends an email via Resend
+func sendVerificationEmail(email, code string) error {
+	client := resend.NewClient(resendKey)
+
+	_, err := client.Emails.Send(&resend.SendEmailRequest{
+		From:    "noreply@tvimble.tech",
+		To:      email,
+		Subject: fmt.Sprintf("%s is your THIMBLE verification code", code),
+		Html:    fmt.Sprintf(`<p>Your verification code is: <strong>%s</strong></p><p>This code expires in 10 minutes.</p>`, code),
+	})
+
+	return err
+}
+
+// generateJWT generates a JWT token
+func generateJWT(userID, email string) (string, error) {
+	claims := &Claims{
+		UserID: userID,
+		Email:  email,
+		RegisteredClaims: jwt.RegisteredClaims{
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(7 * 24 * time.Hour)), // 7 days
+			IssuedAt:  jwt.NewNumericDate(time.Now()),
+			Issuer:    "thimble",
+		},
+	}
+
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	return token.SignedString([]byte(jwtSecret))
+}
+
+// validateJWT validates and parses a JWT token
+func validateJWT(tokenString string) (*Claims, error) {
+	claims := &Claims{}
+	token, err := jwt.ParseWithClaims(tokenString, claims, func(token *jwt.Token) (interface{}, error) {
+		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, fmt.Errorf("unexpected signing method")
+		}
+		return []byte(jwtSecret), nil
+	})
+
+	if err != nil || !token.Valid {
+		return nil, err
+	}
+
+	return claims, nil
+}
+
+// jwtAuth middleware validates JWT from Authorization header or cookies
+func jwtAuth(c *fiber.Ctx) error {
+	// Try to get token from Authorization header
 	authHeader := c.Get("Authorization")
-	if !strings.HasPrefix(authHeader, "Bearer ") {
+	var tokenString string
+
+	if strings.HasPrefix(authHeader, "Bearer ") {
+		tokenString = strings.TrimPrefix(authHeader, "Bearer ")
+	} else if token := c.Cookies("auth_token"); token != "" {
+		// Fall back to cookie
+		tokenString = token
+	} else {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
 	}
-	token := strings.TrimPrefix(authHeader, "Bearer ")
 
-	claims, err := clerkjwt.Verify(context.Background(), &clerkjwt.VerifyParams{Token: token})
+	claims, err := validateJWT(tokenString)
 	if err != nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
 	}
 
-	c.Locals("userId", claims.Subject)
+	c.Locals("userId", claims.UserID)
+	c.Locals("email", claims.Email)
 	return c.Next()
 }
 
-// wsAuth validates a token query param before upgrading to WebSocket.
+// Auth Handlers
+
+// POST /auth/signup
+func handleSignup(c *fiber.Ctx) error {
+	var req SignupRequest
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(400).JSON(fiber.Map{"error": "invalid request body"})
+	}
+
+	if req.Email == "" || req.Password == "" || req.FullName == "" {
+		return c.Status(400).JSON(fiber.Map{"error": "email, password, and fullName are required"})
+	}
+
+	// Check if user already exists
+	var existingId string
+	err := dbPool.QueryRow(context.Background(), "SELECT id FROM users WHERE email = $1", req.Email).Scan(&existingId)
+	if err == nil {
+		return c.Status(400).JSON(fiber.Map{"error": "email already registered"})
+	}
+
+	// Generate verification code
+	code := generateVerificationCode()
+	expiresAt := time.Now().Add(10 * time.Minute)
+
+	_, err = dbPool.Exec(context.Background(),
+		"INSERT INTO email_verification_codes (email, code, expires_at) VALUES ($1, $2, $3)",
+		req.Email, code, expiresAt)
+	if err != nil {
+		log.Printf("Failed to save verification code: %v", err)
+		return c.Status(500).JSON(fiber.Map{"error": "failed to send verification email"})
+	}
+
+	// Send verification email via Resend
+	if err := sendVerificationEmail(req.Email, code); err != nil {
+		log.Printf("Failed to send email: %v", err)
+		return c.Status(500).JSON(fiber.Map{"error": "failed to send verification email"})
+	}
+
+	// Store signup data temporarily (in a separate table would be better, but for now return response)
+	// The frontend will send this data again with the verification code
+	return c.Status(200).JSON(SignupResponse{
+		VerificationRequired: true,
+		ExpiresIn:            "10m",
+		Message:              "Verification email sent. Please check your inbox.",
+	})
+}
+
+// POST /auth/verify-email
+func handleVerifyEmail(c *fiber.Ctx) error {
+	var req VerifyEmailRequest
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(400).JSON(fiber.Map{"error": "invalid request body"})
+	}
+
+	if req.Email == "" || req.Code == "" {
+		return c.Status(400).JSON(fiber.Map{"error": "email and code are required"})
+	}
+
+	// Verify code
+	var storedCode string
+	var expiresAt time.Time
+	err := dbPool.QueryRow(context.Background(),
+		"SELECT code, expires_at FROM email_verification_codes WHERE email = $1 ORDER BY created_at DESC LIMIT 1",
+		req.Email).Scan(&storedCode, &expiresAt)
+
+	if err != nil || storedCode != req.Code || time.Now().After(expiresAt) {
+		return c.Status(400).JSON(fiber.Map{"error": "invalid or expired verification code"})
+	}
+
+	// Get signup data from request (frontend should resend this)
+	// For now, get from request body with password and fullName
+	var signupData SignupRequest
+	if err := c.BodyParser(&signupData); err != nil || signupData.Password == "" || signupData.FullName == "" {
+		return c.Status(400).JSON(fiber.Map{"error": "password and fullName are required"})
+	}
+
+	// Hash password
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(signupData.Password), bcrypt.DefaultCost)
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": "failed to create user"})
+	}
+
+	// Create user
+	userId := uuid.New().String()
+	_, err = dbPool.Exec(context.Background(),
+		"INSERT INTO users (id, email, password_hash, full_name, role) VALUES ($1, $2, $3, $4, $5)",
+		userId, req.Email, string(hashedPassword), signupData.FullName, "model")
+	if err != nil {
+		log.Printf("Failed to create user: %v", err)
+		return c.Status(500).JSON(fiber.Map{"error": "failed to create user"})
+	}
+
+	// Generate JWT
+	token, err := generateJWT(userId, req.Email)
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": "failed to generate token"})
+	}
+
+	// Set httpOnly cookie
+	c.Cookie(&fiber.Cookie{
+		Name:     "auth_token",
+		Value:    token,
+		Expires:  time.Now().Add(7 * 24 * time.Hour),
+		HTTPOnly: true,
+		Secure:   os.Getenv("ENVIRONMENT") == "production",
+		SameSite: "Lax",
+	})
+
+	user := User{
+		ID:       userId,
+		Email:    req.Email,
+		FullName: signupData.FullName,
+		Role:     "model",
+	}
+
+	return c.Status(200).JSON(AuthResponse{
+		Token: token,
+		User:  user,
+	})
+}
+
+// POST /auth/login
+func handleLogin(c *fiber.Ctx) error {
+	var req LoginRequest
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(400).JSON(fiber.Map{"error": "invalid request body"})
+	}
+
+	if req.Email == "" || req.Password == "" {
+		return c.Status(400).JSON(fiber.Map{"error": "email and password are required"})
+	}
+
+	// Get user
+	var user User
+	var hashedPassword string
+	err := dbPool.QueryRow(context.Background(),
+		"SELECT id, email, password_hash, full_name, role, avatar_url, bio, location, website, verification_status, followers, following, posts FROM users WHERE email = $1",
+		req.Email).Scan(&user.ID, &user.Email, &hashedPassword, &user.FullName, &user.Role, &user.AvatarUrl, &user.Bio, &user.Location, &user.Website, &user.VerificationStatus, &user.Followers, &user.Following, &user.Posts)
+
+	if err != nil {
+		return c.Status(401).JSON(fiber.Map{"error": "invalid email or password"})
+	}
+
+	// Verify password
+	if err := bcrypt.CompareHashAndPassword([]byte(hashedPassword), []byte(req.Password)); err != nil {
+		return c.Status(401).JSON(fiber.Map{"error": "invalid email or password"})
+	}
+
+	// Generate JWT
+	token, err := generateJWT(user.ID, user.Email)
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": "failed to generate token"})
+	}
+
+	// Set httpOnly cookie
+	c.Cookie(&fiber.Cookie{
+		Name:     "auth_token",
+		Value:    token,
+		Expires:  time.Now().Add(7 * 24 * time.Hour),
+		HTTPOnly: true,
+		Secure:   os.Getenv("ENVIRONMENT") == "production",
+		SameSite: "Lax",
+	})
+
+	return c.Status(200).JSON(AuthResponse{
+		Token: token,
+		User:  user,
+	})
+}
+
+// POST /auth/logout
+func handleLogout(c *fiber.Ctx) error {
+	c.Cookie(&fiber.Cookie{
+		Name:     "auth_token",
+		Value:    "",
+		Expires:  time.Now().Add(-time.Hour),
+		HTTPOnly: true,
+		Secure:   os.Getenv("ENVIRONMENT") == "production",
+		SameSite: "Lax",
+	})
+
+	return c.Status(200).JSON(fiber.Map{"success": true})
+}
+
+// POST /auth/forgot-password
+func handleForgotPassword(c *fiber.Ctx) error {
+	var req struct {
+		Email string `json:"email"`
+	}
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(400).JSON(fiber.Map{"error": "invalid request body"})
+	}
+
+	// Generate reset code
+	code := generateVerificationCode()
+	expiresAt := time.Now().Add(10 * time.Minute)
+
+	_, err := dbPool.Exec(context.Background(),
+		"INSERT INTO email_verification_codes (email, code, expires_at) VALUES ($1, $2, $3)",
+		req.Email, code, expiresAt)
+	if err != nil {
+		log.Printf("Failed to save reset code: %v", err)
+		return c.Status(500).JSON(fiber.Map{"error": "failed to send reset email"})
+	}
+
+	// Send reset email
+	if err := sendVerificationEmail(req.Email, code); err != nil {
+		log.Printf("Failed to send email: %v", err)
+		return c.Status(500).JSON(fiber.Map{"error": "failed to send reset email"})
+	}
+
+	return c.Status(200).JSON(fiber.Map{"resetEmailSent": true})
+}
+
+// POST /auth/reset-password
+func handleResetPassword(c *fiber.Ctx) error {
+	var req struct {
+		Email       string `json:"email"`
+		Code        string `json:"code"`
+		NewPassword string `json:"newPassword"`
+	}
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(400).JSON(fiber.Map{"error": "invalid request body"})
+	}
+
+	// Verify code
+	var storedCode string
+	var expiresAt time.Time
+	err := dbPool.QueryRow(context.Background(),
+		"SELECT code, expires_at FROM email_verification_codes WHERE email = $1 ORDER BY created_at DESC LIMIT 1",
+		req.Email).Scan(&storedCode, &expiresAt)
+
+	if err != nil || storedCode != req.Code || time.Now().After(expiresAt) {
+		return c.Status(400).JSON(fiber.Map{"error": "invalid or expired reset code"})
+	}
+
+	// Hash new password
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(req.NewPassword), bcrypt.DefaultCost)
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": "failed to reset password"})
+	}
+
+	// Update password
+	_, err = dbPool.Exec(context.Background(),
+		"UPDATE users SET password_hash = $1, updated_at = CURRENT_TIMESTAMP WHERE email = $2",
+		string(hashedPassword), req.Email)
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": "failed to reset password"})
+	}
+
+	return c.Status(200).JSON(fiber.Map{"success": true})
+}
+
+// WebSocket with JWT auth
 func wsAuth(c *fiber.Ctx) error {
 	token := c.Query("token")
 	if token == "" {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
 	}
-	claims, err := clerkjwt.Verify(context.Background(), &clerkjwt.VerifyParams{Token: token})
+
+	claims, err := validateJWT(token)
 	if err != nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
 	}
-	c.Locals("userId", claims.Subject)
+
+	c.Locals("userId", claims.UserID)
 	return c.Next()
 }
 
 func main() {
-	secretKey := os.Getenv("CLERK_SECRET_KEY")
-	if secretKey == "" {
-		log.Fatal("CLERK_SECRET_KEY environment variable is required")
+	jwtSecret = os.Getenv("JWT_SECRET")
+	if jwtSecret == "" {
+		log.Fatal("JWT_SECRET environment variable is required")
 	}
-	clerk.SetKey(secretKey)
+
+	resendKey = os.Getenv("RESEND_API_KEY")
+	if resendKey == "" {
+		log.Fatal("RESEND_API_KEY environment variable is required")
+	}
 
 	connStr := os.Getenv("DATABASE_URL")
 	if connStr == "" {
@@ -112,7 +486,7 @@ func main() {
 
 	allowedOrigins := os.Getenv("CORS_ALLOWED_ORIGINS")
 	if allowedOrigins == "" {
-		log.Fatal("CORS_ALLOWED_ORIGINS environment variable is required")
+		allowedOrigins = "http://localhost:3000,https://tvimble.tech"
 	}
 
 	var err error
@@ -126,9 +500,18 @@ func main() {
 	app.Use(cors.New(cors.Config{
 		AllowOrigins: allowedOrigins,
 		AllowHeaders: "Origin, Content-Type, Accept, Authorization",
+		AllowCredentials: true,
 	}))
 
-	// WebSocket — auth via ?token= query param before upgrade
+	// Auth endpoints (public)
+	app.Post("/auth/signup", handleSignup)
+	app.Post("/auth/verify-email", handleVerifyEmail)
+	app.Post("/auth/login", handleLogin)
+	app.Post("/auth/logout", handleLogout)
+	app.Post("/auth/forgot-password", handleForgotPassword)
+	app.Post("/auth/reset-password", handleResetPassword)
+
+	// WebSocket (protected)
 	app.Get("/ws", wsAuth, websocket.New(func(c *websocket.Conn) {
 		userId, _ := c.Locals("userId").(string)
 
@@ -169,28 +552,23 @@ func main() {
 				break
 			}
 
-			// Try to parse as a generic map first to check type
 			var eventMap map[string]interface{}
 			if err := json.Unmarshal(msgBytes, &eventMap); err != nil {
 				continue
 			}
 
-			// Check if it's a typing event
 			if eventType, ok := eventMap["type"].(string); ok && eventType == "typing" {
-				// It's a typing event - just broadcast, don't save to DB
 				for client := range clients {
 					client.WriteMessage(mt, msgBytes)
 				}
 				continue
 			}
 
-			// It's a regular message
 			var msg Message
 			if err := json.Unmarshal(msgBytes, &msg); err != nil {
 				continue
 			}
 
-			// Enforce server-side userId — ignore whatever the client sent
 			msg.UserId = userId
 
 			_, err = dbPool.Exec(context.Background(),
@@ -210,20 +588,10 @@ func main() {
 		}
 	}))
 
-	// Feed API — read is public, writes require auth
+	// Posts API
 	app.Get("/api/posts", func(c *fiber.Ctx) error {
-		limit := 20
-		offset := 0
-		if l, err := strconv.Atoi(c.Query("limit")); err == nil && l > 0 && l <= 100 {
-			limit = l
-		}
-		if o, err := strconv.Atoi(c.Query("offset")); err == nil && o >= 0 {
-			offset = o
-		}
-
 		rows, err := dbPool.Query(context.Background(),
-			"SELECT id, user_id, author_name, author_avatar, image_url, description, likes, tagged_users, created_at FROM posts ORDER BY created_at DESC LIMIT $1 OFFSET $2",
-			limit, offset)
+			"SELECT id, user_id, author_name, author_avatar, image_url, description, likes, tagged_users, created_at FROM posts ORDER BY created_at DESC LIMIT 20")
 		if err != nil {
 			return c.Status(500).JSON(fiber.Map{"error": "failed to fetch posts"})
 		}
@@ -244,7 +612,7 @@ func main() {
 		return c.JSON(posts)
 	})
 
-	app.Post("/api/posts", clerkAuth, func(c *fiber.Ctx) error {
+	app.Post("/api/posts", jwtAuth, func(c *fiber.Ctx) error {
 		userId, _ := c.Locals("userId").(string)
 
 		var p Post
@@ -252,18 +620,10 @@ func main() {
 			return c.Status(400).JSON(fiber.Map{"error": "invalid request body"})
 		}
 
-		// Validate required fields
 		if strings.TrimSpace(p.ImageUrl) == "" {
 			return c.Status(400).JSON(fiber.Map{"error": "imageUrl is required"})
 		}
-		if len(p.Description) > 2000 {
-			return c.Status(400).JSON(fiber.Map{"error": "description exceeds 2000 characters"})
-		}
-		if len(p.AuthorName) > 100 {
-			return c.Status(400).JSON(fiber.Map{"error": "authorName exceeds 100 characters"})
-		}
 
-		// Always use the authenticated userId — never trust the client
 		p.UserId = userId
 		if p.TaggedUsers == nil {
 			p.TaggedUsers = []string{}
@@ -281,7 +641,7 @@ func main() {
 		return c.Status(201).JSON(p)
 	})
 
-	app.Delete("/api/posts/:id", clerkAuth, func(c *fiber.Ctx) error {
+	app.Delete("/api/posts/:id", jwtAuth, func(c *fiber.Ctx) error {
 		userId, _ := c.Locals("userId").(string)
 		postId := c.Params("id")
 
@@ -291,12 +651,13 @@ func main() {
 			return c.Status(500).JSON(fiber.Map{"error": "failed to delete post"})
 		}
 		if result.RowsAffected() == 0 {
-			return c.Status(404).JSON(fiber.Map{"error": "post not found or not yours"})
+			return c.Status(404).JSON(fiber.Map{"error": "post not found"})
 		}
 
 		return c.SendStatus(204)
 	})
 
+	// Gigs API
 	app.Get("/api/gigs", func(c *fiber.Ctx) error {
 		rows, err := dbPool.Query(context.Background(),
 			"SELECT id, title, description, location, payment, posted_by, posted_by_role, posted_by_avatar, applications, created_at FROM gigs ORDER BY created_at DESC")
@@ -320,7 +681,7 @@ func main() {
 
 	port := os.Getenv("PORT")
 	if port == "" {
-		port = "3001"
+		port = "8080"
 	}
 
 	log.Printf("Server starting on :%s", port)

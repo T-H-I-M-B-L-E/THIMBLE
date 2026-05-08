@@ -1,8 +1,7 @@
 import type { Metadata, Viewport } from 'next'
 import { Analytics } from '@vercel/analytics/next'
 import { ThemeProvider } from '@/lib/theme-context'
-import { ClerkProviderWrapper } from '@/components/clerk-provider-wrapper'
-import { ClerkUserSync } from '@/components/clerk-user-sync'
+import { UserSync } from '@/components/user-sync'
 import { WelcomeOverlay } from '@/components/welcome-overlay'
 import './globals.css'
 
@@ -44,13 +43,11 @@ export default function RootLayout({
   return (
     <html lang="en" className="bg-background">
       <body className="antialiased">
-        <ClerkProviderWrapper>
-          <ThemeProvider>
-            <ClerkUserSync />
-            <WelcomeOverlay />
-            {children}
-          </ThemeProvider>
-        </ClerkProviderWrapper>
+        <ThemeProvider>
+          <UserSync />
+          <WelcomeOverlay />
+          {children}
+        </ThemeProvider>
         {process.env.NODE_ENV === 'production' && <Analytics />}
       </body>
     </html>

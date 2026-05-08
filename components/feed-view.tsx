@@ -1,7 +1,7 @@
 "use client"
 
 import { useStore } from "@/lib/store"
-import { useUser } from "@clerk/nextjs"
+import { useAuth } from "@/lib/useAuth"
 import Image from "next/image"
 import { Heart, MessageSquare, Bookmark, Share2, Plus, MoreHorizontal, Trash2 } from "lucide-react"
 import { useState, useEffect } from "react"
@@ -19,7 +19,7 @@ interface Post {
 }
 
 export function FeedView() {
-  const { user: clerkUser } = useUser()
+  const { user } = useAuth()
   const { designPosts, removeDesignPost } = useStore()
   const [posts, setPosts] = useState<Post[]>([])
   const [isLoading, setIsLoading] = useState(true)
@@ -118,9 +118,9 @@ export function FeedView() {
     <div className="t-feed">
       {/* Composer Bar */}
       <div className="t-composer-bar">
-        {clerkUser?.imageUrl ? (
+        {user?.avatar ? (
           <Image
-            src={clerkUser.imageUrl}
+            src={user.avatar}
             alt="Me"
             width={40}
             height={40}
@@ -129,7 +129,7 @@ export function FeedView() {
           />
         ) : (
           <div className="t-avatar t-avatar-ph">
-            {clerkUser?.firstName?.[0] ?? "U"}
+            {user?.fullName?.[0] ?? "U"}
           </div>
         )}
         <button className="t-composer-input" onClick={() => {}}>
@@ -195,7 +195,7 @@ export function FeedView() {
                     <div className="t-muted-xs">{post.authorName} · {new Date(post.createdAt).toLocaleDateString()}</div>
                   </div>
                 </div>
-                {clerkUser?.id === post.userId && (
+                {user?.id === post.userId && (
                   <button
                     onClick={() => handleDelete(post.id)}
                     style={{ background: "none", border: 0, cursor: "pointer", color: "var(--t-ink-2)", padding: "4px" }}
@@ -203,7 +203,7 @@ export function FeedView() {
                     <Trash2 size={16} />
                   </button>
                 )}
-                {!clerkUser || clerkUser?.id !== post.userId && (
+                {!user || user?.id !== post.userId && (
                   <button style={{ background: "none", border: 0, cursor: "pointer", color: "var(--t-ink-2)", padding: "4px" }}>
                     <MoreHorizontal size={16} />
                   </button>

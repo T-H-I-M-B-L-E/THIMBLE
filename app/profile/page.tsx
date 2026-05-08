@@ -4,7 +4,7 @@ import { useState } from "react"
 import Image from "next/image"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { useUser } from "@clerk/nextjs"
+import { useAuth } from "@/lib/useAuth"
 import { BottomNav } from "@/components/bottom-nav"
 import { Sidebar } from "@/components/sidebar"
 import { Button } from "@/components/ui/button"
@@ -66,16 +66,16 @@ const savedPosts = [
 
 export default function ProfilePage() {
   const router = useRouter()
-  const { user, isLoaded } = useUser()
+  const { user, isLoading } = useAuth()
   const [isFollowing, setIsFollowing] = useState(false)
 
   useEffect(() => {
-    if (isLoaded && !user) {
+    if (!isLoading && !user) {
       router.push("/auth")
     }
-  }, [user, isLoaded, router])
+  }, [user, isLoading, router])
 
-  if (!isLoaded) {
+  if (isLoading) {
     return (
       <div className="flex min-h-screen items-center justify-center">
         <div className="text-center">
@@ -116,15 +116,15 @@ export default function ProfilePage() {
           <div className="px-3 sm:px-4 py-4 sm:py-6 border-b border-border">
             <div className="flex items-start gap-3 sm:gap-4">
               <Avatar className="h-16 w-16 sm:h-20 sm:w-20 border-2 border-border flex-shrink-0">
-                <AvatarImage src={user.imageUrl} alt={user.fullName || ""} />
+                <AvatarImage src={user.avatar} alt={user.fullName || ""} />
                 <AvatarFallback className="bg-secondary text-foreground text-xl sm:text-2xl">
-                  {(user.fullName || user.username || "U").charAt(0)}
+                  {(user.fullName || "U").charAt(0)}
                 </AvatarFallback>
               </Avatar>
 
               <div className="flex-1 min-w-0">
                 <h2 className="text-lg sm:text-xl font-semibold text-foreground truncate">{user.fullName}</h2>
-                <p className="text-sm text-muted-foreground">@{user.username}</p>
+                <p className="text-sm text-muted-foreground">@{user.email?.split('@')[0]}</p>
                 <p className="text-xs sm:text-sm text-primary mt-0.5">Creative</p>
               </div>
             </div>
@@ -132,7 +132,7 @@ export default function ProfilePage() {
             {/* Bio */}
             <div className="mt-3 sm:mt-4 space-y-2">
               <p className="text-foreground text-sm">
-                {(user.unsafeMetadata?.bio as string) || "Fashion designer & creative director. Exploring the intersection of art and fashion."}
+                {user.bio || "Fashion designer & creative director. Exploring the intersection of art and fashion."}
               </p>
               <div className="flex flex-wrap gap-3 sm:gap-4 text-xs sm:text-sm text-muted-foreground">
                 <span className="flex items-center gap-1">

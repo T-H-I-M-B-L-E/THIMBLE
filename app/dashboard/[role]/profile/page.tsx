@@ -1,6 +1,6 @@
 "use client"
 
-import { useUser } from "@clerk/nextjs"
+import { useAuth } from "@/lib/useAuth"
 import { DashboardLayout } from "@/components/dashboard-layout"
 import Image from "next/image"
 import { useRouter } from "next/navigation"
@@ -15,7 +15,7 @@ export default function ProfilePage() {
   const router = useRouter()
   const params = useParams()
   const role = params.role as string
-  const { user, isLoaded } = useUser()
+  const { user, isLoading } = useAuth()
   const { designPosts } = useStore()
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
   const [userPosts, setUserPosts] = useState<any[]>([])
@@ -23,10 +23,10 @@ export default function ProfilePage() {
   const [activeTab, setActiveTab] = useState("posts")
 
   useEffect(() => {
-    if (isLoaded && user) {
+    if (!isLoading && user) {
       fetchUserPosts()
     }
-  }, [isLoaded, user])
+  }, [isLoading, user])
 
   const fetchUserPosts = async () => {
     const postsUrl = getApiUrl("/api/posts")
@@ -89,14 +89,13 @@ export default function ProfilePage() {
     }
   }
 
-  if (!isLoaded) return null
+  if (isLoading || !user) return null
 
-  const metadata = user?.unsafeMetadata || {}
-  const bio = (metadata.bio as string) || "The vision is yet to be written."
-  const website = (metadata.website as string) || ""
-  const instagram = (metadata.instagram as string) || ""
-  const avatarUrl = (metadata.avatarUrl as string) || user?.imageUrl || "/placeholder-avatar.png"
-  const userRole = (metadata.role as string) || role
+  const bio = user.bio || "The vision is yet to be written."
+  const website = user.website || ""
+  const instagram = "" // TODO: Add instagram to user model if needed
+  const avatarUrl = user.avatar || "/placeholder-avatar.png"
+  const userRole = user.role || role
   const websiteHref = normalizeWebsiteUrl(website)
   const websiteHostname = getSafeHostname(website)
 

@@ -2,8 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
-import { useSignIn, useUser, useClerk } from "@clerk/nextjs"
-import { useStore } from "@/lib/store"
+import { useAuth } from "@/lib/useAuth"
 import { useTheme } from "@/lib/theme-context"
 import { getPostAuthPath } from "@/lib/platform"
 import { Button } from "@/components/ui/button"
@@ -13,12 +12,7 @@ import { Eye, EyeOff, Sun, Moon } from "lucide-react"
 
 export default function LoginPage() {
   const router = useRouter()
-  const clerk = useClerk()
-  const signInState = useSignIn() as any
-  const isSignInLoaded = signInState.isLoaded?.value ?? signInState.isLoaded ?? !!signInState.signIn
-  const signIn = signInState.signIn?.value ?? signInState.signIn ?? signInState
-  const setActive = clerk.setActive
-  const { user, isLoaded: isUserLoaded } = useUser()
+  const { user, isLoading: isAuthLoading } = useAuth()
   const { theme, toggleTheme } = useTheme()
   const [isLoading, setIsLoading] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
@@ -30,64 +24,43 @@ export default function LoginPage() {
     password: "",
   })
 
-  // Handle redirect in useEffect to avoid setState during render
+  // Handle redirect if already authenticated
   useEffect(() => {
-    if (!isUserLoaded) return
-
-    // If already signed in with Clerk, check for onboarding status
-    if (user) {
+    if (!isAuthLoading && user) {
       router.push(getPostAuthPath(user))
     }
-  }, [user, isUserLoaded, router])
+  }, [user, isAuthLoading, router])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError("")
-
-    if (!isSignInLoaded || !signIn) {
-      setError("Authentication not ready. Please try again.")
-      return
-    }
-
     setIsLoading(true)
 
     try {
-      const result = await (signIn as any).create({
-        identifier: formData.email,
-        password: formData.password,
-      }).catch((e: any) => e)
+      const response = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: formData.email,
+          password: formData.password,
+        }),
+        credentials: "include",
+      })
 
-      // Clerk v7 sometimes returns errors in the result instead of throwing
-      if (result?.errors || result?.error) {
-        throw result
+      const data = await response.json()
+
+      if (!response.ok) {
+        setError(data.error || "Invalid email or password")
+        return
       }
 
-      if (result?.status === "complete") {
-        await (setActive as any)({ session: result.createdSessionId })
-        // The useEffect will handle the redirection after the session is set
-      } else {
-        console.warn("Sign in result:", result)
-        setError("Sign in failed. Please check your credentials.")
-      }
+      // Redirect to appropriate dashboard
+      const redirectPath = getPostAuthPath(data.user)
+      router.push(redirectPath)
+      router.refresh()
     } catch (err: any) {
-      console.error("Login catch block:", err)
-      const errors = err.errors || (err.error ? [err.error] : [])
-      const errCode = errors?.[0]?.code
-      const errMessage = errors?.[0]?.message || err.message || ""
-      
-      if (errCode === "session_exists" || errMessage.includes("already signed in")) {
-        if (user) {
-          router.push(getPostAuthPath(user))
-        } else {
-          router.push("/")
-        }
-      } else if (errCode === "form_identifier_not_found") {
-        setError("No account found with this email. Create an account instead.")
-      } else if (errCode === "form_password_incorrect") {
-        setError("Invalid email or password")
-      } else {
-        setError(errMessage || "Invalid credentials")
-      }
+      console.error("Login error:", err)
+      setError("An error occurred during login. Please try again.")
     } finally {
       setIsLoading(false)
     }
@@ -208,7 +181,7 @@ export default function LoginPage() {
 
               <Button
                 type="submit"
-                disabled={isLoading || !isSignInLoaded}
+                disabled={isLoading}
                 className="w-full h-11 sm:h-12 rounded-none bg-black text-white hover:bg-neutral-800 font-normal uppercase tracking-widest text-xs sm:text-sm mt-2 sm:mt-0"
               >
                 {isLoading ? "Signing in..." : "Sign in"}

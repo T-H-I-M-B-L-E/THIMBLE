@@ -2,15 +2,15 @@
 
 import { useEffect } from "react"
 import { useRouter } from "next/navigation"
-import { useUser } from "@clerk/nextjs"
+import { useAuth } from "@/lib/useAuth"
 import { getPostAuthPath } from "@/lib/platform"
 
 export default function HomePage() {
   const router = useRouter()
-  const { user, isLoaded } = useUser()
+  const { user, isLoading } = useAuth()
 
   useEffect(() => {
-    if (!isLoaded) return
+    if (isLoading) return
 
     if (!user) {
       // Not signed in → go to auth
@@ -18,7 +18,7 @@ export default function HomePage() {
     } else {
       router.push(getPostAuthPath(user))
     }
-  }, [user, isLoaded, router])
+  }, [user, isLoading, router])
 
   return (
     <div className="min-h-screen flex items-center justify-center">

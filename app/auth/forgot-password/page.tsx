@@ -2,7 +2,6 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { useClerk, useSignIn } from "@clerk/nextjs"
 import { useTheme } from "@/lib/theme-context"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -16,15 +15,11 @@ import {
 
 export default function ForgotPasswordPage() {
   const router = useRouter()
-  const clerk = useClerk()
-  const signInState = useSignIn() as any
-  const isLoaded = signInState.isLoaded?.value ?? signInState.isLoaded ?? !!signInState.signIn
-  const signIn = signInState.signIn?.value ?? signInState.signIn ?? signInState
   const { theme, toggleTheme } = useTheme()
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [code, setCode] = useState("")
-  const [step, setStep] = useState<"request" | "verify">("request")
+  const [step, setStep] = useState<"request" | "verify" | "reset">("request")
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState("")
   const [successMessage, setSuccessMessage] = useState("")
@@ -34,133 +29,84 @@ export default function ForgotPasswordPage() {
 
   const handleRequestCode = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!isLoaded) return
     setError("")
     setIsLoading(true)
 
     try {
-      await signIn.create({
-        strategy: "reset_password_email_code",
-        identifier: email.trim(),
+      const response = await fetch("/api/auth/forgot-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: email.trim() }),
+        credentials: "include",
       })
-      
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        // Generic message to prevent email enumeration
+        setStep("verify")
+        setSuccessMessage("If an account exists, a reset code has been sent to your email.")
+        return
+      }
+
       setStep("verify")
       setSuccessMessage("If an account exists, a reset code has been sent to your email.")
     } catch (err: any) {
       console.error("Forgot password error:", err)
-      // Generic success message to prevent email enumeration attacks
-      const errCode = err.errors?.[0]?.code
-      if (errCode === "form_identifier_not_found") {
-        setStep("verify")
-        setSuccessMessage("If an account exists, a reset code has been sent to your email.")
-      } else {
-        setError(err.errors?.[0]?.message || "Something went wrong.")
-      }
+      // Generic message for security
+      setStep("verify")
+      setSuccessMessage("If an account exists, a reset code has been sent to your email.")
     } finally {
       setIsLoading(false)
     }
+  }
+
+  const handleVerifyCode = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (code.length < 6) return
+
+    setError("")
+    setStep("reset")
   }
 
   const handleResetPassword = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!isLoaded) return
 
-    // Strict password validation before API call
-    if (password.length < 8 || !/(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_+={}\[\]|\\:;"'<>,.?/-])/.test(password)) {
-      setError("Password must be 8+ characters and contain uppercase, lowercase, number, and special character.")
+    if (password.length < 8 || !/(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/.test(password)) {
+      setError("Password must be 8+ characters with uppercase, lowercase, and number.")
       return
     }
 
-    setError("")
     setIsLoading(true)
 
     try {
-      let result
-      const futureResetFlow =
-        signIn?.resetPasswordEmailCode ||
-        signInState?.resetPasswordEmailCode
-
-      if (futureResetFlow?.verifyCode && futureResetFlow?.submitPassword) {
-        const verifyResult = await futureResetFlow.verifyCode({
+      const response = await fetch("/api/auth/reset-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: email.trim(),
           code: code.trim(),
-        })
+          newPassword: password,
+        }),
+        credentials: "include",
+      })
 
-        if (verifyResult?.error) {
-          throw verifyResult.error
-        }
+      const data = await response.json()
 
-        const submitResult = await futureResetFlow.submitPassword({
-          password,
-        })
-
-        if (submitResult?.error) {
-          throw submitResult.error
-        }
-
-        result = signInState.signIn?.value ?? signInState.signIn ?? signIn
-      } else if (signIn?.attemptFirstFactor || signInState?.attemptFirstFactor) {
-        const attemptMethod =
-          signIn?.attemptFirstFactor ||
-          signInState?.attemptFirstFactor
-
-        result = await attemptMethod.bind(signIn || signInState)({
-          strategy: "reset_password_email_code",
-          code: code.trim(),
-          password,
-        })
-      } else if (signIn?.resetPassword || signInState?.resetPassword) {
-        const resetMethod =
-          signIn?.resetPassword ||
-          signInState?.resetPassword
-
-        result = await resetMethod.bind(signIn || signInState)({
-          password,
-        })
-      } else {
-        console.error("Reset methods missing. Available keys on signIn:", Object.keys(signIn || {}))
-        console.error("Available keys on signInState:", Object.keys(signInState || {}))
-        throw new Error("Password reset is not available in the current authentication state. Refresh and request a new code.")
+      if (!response.ok) {
+        setError(data.error || "Password reset failed")
+        return
       }
 
-      if (result.status === "complete") {
-        try {
-          await clerk.signOut()
-        } catch (signOutError) {
-          console.warn("Post-reset sign out skipped:", signOutError)
-        }
-        router.push("/auth")
-      } else {
-        setError("Password reset did not complete. Request a new code and try again.")
-      }
+      // Success - redirect to login
+      router.push("/auth?reset=success")
     } catch (err: any) {
       console.error("Reset password error:", err)
-      const errCode = err.errors?.[0]?.code
-      if (errCode === "form_code_incorrect") {
-        setError("The reset code is incorrect. Check the email and try again.")
-      } else if (errCode === "verification_expired") {
-        setError("This reset code has expired. Request a new one.")
-      } else if (errCode === "client_state_invalid") {
-        setError("Your reset session expired. Request a new code to continue.")
-        setStep("request")
-      } else {
-        setError(err.errors?.[0]?.message || "Invalid code or password.")
-      }
+      setError("An error occurred. Please try again.")
     } finally {
       setIsLoading(false)
     }
   }
-
-  const getPasswordStrength = () => {
-    if (!password) return 0
-    let strength = 0
-    if (password.length >= 8) strength++
-    if (/[a-z]/.test(password) && /[A-Z]/.test(password)) strength++
-    if (/\d/.test(password)) strength++
-    if (/[^a-zA-Z0-9]/.test(password)) strength++
-    return strength
-  }
-
-  const passwordStrength = getPasswordStrength()
 
   return (
     <div className="min-h-screen flex flex-col lg:flex-row bg-white dark:bg-black">
@@ -188,43 +134,40 @@ export default function ForgotPasswordPage() {
         </div>
       </div>
 
-      {/* Right Side - Form */}
-      <div className="flex-1 flex items-start lg:items-center justify-center px-4 sm:px-6 lg:px-8 py-6 sm:py-8 lg:py-0">
+      {/* Right Side - Reset Form */}
+      <div className="flex-1 flex items-start lg:items-center justify-center px-4 sm:px-6 lg:px-8 xl:px-12 py-6 sm:py-8 lg:py-0 bg-white dark:bg-black min-h-screen lg:min-h-0">
         <div className="w-full max-w-sm sm:max-w-md space-y-4 sm:space-y-6 lg:space-y-8">
           <div className="lg:hidden flex items-center justify-between mb-2">
             <h1 className="text-lg sm:text-xl font-light text-black dark:text-white tracking-[0.2em]">THIMBLE</h1>
             <button
               onClick={toggleTheme}
               className="p-2 text-neutral-500 hover:text-black dark:hover:text-white transition-colors"
+              aria-label="Toggle theme"
             >
-              {isDark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+              {isDark ? <Sun className="h-4 w-4 sm:h-5 sm:w-5" /> : <Moon className="h-4 w-4 sm:h-5 sm:w-5" />}
             </button>
           </div>
 
-          <div className="text-center space-y-2">
-            <h2 className="text-xl lg:text-2xl font-light text-black dark:text-white">Reset Password</h2>
-            <p className="text-sm text-neutral-500">
-              {step === "request" ? "Enter your email to receive a reset code." : "Enter the code and your new password."}
+          <div className="text-center space-y-1 sm:space-y-2">
+            <h2 className="text-lg sm:text-xl lg:text-2xl font-light text-black dark:text-white">
+              {step === "request"
+                ? "Reset password"
+                : step === "verify"
+                ? "Verify code"
+                : "New password"}
+            </h2>
+            <p className="text-xs sm:text-sm text-neutral-500 dark:text-neutral-400">
+              {step === "request"
+                ? "Enter your email to receive a reset code"
+                : step === "verify"
+                ? "Check your email for the verification code"
+                : "Enter your new password"}
             </p>
           </div>
 
-          {error && (
-            <div className="rounded-none border border-red-500/50 bg-red-50/50 dark:bg-red-950/20 p-3 sm:p-4 text-xs sm:text-sm text-red-600 dark:text-red-400 flex items-start gap-2">
-              <X className="h-4 w-4 mt-0.5 shrink-0" />
-              <p>{error}</p>
-            </div>
-          )}
-
-          {successMessage && step === "verify" && !error && (
-            <div className="rounded-none border border-green-500/50 bg-green-50/50 dark:bg-green-950/20 p-3 sm:p-4 text-xs sm:text-sm text-green-600 dark:text-green-400 flex items-start gap-2">
-              <CheckCircle className="h-4 w-4 mt-0.5 shrink-0" />
-              <p>{successMessage}</p>
-            </div>
-          )}
-
           <div className="border border-neutral-200 dark:border-neutral-800 p-4 sm:p-6 lg:p-8">
             {step === "request" ? (
-              <form onSubmit={handleRequestCode} className="space-y-5">
+              <form onSubmit={handleRequestCode} className="space-y-3 sm:space-y-4 lg:space-y-5">
                 <div className="space-y-2">
                   <Label htmlFor="email" className="text-xs font-normal uppercase tracking-widest text-neutral-500">
                     Email
@@ -235,67 +178,99 @@ export default function ForgotPasswordPage() {
                     placeholder="name@example.com"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    className="h-12 rounded-none border-neutral-300 bg-transparent focus:border-black focus:ring-0"
+                    className="h-10 sm:h-12 rounded-none border-neutral-300 bg-transparent text-black dark:text-white placeholder:text-neutral-400 focus:border-black focus:ring-0"
                     required
                   />
                 </div>
-                
-                <div className="pt-2 flex flex-col gap-3">
-                  <Button
-                    type="submit"
-                    disabled={isLoading || !isLoaded}
-                    className="w-full h-12 rounded-none bg-black text-white hover:bg-neutral-800 font-normal uppercase tracking-widest text-xs"
-                  >
-                    {isLoading ? "Sending..." : "Send Reset Code"}
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => router.push("/auth")}
-                    className="w-full h-12 rounded-none font-normal uppercase tracking-widest text-xs"
-                  >
-                    Back to Login
-                  </Button>
-                </div>
+
+                {error && (
+                  <div className="rounded-none border border-red-500 p-3 sm:p-4 text-sm text-red-600 dark:text-red-400 bg-transparent">
+                    {error}
+                  </div>
+                )}
+
+                <Button
+                  type="submit"
+                  disabled={isLoading}
+                  className="w-full h-11 sm:h-12 rounded-none bg-black text-white hover:bg-neutral-800 font-normal uppercase tracking-widest text-xs sm:text-sm mt-2 sm:mt-0"
+                >
+                  {isLoading ? "Sending..." : "Send reset code"}
+                </Button>
               </form>
-            ) : (
-              <form onSubmit={handleResetPassword} className="space-y-6">
-                <div className="space-y-2 text-center">
+            ) : step === "verify" ? (
+              <form onSubmit={handleVerifyCode} className="space-y-4 sm:space-y-6">
+                {successMessage && (
+                  <div className="rounded-none border border-green-500 p-3 sm:p-4 text-sm text-green-600 dark:text-green-400 bg-transparent flex items-start gap-2">
+                    <CheckCircle className="h-4 w-4 flex-shrink-0 mt-0.5" />
+                    <span>{successMessage}</span>
+                  </div>
+                )}
+
+                <div className="space-y-2">
                   <Label className="text-xs font-normal uppercase tracking-widest text-neutral-500">
                     Verification Code
                   </Label>
-                </div>
-
-                <div className="flex justify-center py-2">
                   <InputOTP
                     maxLength={6}
                     value={code}
-                    onChange={(val) => setCode(val)}
+                    onChange={setCode}
+                    disabled={isLoading}
                   >
-                    <InputOTPGroup>
-                      <InputOTPSlot index={0} />
-                      <InputOTPSlot index={1} />
-                      <InputOTPSlot index={2} />
-                      <InputOTPSlot index={3} />
-                      <InputOTPSlot index={4} />
-                      <InputOTPSlot index={5} />
+                    <InputOTPGroup className="flex justify-between gap-2">
+                      {[0, 1, 2, 3, 4, 5].map((index) => (
+                        <InputOTPSlot
+                          key={index}
+                          index={index}
+                          className="w-12 h-12 sm:w-14 sm:h-14 rounded-none border border-neutral-300 dark:border-neutral-700 text-center text-lg font-semibold"
+                        />
+                      ))}
                     </InputOTPGroup>
                   </InputOTP>
                 </div>
 
+                {error && (
+                  <div className="rounded-none border border-red-500 p-3 sm:p-4 text-sm text-red-600 dark:text-red-400 bg-transparent">
+                    {error}
+                  </div>
+                )}
+
+                <Button
+                  type="submit"
+                  disabled={isLoading || code.length < 6}
+                  className="w-full h-11 sm:h-12 rounded-none bg-black text-white hover:bg-neutral-800 font-normal uppercase tracking-widest text-xs sm:text-sm"
+                >
+                  {isLoading ? "Verifying..." : "Verify code"}
+                </Button>
+
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    setStep("request")
+                    setCode("")
+                    setEmail("")
+                    setSuccessMessage("")
+                  }}
+                  className="w-full h-10 sm:h-11 rounded-none border-neutral-300 dark:border-neutral-700 text-black dark:text-white font-normal uppercase tracking-widest text-xs sm:text-sm"
+                >
+                  <ArrowLeft className="h-4 w-4 mr-2" />
+                  Back
+                </Button>
+              </form>
+            ) : (
+              <form onSubmit={handleResetPassword} className="space-y-3 sm:space-y-4 lg:space-y-5">
                 <div className="space-y-2">
-                  <Label htmlFor="new-password" className="text-xs font-normal uppercase tracking-widest text-neutral-500">
+                  <Label htmlFor="password" className="text-xs font-normal uppercase tracking-widest text-neutral-500">
                     New Password
                   </Label>
                   <div className="relative">
                     <Input
-                      id="new-password"
+                      id="password"
                       type={showPassword ? "text" : "password"}
-                      placeholder="Create new password"
+                      placeholder="Min 8 chars, uppercase, number"
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
-                      className="h-12 rounded-none border-neutral-300 bg-transparent pr-11 focus:border-black focus:ring-0"
-                      required
+                      className="h-10 sm:h-12 rounded-none border-neutral-300 bg-transparent pr-11 text-black dark:text-white placeholder:text-neutral-400 focus:border-black focus:ring-0"
                     />
                     <button
                       type="button"
@@ -305,60 +280,44 @@ export default function ForgotPasswordPage() {
                       {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                     </button>
                   </div>
-
-                  {password && (
-                    <div className="space-y-1 mt-2">
-                      <div className="flex gap-1">
-                        {[1, 2, 3, 4].map((level) => (
-                          <div
-                            key={level}
-                            className={`h-1 flex-1 ${
-                              passwordStrength >= level
-                                ? passwordStrength === 4
-                                  ? "bg-green-500"
-                                  : passwordStrength === 3
-                                  ? "bg-yellow-500"
-                                  : passwordStrength === 2
-                                  ? "bg-orange-500"
-                                  : "bg-red-500"
-                                : "bg-neutral-200 dark:bg-neutral-800"
-                            }`}
-                          />
-                        ))}
-                      </div>
-                      <p className="text-[10px] text-neutral-500 uppercase tracking-wider">
-                        {passwordStrength === 4
-                          ? "Strong password"
-                          : passwordStrength === 3
-                          ? "Good password"
-                          : passwordStrength === 2
-                          ? "Fair password"
-                          : "Weak password"}
-                      </p>
-                    </div>
-                  )}
                 </div>
 
-                <div className="pt-2 flex flex-col gap-3">
-                  <Button
-                    type="submit"
-                    disabled={isLoading || code.length < 6 || passwordStrength < 4}
-                    className="w-full h-12 rounded-none bg-black text-white hover:bg-neutral-800 font-normal uppercase tracking-widest text-xs"
-                  >
-                    {isLoading ? "Resetting..." : "Reset Password"}
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    onClick={() => setStep("request")}
-                    className="w-full h-12 rounded-none font-normal uppercase tracking-widest text-xs text-neutral-500 hover:text-black"
-                  >
-                    <ArrowLeft className="h-3 w-3 mr-2" /> Use a different email
-                  </Button>
-                </div>
+                {error && (
+                  <div className="rounded-none border border-red-500 p-3 sm:p-4 text-sm text-red-600 dark:text-red-400 bg-transparent">
+                    {error}
+                  </div>
+                )}
+
+                <Button
+                  type="submit"
+                  disabled={isLoading}
+                  className="w-full h-11 sm:h-12 rounded-none bg-black text-white hover:bg-neutral-800 font-normal uppercase tracking-widest text-xs sm:text-sm"
+                >
+                  {isLoading ? "Resetting..." : "Reset password"}
+                </Button>
+
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    setStep("verify")
+                    setPassword("")
+                  }}
+                  className="w-full h-10 sm:h-11 rounded-none border-neutral-300 dark:border-neutral-700 text-black dark:text-white font-normal uppercase tracking-widest text-xs sm:text-sm"
+                >
+                  <ArrowLeft className="h-4 w-4 mr-2" />
+                  Back
+                </Button>
               </form>
             )}
           </div>
+
+          <p className="text-xs text-center text-neutral-400 pb-4 sm:pb-0">
+            Remember your password?{" "}
+            <a href="/auth" className="text-neutral-600 hover:text-black dark:hover:text-white transition-colors">
+              Sign in
+            </a>
+          </p>
         </div>
       </div>
     </div>

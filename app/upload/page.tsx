@@ -2,7 +2,7 @@
 
 import { useState, useRef } from "react"
 import { useRouter } from "next/navigation"
-import { useUser } from "@clerk/nextjs"
+import { useAuth } from "@/lib/useAuth"
 import { BottomNav } from "@/components/bottom-nav"
 import { Sidebar } from "@/components/sidebar"
 import { Button } from "@/components/ui/button"
@@ -14,9 +14,9 @@ import { useEffect } from "react"
 
 export default function UploadPage() {
   const router = useRouter()
-  const { user, isLoaded } = useUser()
+  const { user, isLoading } = useAuth()
   const fileInputRef = useRef<HTMLInputElement>(null)
-  
+
   const [selectedImage, setSelectedImage] = useState<string | null>(null)
   const [caption, setCaption] = useState("")
   const [tags, setTags] = useState("")
@@ -24,10 +24,10 @@ export default function UploadPage() {
   const [uploadProgress, setUploadProgress] = useState(0)
 
   useEffect(() => {
-    if (isLoaded && !user) {
+    if (!isLoading && !user) {
       router.push("/auth")
     }
-  }, [user, isLoaded, router])
+  }, [user, isLoading, router])
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -67,7 +67,7 @@ export default function UploadPage() {
     }, 500)
   }
 
-  if (!isLoaded) {
+  if (isLoading) {
     return (
       <div className="flex min-h-screen items-center justify-center">
         <div className="text-center">
