@@ -9,18 +9,7 @@ const isProtectedRoute = createRouteMatcher([
   '/profile(.*)',
 ])
 
-const isPublicRoute = createRouteMatcher([
-  '/',
-  '/auth(.*)',
-  '/api(.*)',
-])
-
 export default clerkMiddleware(async (auth, req) => {
-  // Don't protect public routes
-  if (isPublicRoute(req)) {
-    return
-  }
-  
   if (isProtectedRoute(req)) {
     await auth.protect()
   }

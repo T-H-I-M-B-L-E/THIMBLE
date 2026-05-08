@@ -25,6 +25,15 @@ type Message struct {
 	Timestamp int64  `json:"timestamp"`
 }
 
+// TypingEvent represents a typing indicator
+type TypingEvent struct {
+	Type           string `json:"type"` // "typing"
+	ConversationId int    `json:"conversationId"`
+	UserId         string `json:"userId"`
+	Name           string `json:"name"`
+	IsTyping       bool   `json:"isTyping"`
+}
+
 type Post struct {
 	Id           int       `json:"id"`
 	UserId       string    `json:"userId"`
@@ -160,6 +169,22 @@ func main() {
 				break
 			}
 
+			// Try to parse as a generic map first to check type
+			var eventMap map[string]interface{}
+			if err := json.Unmarshal(msgBytes, &eventMap); err != nil {
+				continue
+			}
+
+			// Check if it's a typing event
+			if eventType, ok := eventMap["type"].(string); ok && eventType == "typing" {
+				// It's a typing event - just broadcast, don't save to DB
+				for client := range clients {
+					client.WriteMessage(mt, msgBytes)
+				}
+				continue
+			}
+
+			// It's a regular message
 			var msg Message
 			if err := json.Unmarshal(msgBytes, &msg); err != nil {
 				continue

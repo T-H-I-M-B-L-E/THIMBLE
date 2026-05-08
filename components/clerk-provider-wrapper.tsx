@@ -7,5 +7,12 @@ export function ClerkProviderWrapper({
 }: {
   children: React.ReactNode
 }) {
-  return <ClerkProvider signInUrl="/auth" signUpUrl="/auth/signup">{children}</ClerkProvider>
+  return (
+    <ClerkProvider
+      signInUrl="/auth"
+      signUpUrl="/auth/signup"
+    >
+      {children}
+    </ClerkProvider>
+  )
 }
