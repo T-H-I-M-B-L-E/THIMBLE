@@ -3,60 +3,50 @@
 import { DashboardLayout } from "@/components/dashboard-layout"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Search, Send, Circle, ArrowLeft } from "lucide-react"
+import { Search, Send, Circle, ArrowLeft, Plus, User } from "lucide-react"
 import { useState, useRef, useEffect } from "react"
 import { useParams } from "next/navigation"
 import { useSocket } from "@/hooks/use-socket"
+import { useConversations, useMessages } from "@/hooks/use-conversations"
 import { useStore } from "@/lib/store"
 import { cn } from "@/lib/utils"
 import { getWebSocketUrl } from "@/lib/platform"
-
-const mockConversations = [
-  {
-    id: "1",
-    name: "Luxe Brand Co",
-    role: "Brand",
-    lastMessage: "We love your portfolio! Are you available next week?",
-    time: "2h ago",
-    unread: true,
-    avatar: "https://images.unsplash.com/photo-1560250097-0b93528c311a?w=100&h=100&fit=crop"
-  },
-  {
-    id: "2",
-    name: "Elena Designs",
-    role: "Designer",
-    lastMessage: "Can you send over the final shots from our last shoot?",
-    time: "5h ago",
-    unread: false,
-    avatar: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100&h=100&fit=crop"
-  },
-  {
-    id: "3",
-    name: "Premium Textiles",
-    role: "Manufacturer",
-    lastMessage: "Your order is ready for shipment.",
-    time: "1d ago",
-    unread: false,
-    avatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop"
-  },
-]
+import Image from "next/image"
 
 export default function MessagesPage() {
   const params = useParams()
   const role = params.role as string
   const { user } = useStore()
-  const [selectedChat, setSelectedChat] = useState<string | null>(null)
+  const [selectedConversationId, setSelectedConversationId] = useState<number | null>(null)
   const [messageInput, setMessageInput] = useState("")
   const scrollRef = useRef<HTMLDivElement>(null)
   const websocketUrl = getWebSocketUrl() ? `${getWebSocketUrl()}/ws` : null
   
-  const { messages, sendMessage, isConnected } = useSocket(websocketUrl, user)
+  // Fetch real conversations
+  const { conversations, isLoading: isLoadingConversations, refresh: refreshConversations } = useConversations(user?.id)
+  
+  // Get selected conversation details
+  const selectedConversation = conversations.find((c: { id: number }) => c.id === selectedConversationId)
+  
+  // Fetch messages for selected conversation
+  const { messages: apiMessages, isLoading: isLoadingMessages, setMessages: setApiMessages } = useMessages(selectedConversationId, user?.id)
+  
+  // WebSocket for real-time messages
+  const { messages: wsMessages, sendMessage, isConnected, typingUsers, handleTyping } = useSocket(
+    websocketUrl,
+    selectedConversationId,
+    user
+  )
 
+  // Merge API messages with WebSocket messages
+  const allMessages = [...apiMessages, ...wsMessages].sort((a, b) => a.timestamp - b.timestamp)
+
+  // Auto-scroll to bottom
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight
     }
-  }, [messages])
+  }, [allMessages])
 
   const handleSend = () => {
     if (messageInput.trim()) {
@@ -65,19 +55,36 @@ export default function MessagesPage() {
     }
   }
 
+  // Get other participant's info for display
+  const getOtherParticipant = (conversation: typeof selectedConversation) => {
+    if (!conversation || !user) return null
+    return conversation.participants.find((p: { userId: string }) => p.userId !== user.id)
+  }
+
+  const formatTime = (timestamp: string | number) => {
+    const date = new Date(typeof timestamp === 'string' ? timestamp : timestamp)
+    const now = new Date()
+    const diff = now.getTime() - date.getTime()
+    
+    if (diff < 60000) return 'Just now'
+    if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`
+    if (diff < 86400000) return `${Math.floor(diff / 3600000)}h ago`
+    return date.toLocaleDateString()
+  }
+
   return (
     <DashboardLayout role={role}>
-      <div className="h-[calc(100vh-8rem)] border border-neutral-200 dark:border-neutral-800">
+      <div className="t-messages">
         <div className="flex h-full overflow-hidden">
           {/* Conversations List */}
           <div className={cn(
-            "w-full md:w-1/3 border-r border-neutral-200 dark:border-neutral-800 flex flex-col",
-            selectedChat ? "hidden md:flex" : "flex"
+            "t-msg-list flex flex-col",
+            selectedConversationId ? "hidden md:flex" : "flex"
           )}>
-            <div className="p-4 border-b border-neutral-200 dark:border-neutral-800">
+            <div style={{ padding: "14px", borderBottom: "1px solid var(--t-line)" }}>
               <div className="flex items-center justify-between mb-3">
                 <h2 className="font-medium">Messages</h2>
-                <div className="flex items-center gap-1">
+                <div className="flex items-center gap-2">
                   <Circle className={`h-2 w-2 fill-current ${isConnected ? "text-green-500" : "text-red-500"}`} />
                   <span className="text-[10px] uppercase tracking-wider text-neutral-400">
                     {isConnected ? "Live" : "Offline"}
@@ -92,85 +99,136 @@ export default function MessagesPage() {
                 />
               </div>
             </div>
+            
             <div className="overflow-y-auto flex-1">
-              {mockConversations.map((conv) => (
-                <button
-                  key={conv.id}
-                  onClick={() => setSelectedChat(conv.id)}
-                  className={`w-full p-4 flex items-start gap-3 hover:bg-neutral-50 dark:hover:bg-neutral-900 border-b border-neutral-100 dark:border-neutral-800 text-left transition-colors ${
-                    selectedChat === conv.id ? "bg-neutral-50 dark:bg-neutral-900" : ""
-                  }`}
-                >
-                  <div className="w-10 h-10 rounded-full bg-neutral-200 dark:bg-neutral-900 flex-shrink-0" />
-                  <div className="flex-1 min-w-0">
-                    <div className="flex justify-between items-center mb-1">
-                      <p className="font-medium text-sm truncate">{conv.name}</p>
-                      <span className="text-[10px] text-neutral-400 uppercase">{conv.time}</span>
-                    </div>
-                    <p className="text-xs text-neutral-500 truncate">{conv.lastMessage}</p>
-                  </div>
-                  {conv.unread && (
-                    <div className="w-1.5 h-1.5 rounded-full bg-black dark:bg-white flex-shrink-0 mt-2" />
-                  )}
-                </button>
-              ))}
+              {isLoadingConversations ? (
+                <div className="p-4 text-center text-neutral-400 text-sm">Loading...</div>
+              ) : conversations.length === 0 ? (
+                <div className="p-4 text-center text-neutral-400 text-sm">
+                  No conversations yet
+                </div>
+              ) : (
+                conversations.map((conv) => {
+                  const otherParticipant = getOtherParticipant(conv)
+                  return (
+                    <button
+                      key={conv.id}
+                      onClick={() => setSelectedConversationId(conv.id)}
+                      className={`w-full p-4 flex items-start gap-3 hover:bg-neutral-50 dark:hover:bg-neutral-900 border-b border-neutral-100 dark:border-neutral-800 text-left transition-colors ${
+                        selectedConversationId === conv.id ? "bg-neutral-50 dark:bg-neutral-900" : ""
+                      }`}
+                    >
+                      <div className="relative w-10 h-10 rounded-full overflow-hidden flex-shrink-0 bg-neutral-200 dark:bg-neutral-800">
+                        {otherParticipant?.userAvatar ? (
+                          <Image
+                            src={otherParticipant.userAvatar}
+                            alt={otherParticipant.userName}
+                            fill
+                            className="object-cover"
+                          />
+                        ) : (
+                          <User className="h-5 w-5 m-auto text-neutral-400" />
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex justify-between items-center mb-1">
+                          <p className="font-medium text-sm truncate">
+                            {otherParticipant?.userName || "Unknown"}
+                          </p>
+                          <span className="text-[10px] text-neutral-400 uppercase">
+                            {conv.lastMessage ? formatTime(conv.lastMessage.timestamp) : formatTime(conv.updatedAt)}
+                          </span>
+                        </div>
+                        <p className="text-xs text-neutral-500 truncate">
+                          {conv.lastMessage?.content || "No messages yet"}
+                        </p>
+                      </div>
+                    </button>
+                  )
+                })
+              )}
             </div>
           </div>
 
           {/* Chat Area */}
           <div className={cn(
             "flex-1 flex flex-col min-w-0",
-            !selectedChat ? "hidden md:flex" : "flex"
+            !selectedConversationId ? "hidden md:flex" : "flex"
           )}>
-            {selectedChat ? (
+            {selectedConversationId && selectedConversation ? (
               <>
                 {/* Chat Header */}
                 <div className="p-4 border-b border-neutral-200 dark:border-neutral-800 flex items-center gap-3">
                   <Button 
                     variant="ghost" 
                     size="icon" 
-                    onClick={() => setSelectedChat(null)}
+                    onClick={() => setSelectedConversationId(null)}
                     className="md:hidden mr-1"
                   >
                     <ArrowLeft className="h-5 w-5" />
                   </Button>
-                  <div className="w-10 h-10 rounded-full bg-neutral-200 dark:bg-neutral-900" />
+                  <div className="relative w-10 h-10 rounded-full overflow-hidden bg-neutral-200 dark:bg-neutral-800">
+                    {(() => {
+                      const other = getOtherParticipant(selectedConversation)
+                      return other?.userAvatar ? (
+                        <Image
+                          src={other.userAvatar}
+                          alt={other.userName}
+                          fill
+                          className="object-cover"
+                        />
+                      ) : (
+                        <User className="h-5 w-5 m-auto text-neutral-400" />
+                      )
+                    })()}
+                  </div>
                   <div className="flex-1 min-w-0">
                     <p className="font-medium truncate">
-                      {mockConversations.find((c) => c.id === selectedChat)?.name}
+                      {getOtherParticipant(selectedConversation)?.userName || "Unknown"}
                     </p>
                     <p className="text-xs text-neutral-500 uppercase tracking-wider">
-                      {mockConversations.find((c) => c.id === selectedChat)?.role}
+                      {(() => {
+                        const other = getOtherParticipant(selectedConversation)
+                        if (!other) return isConnected ? "Online" : "Offline"
+                        const isTyping = typingUsers.has(other.userId)
+                        return isTyping ? "typing..." : (isConnected ? "Online" : "Offline")
+                      })()}
                     </p>
                   </div>
                 </div>
 
                 {/* Messages */}
                 <div ref={scrollRef} className="flex-1 p-4 overflow-y-auto bg-neutral-50/50 dark:bg-neutral-900/20">
-                  <div className="space-y-4">
-                    {messages.length === 0 && (
-                      <div className="text-center py-8 text-neutral-400 text-sm">
-                        No messages yet. Say hello!
-                      </div>
-                    )}
-                    {messages.map((msg, i) => (
-                      <div key={i} className={`flex ${msg.userId === user?.id ? "justify-end" : "justify-start"}`}>
-                        <div className={`max-w-[70%] px-4 py-2 ${
-                          msg.userId === user?.id 
-                            ? "bg-black text-white rounded-l-lg rounded-tr-lg" 
-                            : "bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-r-lg rounded-tl-lg"
-                        }`}>
-                          {msg.userId !== user?.id && (
-                            <p className="text-[10px] font-medium mb-1 text-neutral-400 uppercase tracking-wider">{msg.name}</p>
-                          )}
-                          <p className="text-sm">{msg.content}</p>
-                          <p className={`text-[9px] mt-1 text-right ${msg.userId === user?.id ? "text-white/50" : "text-neutral-400"}`}>
-                            {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                          </p>
+                  {isLoadingMessages ? (
+                    <div className="flex items-center justify-center h-full text-neutral-400 text-sm">
+                      Loading messages...
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      {allMessages.length === 0 && (
+                        <div className="text-center py-8 text-neutral-400 text-sm">
+                          No messages yet. Say hello!
                         </div>
-                      </div>
-                    ))}
-                  </div>
+                      )}
+                      {allMessages.map((msg) => (
+                        <div key={`${msg.id}-${msg.timestamp}`} className={`flex ${msg.userId === user?.id ? "justify-end" : "justify-start"}`}>
+                          <div className={`max-w-[70%] px-4 py-2 ${
+                            msg.userId === user?.id 
+                              ? "bg-black text-white rounded-l-lg rounded-tr-lg" 
+                              : "bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-r-lg rounded-tl-lg"
+                          }`}>
+                            {msg.userId !== user?.id && (
+                              <p className="text-[10px] font-medium mb-1 text-neutral-400 uppercase tracking-wider">{msg.name}</p>
+                            )}
+                            <p className="text-sm">{msg.content}</p>
+                            <p className={`text-[9px] mt-1 text-right ${msg.userId === user?.id ? "text-white/50" : "text-neutral-400"}`}>
+                              {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            </p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
                 {/* Input */}
@@ -182,12 +240,16 @@ export default function MessagesPage() {
                     <Input
                       placeholder="Type a message..."
                       value={messageInput}
-                      onChange={(e) => setMessageInput(e.target.value)}
+                      onChange={(e) => {
+                        setMessageInput(e.target.value)
+                        handleTyping()
+                      }}
                       className="rounded-none border-neutral-300 focus:border-black transition-soft"
+                      disabled={!isConnected}
                     />
                     <Button 
                       type="submit"
-                      disabled={!isConnected}
+                      disabled={!isConnected || !messageInput.trim()}
                       className="rounded-none bg-black text-white px-4 hover:bg-neutral-800 transition-soft"
                     >
                       <Send className="h-4 w-4" />
@@ -196,8 +258,14 @@ export default function MessagesPage() {
                 </div>
               </>
             ) : (
-              <div className="flex-1 flex items-center justify-center text-neutral-400">
-                <p>Select a conversation to start messaging</p>
+              <div className="flex-1 flex flex-col items-center justify-center text-neutral-400 p-8">
+                <div className="w-16 h-16 rounded-full bg-neutral-100 dark:bg-neutral-800 flex items-center justify-center mb-4">
+                  <Send className="h-6 w-6" />
+                </div>
+                <p className="text-lg font-medium mb-2">Your Messages</p>
+                <p className="text-sm text-center max-w-xs">
+                  Select a conversation to start messaging, or create a new one to connect with others.
+                </p>
               </div>
             )}
           </div>

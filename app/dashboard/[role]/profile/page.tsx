@@ -2,16 +2,14 @@
 
 import { useUser } from "@clerk/nextjs"
 import { DashboardLayout } from "@/components/dashboard-layout"
-import { Button } from "@/components/ui/button"
-import { Grid3X3, Settings, Shield, Globe, Instagram, Trash2, ArrowUpRight } from "lucide-react"
 import Image from "next/image"
 import { useRouter } from "next/navigation"
 import { useState, useEffect } from "react"
 import { useParams } from "next/navigation"
 import { EditProfileModal } from "@/components/edit-profile-modal"
-import { motion } from "framer-motion"
 import { useStore } from "@/lib/store"
 import { getApiUrl, getSafeHostname, normalizeWebsiteUrl } from "@/lib/platform"
+import { Globe, Instagram, Trash2, Settings, Shield } from "lucide-react"
 
 export default function ProfilePage() {
   const router = useRouter()
@@ -22,6 +20,7 @@ export default function ProfilePage() {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
   const [userPosts, setUserPosts] = useState<any[]>([])
   const [isLoadingPosts, setIsLoadingPosts] = useState(true)
+  const [activeTab, setActiveTab] = useState("posts")
 
   useEffect(() => {
     if (isLoaded && user) {
@@ -74,7 +73,7 @@ export default function ProfilePage() {
       setUserPosts(userPosts.filter(p => String(p.id) !== String(postId)))
       return
     }
-    
+
     try {
       const res = await fetch(deleteUrl, {
         method: "DELETE"
@@ -101,171 +100,157 @@ export default function ProfilePage() {
   const websiteHref = normalizeWebsiteUrl(website)
   const websiteHostname = getSafeHostname(website)
 
-  const containerVariants = {
-    hidden: { opacity: 0 },
-    show: {
-      opacity: 1,
-      transition: {
-        staggerChildren: 0.1
-      }
-    }
-  }
-
-  const itemVariants = {
-    hidden: { opacity: 0, y: 20 },
-    show: { opacity: 1, y: 0, transition: { duration: 0.8, ease: [0.16, 1, 0.3, 1] as any } }
-  }
-
   return (
-    <DashboardLayout role={role}>
-      <EditProfileModal 
-        isOpen={isEditModalOpen} 
-        onClose={() => setIsEditModalOpen(false)} 
-        user={user} 
+    <DashboardLayout role={role} showRail={true}>
+      <EditProfileModal
+        isOpen={isEditModalOpen}
+        onClose={() => setIsEditModalOpen(false)}
+        user={user}
       />
 
-      <motion.div 
-        variants={containerVariants}
-        initial="hidden"
-        animate="show"
-        className="max-w-screen-lg mx-auto pb-24"
-      >
-        {/* Profile Header - Comp Card Style */}
-        <motion.div variants={itemVariants} className="mb-16">
-          <div className="flex flex-col md:flex-row items-center md:items-start gap-10 md:gap-16">
-            <div className="relative w-40 h-40 md:w-56 md:h-56 rounded-none overflow-hidden border border-neutral-200 dark:border-neutral-800 shadow-2xl flex-shrink-0">
+      <div style={{ maxWidth: "900px", width: "100%", margin: "0 auto", paddingBottom: "40px" }}>
+        {/* Profile Cover + Header */}
+        <div style={{ marginBottom: "20px" }}>
+          <div className="t-profile-cover" />
+
+          <div className="t-profile-head">
+            {/* Avatar */}
+            <div style={{ width: "120px", height: "120px", borderRadius: "50%", overflow: "hidden", border: "4px solid var(--t-bg)" }}>
               <Image
                 src={avatarUrl}
                 alt={user?.fullName || "User"}
-                fill
-                className="object-cover transition-transform duration-1000 hover:scale-105"
+                width={120}
+                height={120}
+                style={{ width: "100%", height: "100%", objectFit: "cover" }}
                 priority
               />
             </div>
-            
-            <div className="flex-1 space-y-6 text-center md:text-left">
-              <div>
-                <p className="text-luxury text-neutral-400 mb-4">{userRole}</p>
-                <h1 className="text-4xl md:text-6xl font-serif tracking-tight mb-2 leading-none">{user?.fullName}</h1>
-                <p className="font-mono text-sm text-neutral-500">@{user?.username || user?.emailAddresses[0].emailAddress.split("@")[0]}</p>
-              </div>
 
-              <div className="w-12 h-px bg-black dark:bg-white mx-auto md:mx-0" />
-
-              <p className="text-lg font-light text-neutral-600 dark:text-neutral-300 max-w-xl leading-relaxed mx-auto md:mx-0 italic">
-                "{bio}"
+            {/* Meta */}
+            <div className="t-profile-meta">
+              <h1 className="t-profile-name">{user?.fullName}</h1>
+              <p className="t-muted-xs" style={{ marginTop: "4px" }}>
+                @{user?.username || user?.emailAddresses[0].emailAddress.split("@")[0]}
               </p>
+              <p className="t-muted-xs" style={{ marginTop: "2px", textTransform: "capitalize" }}>{userRole}</p>
 
-              <div className="flex flex-wrap justify-center md:justify-start gap-6 pt-2">
+              <p className="t-profile-bio">{bio}</p>
+
+              <div className="t-profile-links">
                 {website && (
-                  <a href={websiteHref} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-xs font-mono uppercase tracking-widest text-neutral-500 hover:text-black dark:hover:text-white transition-soft group">
-                    <Globe className="h-3.5 w-3.5" /> 
-                    <span className="border-b border-transparent group-hover:border-current pb-0.5 transition-colors">{websiteHostname || website}</span>
-                  </a>
+                  <span>
+                    <Globe size={13} />
+                    <a href={websiteHref} target="_blank" rel="noopener noreferrer">{websiteHostname || website}</a>
+                  </span>
                 )}
                 {instagram && (
-                  <a href={`https://instagram.com/${instagram.replace('@', '')}`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-xs font-mono uppercase tracking-widest text-neutral-500 hover:text-black dark:hover:text-white transition-soft group">
-                    <Instagram className="h-3.5 w-3.5" /> 
-                    <span className="border-b border-transparent group-hover:border-current pb-0.5 transition-colors">{instagram.startsWith('@') ? instagram : `@${instagram}`}</span>
-                  </a>
+                  <span>
+                    <Instagram size={13} />
+                    <a href={`https://instagram.com/${instagram.replace('@', '')}`} target="_blank" rel="noopener noreferrer">
+                      {instagram.startsWith("@") ? instagram : `@${instagram}`}
+                    </a>
+                  </span>
                 )}
               </div>
-              
-              <div className="flex flex-col sm:flex-row justify-center md:justify-start gap-4 pt-6 w-full sm:w-auto">
-                <Button 
-                  onClick={() => setIsEditModalOpen(true)}
-                  variant="outline" 
-                  className="w-full sm:w-auto rounded-none border-neutral-300 dark:border-neutral-700 bg-transparent hover:bg-neutral-100 dark:hover:bg-neutral-900 text-luxury h-12 px-8 transition-soft"
-                >
-                  <Settings className="h-3.5 w-3.5 mr-3" />
-                  Edit Editorial
-                </Button>
-                <Button className="w-full sm:w-auto rounded-none bg-black text-white hover:bg-neutral-800 text-luxury h-12 px-8 transition-soft">
-                  <Shield className="h-3.5 w-3.5 mr-3" />
-                  Get Verified
-                </Button>
-              </div>
             </div>
-          </div>
-        </motion.div>
 
-        {/* Stats - Minimalist */}
-        <motion.div variants={itemVariants} className="grid grid-cols-3 gap-px bg-neutral-200 dark:bg-neutral-800 mb-12 sm:mb-20 border border-neutral-200 dark:border-neutral-800">
-          {[
-            { label: "Editorials", value: userPosts.length.toString() },
-            { label: "Followers", value: "0" },
-            { label: "Following", value: "0" },
-          ].map((stat) => (
-            <div key={stat.label} className="py-6 sm:py-10 bg-white dark:bg-black text-center space-y-2 sm:space-y-3 group hover:bg-neutral-50 dark:hover:bg-neutral-950 transition-colors">
-              <p className="text-2xl sm:text-4xl font-light">{stat.value}</p>
-              <p className="text-[9px] sm:text-[10px] text-neutral-400 uppercase tracking-widest">{stat.label}</p>
-            </div>
-          ))}
-        </motion.div>
-
-        {/* Portfolio Grid - Masonry/Editorial Style */}
-        <motion.div variants={itemVariants} className="space-y-8">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-black dark:border-white pb-6">
-            <h3 className="font-serif text-2xl tracking-wide text-center sm:text-left">Selected Works</h3>
-            <Button variant="ghost" className="text-luxury text-neutral-500 hover:text-black dark:hover:text-white transition-soft w-full sm:w-auto">
-              View Archive <ArrowUpRight className="h-3 w-3 ml-2" />
-            </Button>
-          </div>
-          
-          {isLoadingPosts ? (
-            <div className="flex justify-center py-32">
-              <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-black dark:border-white"></div>
-            </div>
-          ) : userPosts.length === 0 ? (
-            <div className="text-center py-32 border border-dashed border-neutral-300 dark:border-neutral-700">
-              <p className="font-serif text-xl text-neutral-400 mb-4">The canvas is blank.</p>
-              <Button 
-                variant="link" 
-                className="text-luxury text-black dark:text-white"
-                onClick={() => router.push(`/dashboard/${role}/feed`)}
+            {/* Actions */}
+            <div className="t-profile-actions">
+              <button
+                onClick={() => setIsEditModalOpen(true)}
+                style={{ background: "var(--t-surface-2)", border: "1px solid var(--t-line)", color: "var(--t-ink)", padding: "8px 14px", borderRadius: "9px", fontSize: "13px", fontWeight: 500, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: "6px", fontFamily: "inherit" }}
               >
-                Publish Your First Piece
-              </Button>
+                <Settings size={13} />
+                Edit
+              </button>
+              <button
+                style={{ background: "var(--t-gold-soft)", border: "1px solid var(--t-gold)", color: "var(--t-gold-ink)", padding: "8px 14px", borderRadius: "9px", fontSize: "13px", fontWeight: 500, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: "6px", fontFamily: "inherit" }}
+              >
+                <Shield size={13} />
+                Verify
+              </button>
             </div>
-          ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-              {userPosts.map((post, index) => (
-                <motion.div 
-                  key={post.id} 
-                  initial={{ opacity: 0, scale: 0.95 }}
-                  whileInView={{ opacity: 1, scale: 1 }}
-                  viewport={{ once: true }}
-                  transition={{ duration: 0.6, delay: index * 0.1 }}
-                  className="relative aspect-[4/5] bg-neutral-100 dark:bg-neutral-900 group overflow-hidden"
+          </div>
+        </div>
+
+        {/* Stats */}
+        <div className="t-profile-stats">
+          <div>
+            <div className="t-stat-big">{userPosts.length}</div>
+            <div className="t-stat-lbl">Works</div>
+          </div>
+          <div>
+            <div className="t-stat-big">0</div>
+            <div className="t-stat-lbl">Followers</div>
+          </div>
+          <div>
+            <div className="t-stat-big">0</div>
+            <div className="t-stat-lbl">Following</div>
+          </div>
+        </div>
+
+        {/* Tabs */}
+        <div className="t-profile-tabs">
+          {["posts", "saved", "tagged", "about"].map((tab) => (
+            <button
+              key={tab}
+              className={`t-tab ${activeTab === tab ? "on" : ""}`}
+              onClick={() => setActiveTab(tab)}
+            >
+              {tab}
+            </button>
+          ))}
+        </div>
+
+        {/* Portfolio Grid */}
+        {activeTab === "posts" && (
+          <div style={{ marginTop: "20px" }}>
+            {isLoadingPosts ? (
+              <div style={{ display: "flex", justifyContent: "center", padding: "80px 0" }}>
+                <div className="animate-spin rounded-full h-12 w-12 border-t-2" style={{ borderColor: "var(--t-gold)" }}></div>
+              </div>
+            ) : userPosts.length === 0 ? (
+              <div style={{ textAlign: "center", padding: "60px 16px", border: "2px dashed var(--t-line)", borderRadius: "12px" }}>
+                <p style={{ color: "var(--t-ink-2)", marginBottom: "16px" }}>No works published yet</p>
+                <button
+                  onClick={() => router.push(`/dashboard/${role}/feed`)}
+                  style={{ color: "var(--t-gold-ink)", background: "none", border: 0, cursor: "pointer", fontWeight: 500 }}
                 >
-                  <Image
-                    src={post.imageUrl}
-                    alt={post.description || "Portfolio item"}
-                    fill
-                    className="object-cover transition-transform duration-1000 group-hover:scale-105"
-                  />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 flex flex-col justify-end p-6">
-                    <p className="text-luxury text-white mb-4 line-clamp-2">
-                      {post.description || "Untitled piece"}
-                    </p>
-                    <div className="flex justify-end">
-                      <button 
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleDeletePost(post.id);
+                  Publish your first piece
+                </button>
+              </div>
+            ) : (
+              <div className="t-profile-grid">
+                {userPosts.map((post) => (
+                  <div key={post.id} className="t-grid-item">
+                    <img src={post.imageUrl} alt={post.description || "Work"} />
+                    <div className="t-grid-overlay">
+                      <button
+                        onClick={() => handleDeletePost(post.id)}
+                        style={{
+                          background: "rgba(255,255,255,0.1)",
+                          border: "1px solid rgba(255,255,255,0.3)",
+                          color: "white",
+                          width: "32px",
+                          height: "32px",
+                          borderRadius: "50%",
+                          cursor: "pointer",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          marginLeft: "auto"
                         }}
-                        className="p-3 bg-white/10 hover:bg-red-500 text-white rounded-full transition-colors backdrop-blur-md"
                       >
-                        <Trash2 className="h-4 w-4" />
+                        <Trash2 size={14} />
                       </button>
                     </div>
                   </div>
-                </motion.div>
-              ))}
-            </div>
-          )}
-        </motion.div>
-      </motion.div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
     </DashboardLayout>
   )
 }
