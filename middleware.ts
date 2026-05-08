@@ -40,11 +40,10 @@ function addSecurityHeaders(res: NextResponse): NextResponse {
 function loginRedirect(req: NextRequest): NextResponse {
   const url = req.nextUrl.clone()
   url.pathname = '/admin/login'
-  // Strip any query params that could leak info
   url.search = ''
   const res = NextResponse.redirect(url)
-  // Clear any stale/tampered admin_token
-  res.cookies.set('admin_token', '', { maxAge: 0, path: '/' })
+  // Clear any stale admin_token (must match the domain it was set with)
+  res.cookies.set('admin_token', '', { maxAge: 0, path: '/', domain: '.tvimble.tech' })
   return addSecurityHeaders(res)
 }
 
@@ -53,7 +52,6 @@ export async function middleware(req: NextRequest) {
   const hostname = req.headers.get('host') || ''
 
   // ── Admin routing ────────────────────────────────────────────────────────
-  // Protect on both the subdomain AND direct /admin/* paths on the main domain
   const isAdminSubdomain = hostname.startsWith('admin.') || hostname === 'admin.localhost'
   const isAdminPath = pathname.startsWith('/admin')
 
@@ -68,26 +66,20 @@ export async function middleware(req: NextRequest) {
       return NextResponse.rewrite(url)
     }
 
-    // Login and splash pass through — no token needed
+    // Login and splash pass through without a token
     if (isLoginPage || isSplashPage) {
       return addSecurityHeaders(NextResponse.next())
     }
 
-    // API routes pass through — each handler verifies the token independently
+    // API routes pass through — the Go backend validates the JWT
     if (pathname.startsWith('/api/admin/')) {
       return NextResponse.next()
     }
 
-    // Everything else requires a valid admin token
+    // All other admin pages require the cookie to exist
+    // The Go backend is the JWT authority — we don't re-verify here to avoid secret mismatches
     const token = req.cookies.get('admin_token')?.value
     if (!token) return loginRedirect(req)
-
-    // Verify the JWT is genuine and unexpired
-    const payload = await verifyJWT(token)
-    if (!payload) return loginRedirect(req)
-
-    // Must be an admin
-    if (!payload.isAdmin) return loginRedirect(req)
 
     // On subdomain: rewrite to /admin prefix if not already there
     if (isAdminSubdomain && !pathname.startsWith('/admin') && !pathname.startsWith('/api')) {

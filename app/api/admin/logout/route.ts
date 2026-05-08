@@ -8,6 +8,7 @@ export async function POST() {
     sameSite: 'lax',
     maxAge: 0,
     path: '/',
+    domain: process.env.NODE_ENV === 'production' ? '.tvimble.tech' : undefined,
   })
   return res
 }
