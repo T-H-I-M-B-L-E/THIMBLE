@@ -85,18 +85,21 @@ export default function OnboardingPage() {
     setSubmitError("")
 
     try {
-      await user.update({
-        username: username || undefined,
-        unsafeMetadata: {
-          ...user.unsafeMetadata,
+      const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8080'
+      const res = await fetch(`${apiBaseUrl}/users/${user.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
           role: selectedRole,
           bio,
-          avatarUrl: profilePreview,
+          avatar: profilePreview,
           website: normalizeWebsiteUrl(website),
           instagram,
           onboardingCompleted: true,
-        },
+        }),
       })
+      if (!res.ok) throw new Error('Failed to update profile')
       setRole(selectedRole)
       nextStep("success")
     } catch (error) {
@@ -107,7 +110,7 @@ export default function OnboardingPage() {
     }
   }
 
-  if (!mounted || !isLoaded) return null
+  if (!mounted || isLoading) return null
 
   const steps: OnboardingStep[] = ["welcome", "role", "photo", "bio", "social", "success"]
   const currentStepIndex = steps.indexOf(currentStep)
@@ -387,7 +390,7 @@ export default function OnboardingPage() {
                   <Check className="h-12 w-12 text-white dark:text-black" />
                 </div>
               </div>
-              <h2 className="text-3xl font-light tracking-[0.2em] uppercase">Welcome, {user?.firstName}</h2>
+              <h2 className="text-3xl font-light tracking-[0.2em] uppercase">Welcome, {user?.fullName?.split(' ')[0]}</h2>
               <p className="text-neutral-500 max-w-sm mx-auto leading-relaxed">
                 Your creative identity is now live. Welcome to the future of fashion.
               </p>
@@ -396,7 +399,7 @@ export default function OnboardingPage() {
             <div className="space-y-4">
               <div className="p-6 border border-neutral-100 dark:border-neutral-900 bg-neutral-50/50 dark:bg-neutral-900/50 flex items-center gap-4 text-left">
                 <div className="relative w-16 h-16 rounded-full overflow-hidden border-2 border-white dark:border-black shadow-lg">
-                  <img src={profilePreview || user?.imageUrl} alt="Profile" className="w-full h-full object-cover" />
+                  <img src={profilePreview || user?.avatar} alt="Profile" className="w-full h-full object-cover" />
                 </div>
                 <div>
                   <p className="font-medium text-black dark:text-white uppercase tracking-wider">{user?.fullName}</p>

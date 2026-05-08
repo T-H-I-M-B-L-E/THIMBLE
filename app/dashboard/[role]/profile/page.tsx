@@ -93,7 +93,7 @@ export default function ProfilePage() {
 
   const bio = user.bio || "The vision is yet to be written."
   const website = user.website || ""
-  const instagram = "" // TODO: Add instagram to user model if needed
+  const instagram: string = "" // TODO: Add instagram to user model if needed
   const avatarUrl = user.avatar || "/placeholder-avatar.png"
   const userRole = user.role || role
   const websiteHref = normalizeWebsiteUrl(website)
@@ -129,7 +129,7 @@ export default function ProfilePage() {
             <div className="t-profile-meta">
               <h1 className="t-profile-name">{user?.fullName}</h1>
               <p className="t-muted-xs" style={{ marginTop: "4px" }}>
-                @{user?.username || user?.emailAddresses[0].emailAddress.split("@")[0]}
+                @{user?.email?.split("@")[0]}
               </p>
               <p className="t-muted-xs" style={{ marginTop: "2px", textTransform: "capitalize" }}>{userRole}</p>
 

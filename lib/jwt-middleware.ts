@@ -4,6 +4,7 @@ import { cookies } from 'next/headers'
 interface JWTPayload {
   userId: string
   email: string
+  role?: string
   iat: number
   exp: number
 }
@@ -18,7 +19,7 @@ function getJWTSecret(): Uint8Array {
 export async function verifyJWT(token: string): Promise<JWTPayload | null> {
   try {
     const verified = await jwtVerify(token, getJWTSecret())
-    return verified.payload as JWTPayload
+    return verified.payload as unknown as JWTPayload
   } catch (error) {
     console.error('JWT verification failed:', error)
     return null

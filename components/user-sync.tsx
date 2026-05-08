@@ -19,15 +19,15 @@ export function UserSync() {
       // Map API user to Zustand User type
       const userData: User = {
         id: user.id,
-        fullName: user.fullName || user.full_name || "",
+        fullName: user.fullName || "",
         email: user.email,
         phone: user.phone || "",
         role: (user.role as UserRole) ?? null,
-        avatar: user.avatar || user.avatar_url,
+        avatar: user.avatar,
         bio: user.bio || "",
         location: user.location || "",
         website: user.website || "",
-        verificationStatus: (user.verificationStatus || user.verification_status as VerificationStatus) ?? "unverified",
+        verificationStatus: (user.verificationStatus as VerificationStatus) ?? "unverified",
         followers: user.followers ?? 0,
         following: user.following ?? 0,
         posts: user.posts ?? 0,

@@ -171,7 +171,7 @@ export default function SignupPage() {
       }
 
       // User verified and logged in
-      signup(formData)
+      signup({ ...formData, phone: '' })
       router.push("/onboarding")
     } catch (err: any) {
       console.error("Verification error:", err)
