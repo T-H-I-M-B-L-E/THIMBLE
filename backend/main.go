@@ -2,7 +2,10 @@ package main
 
 import (
 	"context"
+	"crypto/hmac"
 	"crypto/rand"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -682,6 +685,149 @@ func handleAdminDeleteUser(c *fiber.Ctx) error {
 	return c.SendStatus(204)
 }
 
+func handleGithubWebhook(c *fiber.Ctx) error {
+	secret := os.Getenv("GITHUB_WEBHOOK_SECRET")
+
+	// Verify signature if secret is configured
+	if secret != "" {
+		sig := c.Get("X-Hub-Signature-256")
+		if sig == "" {
+			return c.Status(400).JSON(fiber.Map{"error": "missing signature"})
+		}
+		expected := "sha256=" + hmacSha256([]byte(secret), c.Body())
+		if sig != expected {
+			return c.Status(401).JSON(fiber.Map{"error": "invalid signature"})
+		}
+	}
+
+	event := c.Get("X-GitHub-Event")
+	if event != "push" {
+		return c.SendStatus(200)
+	}
+
+	var payload struct {
+		Ref    string `json:"ref"`
+		Pusher struct {
+			Name string `json:"name"`
+		} `json:"pusher"`
+		Commits []struct {
+			ID      string `json:"id"`
+			Message string `json:"message"`
+			URL     string `json:"url"`
+			Author  struct {
+				Name string `json:"name"`
+			} `json:"author"`
+			Timestamp string `json:"timestamp"`
+		} `json:"commits"`
+		Repository struct {
+			FullName string `json:"full_name"`
+			HTMLURL  string `json:"html_url"`
+		} `json:"repository"`
+	}
+	if err := c.BodyParser(&payload); err != nil {
+		return c.Status(400).JSON(fiber.Map{"error": "invalid payload"})
+	}
+
+	// Only notify on pushes to main/master
+	if payload.Ref != "refs/heads/main" && payload.Ref != "refs/heads/master" {
+		return c.SendStatus(200)
+	}
+	if len(payload.Commits) == 0 {
+		return c.SendStatus(200)
+	}
+
+	// Fetch all admin emails
+	rows, err := dbPool.Query(context.Background(), "SELECT email FROM users WHERE is_admin = true")
+	if err != nil {
+		return c.SendStatus(200)
+	}
+	defer rows.Close()
+	var adminEmails []string
+	for rows.Next() {
+		var email string
+		if rows.Scan(&email) == nil {
+			adminEmails = append(adminEmails, email)
+		}
+	}
+	if len(adminEmails) == 0 {
+		return c.SendStatus(200)
+	}
+
+	// Build commit list HTML
+	commitRows := ""
+	for _, commit := range payload.Commits {
+		msg := commit.Message
+		if len(msg) > 80 {
+			msg = msg[:80] + "…"
+		}
+		// Take first line only
+		if idx := strings.Index(msg, "\n"); idx != -1 {
+			msg = msg[:idx]
+		}
+		commitRows += fmt.Sprintf(`
+			<tr>
+				<td style="padding:8px 0;border-bottom:1px solid #262626;font-family:monospace;font-size:12px;color:#a3a3a3">%s</td>
+				<td style="padding:8px 16px;border-bottom:1px solid #262626;font-size:13px;color:#ffffff">%s</td>
+				<td style="padding:8px 0;border-bottom:1px solid #262626;font-size:12px;color:#737373;white-space:nowrap">%s</td>
+			</tr>`, commit.ID[:7], msg, commit.Author.Name)
+	}
+
+	latest := payload.Commits[0]
+	latestMsg := latest.Message
+	if idx := strings.Index(latestMsg, "\n"); idx != -1 {
+		latestMsg = latestMsg[:idx]
+	}
+
+	html := fmt.Sprintf(`<!DOCTYPE html>
+<html><body style="margin:0;padding:0;background:#0a0a0a;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif">
+<div style="max-width:600px;margin:40px auto;padding:0 20px">
+  <div style="margin-bottom:32px">
+    <p style="margin:0 0 4px;font-size:11px;letter-spacing:0.3em;text-transform:uppercase;color:#525252">THIMBLE</p>
+    <p style="margin:0;font-size:20px;font-weight:300;letter-spacing:0.1em;color:#ffffff">New Commits</p>
+  </div>
+  <div style="background:#171717;border:1px solid #262626;border-radius:12px;padding:24px;margin-bottom:24px">
+    <p style="margin:0 0 16px;font-size:13px;color:#a3a3a3">
+      <strong style="color:#ffffff">%d commit%s</strong> pushed to <strong style="color:#ffffff">%s</strong> by <strong style="color:#ffffff">%s</strong>
+    </p>
+    <table style="width:100%%;border-collapse:collapse">%s</table>
+  </div>
+  <div style="text-align:center;margin-bottom:32px">
+    <a href="https://admin.tvimble.tech" style="display:inline-block;background:#ffffff;color:#000000;text-decoration:none;padding:12px 32px;border-radius:8px;font-size:13px;font-weight:500">View Admin Panel</a>
+  </div>
+  <p style="font-size:11px;color:#404040;text-align:center">You're receiving this because you're a THIMBLE admin.</p>
+</div>
+</body></html>`,
+		len(payload.Commits),
+		func() string {
+			if len(payload.Commits) == 1 {
+				return ""
+			}
+			return "s"
+		}(),
+		payload.Ref,
+		payload.Pusher.Name,
+		commitRows,
+	)
+
+	// Send to all admins
+	client := resend.NewClient(resendKey)
+	client.Emails.Send(&resend.SendEmailRequest{
+		From:    "noreply@tvimble.tech",
+		To:      adminEmails,
+		Subject: fmt.Sprintf("[THIMBLE] %s — %s", latestMsg, payload.Pusher.Name),
+		Html:    html,
+	})
+
+	return c.SendStatus(200)
+}
+
+// hmacSha256 computes HMAC-SHA256 hex digest
+func hmacSha256(key, data []byte) string {
+	mac := hmac.New(sha256.New, key)
+	mac.Write(data)
+	return hex.EncodeToString(mac.Sum(nil))
+}
+
 func main() {
 	jwtSecret = os.Getenv("JWT_SECRET")
 	if jwtSecret == "" {
@@ -983,6 +1129,9 @@ func main() {
 		}
 		return c.JSON(gigs)
 	})
+
+	// GitHub webhook — receives push events and emails all admins
+	app.Post("/webhooks/github", handleGithubWebhook)
 
 	// Admin routes (JWT + is_admin required)
 	adminGroup := app.Group("/admin", jwtAuth, adminAuth)
