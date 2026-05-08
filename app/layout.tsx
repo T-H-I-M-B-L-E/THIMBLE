@@ -3,6 +3,7 @@ import { Analytics } from '@vercel/analytics/next'
 import { ThemeProvider } from '@/lib/theme-context'
 import { UserSync } from '@/components/user-sync'
 import { WelcomeOverlay } from '@/components/welcome-overlay'
+import { headers } from 'next/headers'
 import './globals.css'
 
 export const metadata: Metadata = {
@@ -35,17 +36,21 @@ export const viewport: Viewport = {
   userScalable: true,
 }
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode
 }>) {
+  const headersList = await headers()
+  const host = headersList.get('host') || ''
+  const isAdmin = host.startsWith('admin.')
+
   return (
     <html lang="en" className="bg-background">
       <body className="antialiased">
         <ThemeProvider>
-          <UserSync />
-          <WelcomeOverlay />
+          {!isAdmin && <UserSync />}
+          {!isAdmin && <WelcomeOverlay />}
           {children}
         </ThemeProvider>
         {process.env.NODE_ENV === 'production' && <Analytics />}
