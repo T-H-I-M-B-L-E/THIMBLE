@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { useAuth } from '@/lib/useAuth'
 
 interface Stats {
   totalUsers: number
@@ -13,26 +12,21 @@ interface Stats {
 }
 
 export default function AdminDashboard() {
-  const { user, isLoading } = useAuth()
   const router = useRouter()
   const [stats, setStats] = useState<Stats | null>(null)
   const [loadingStats, setLoadingStats] = useState(true)
 
   useEffect(() => {
-    if (!isLoading && !user) router.push('/auth')
-  }, [user, isLoading, router])
-
-  useEffect(() => {
     fetch('/api/admin/stats', { credentials: 'include' })
       .then(r => {
-        if (r.status === 403) { router.push('/'); return null }
+        if (r.status === 403) { router.push('/admin/login'); return null }
         return r.json()
       })
       .then(data => { if (data) setStats(data) })
       .finally(() => setLoadingStats(false))
   }, [router])
 
-  if (isLoading || loadingStats) {
+  if (loadingStats) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="h-6 w-6 border-2 border-white border-t-transparent rounded-full animate-spin" />

@@ -2,7 +2,6 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { useAuth } from '@/lib/useAuth'
 import { Suspense } from 'react'
 
 interface AdminUser {
@@ -28,7 +27,6 @@ const statusColor: Record<string, string> = {
 }
 
 function UsersTable() {
-  const { user, isLoading } = useAuth()
   const router = useRouter()
   const searchParams = useSearchParams()
 
@@ -45,17 +43,13 @@ function UsersTable() {
     if (roleFilter) qs.set('role', roleFilter)
     try {
       const r = await fetch(`/api/admin/users?${qs}`, { credentials: 'include' })
-      if (r.status === 403) { router.push('/'); return }
+      if (r.status === 403) { router.push('/admin/login'); return }
       const data = await r.json()
       setUsers(Array.isArray(data) ? data : [])
     } finally {
       setLoading(false)
     }
   }, [search, roleFilter, router])
-
-  useEffect(() => {
-    if (!isLoading && !user) router.push('/auth')
-  }, [user, isLoading, router])
 
   useEffect(() => {
     const t = setTimeout(fetchUsers, 300)
