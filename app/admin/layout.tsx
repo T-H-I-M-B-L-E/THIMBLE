@@ -11,6 +11,14 @@ interface Commit {
   url: string
 }
 
+interface EmailStats {
+  thisMonth: number
+  lastMonth: number
+  monthlyLimit: number
+  remaining: number
+  breakdown: Record<string, number>
+}
+
 function timeAgo(iso: string) {
   const diff = Date.now() - new Date(iso).getTime()
   const m = Math.floor(diff / 60000)
@@ -23,6 +31,9 @@ function timeAgo(iso: string) {
 function AdminLayoutInner({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [commits, setCommits] = useState<Commit[]>([])
+  const [commitEmailsEnabled, setCommitEmailsEnabled] = useState(true)
+  const [emailStats, setEmailStats] = useState<EmailStats | null>(null)
+  const [togglingEmail, setTogglingEmail] = useState(false)
   const pathname = usePathname()
 
   useEffect(() => { setSidebarOpen(false) }, [pathname])
@@ -37,6 +48,30 @@ function AdminLayoutInner({ children }: { children: React.ReactNode }) {
     const id = setInterval(load, 60000)
     return () => clearInterval(id)
   }, [])
+
+  useEffect(() => {
+    fetch('/api/admin/settings', { credentials: 'include' })
+      .then(r => r.ok ? r.json() : {})
+      .then(s => { if (s.commit_emails_enabled !== undefined) setCommitEmailsEnabled(s.commit_emails_enabled === 'true') })
+      .catch(() => {})
+    fetch('/api/admin/email-stats', { credentials: 'include' })
+      .then(r => r.ok ? r.json() : null)
+      .then(s => { if (s) setEmailStats(s) })
+      .catch(() => {})
+  }, [])
+
+  async function toggleCommitEmails() {
+    setTogglingEmail(true)
+    const next = !commitEmailsEnabled
+    setCommitEmailsEnabled(next)
+    await fetch('/api/admin/settings', {
+      method: 'PATCH',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ commit_emails_enabled: next ? 'true' : 'false' }),
+    }).catch(() => setCommitEmailsEnabled(!next))
+    setTogglingEmail(false)
+  }
 
   const navLinks = [
     { href: '/admin', label: 'Dashboard', icon: '▣' },
@@ -115,6 +150,48 @@ function AdminLayoutInner({ children }: { children: React.ReactNode }) {
               </a>
             ))}
           </div>
+        </div>
+
+        {/* Email settings */}
+        <div className="border-t border-neutral-800 p-4 space-y-3 shrink-0">
+          {/* Toggle */}
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-xs text-neutral-400">Commit emails</p>
+              <p className="text-xs text-neutral-600">{commitEmailsEnabled ? 'Sending' : 'Paused'}</p>
+            </div>
+            <button
+              onClick={toggleCommitEmails}
+              disabled={togglingEmail}
+              className={`relative w-9 h-5 rounded-full transition-colors duration-200 focus:outline-none ${
+                commitEmailsEnabled ? 'bg-white' : 'bg-neutral-700'
+              }`}
+            >
+              <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-black rounded-full shadow transition-transform duration-200 ${
+                commitEmailsEnabled ? 'translate-x-4' : 'translate-x-0'
+              }`} />
+            </button>
+          </div>
+
+          {/* Email quota */}
+          {emailStats && (
+            <div>
+              <div className="flex justify-between mb-1">
+                <span className="text-xs text-neutral-600">Emails this month</span>
+                <span className="text-xs text-neutral-500">{emailStats.thisMonth} / {emailStats.monthlyLimit}</span>
+              </div>
+              <div className="h-1 bg-neutral-800 rounded-full overflow-hidden">
+                <div
+                  className={`h-full rounded-full transition-all ${
+                    emailStats.thisMonth / emailStats.monthlyLimit > 0.8 ? 'bg-red-500' :
+                    emailStats.thisMonth / emailStats.monthlyLimit > 0.5 ? 'bg-yellow-500' : 'bg-green-500'
+                  }`}
+                  style={{ width: `${Math.min((emailStats.thisMonth / emailStats.monthlyLimit) * 100, 100)}%` }}
+                />
+              </div>
+              <p className="text-xs text-neutral-700 mt-1">{emailStats.remaining} remaining</p>
+            </div>
+          )}
         </div>
 
         <div className="p-4 border-t border-neutral-800 shrink-0">

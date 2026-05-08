@@ -194,7 +194,9 @@ func sendVerificationEmail(email, code string) error {
 		Subject: fmt.Sprintf("%s is your THIMBLE verification code", code),
 		Html:    fmt.Sprintf(`<p>Your verification code is: <strong>%s</strong></p><p>This code expires in 10 minutes.</p>`, code),
 	})
-
+	if err == nil {
+		dbPool.Exec(context.Background(), "INSERT INTO email_log (type, recipients) VALUES ('verification', 1)")
+	}
 	return err
 }
 
@@ -971,16 +973,100 @@ func handleGithubWebhook(c *fiber.Ctx) error {
 		commitItems,
 	)
 
+	// Check if commit emails are enabled
+	var enabled string
+	dbPool.QueryRow(context.Background(), "SELECT value FROM settings WHERE key = 'commit_emails_enabled'").Scan(&enabled)
+	if enabled != "true" {
+		return c.SendStatus(200)
+	}
+
 	// Send to all admins
 	client := resend.NewClient(resendKey)
-	client.Emails.Send(&resend.SendEmailRequest{
+	_, sendErr := client.Emails.Send(&resend.SendEmailRequest{
 		From:    "noreply@tvimble.tech",
 		To:      adminEmails,
 		Subject: fmt.Sprintf("[THIMBLE] %s — %s", latestMsg, payload.Pusher.Name),
 		Html:    html,
 	})
+	if sendErr == nil {
+		dbPool.Exec(context.Background(),
+			"INSERT INTO email_log (type, recipients) VALUES ('commit_notification', $1)",
+			len(adminEmails))
+	}
 
 	return c.SendStatus(200)
+}
+
+func handleAdminGetSettings(c *fiber.Ctx) error {
+	rows, err := dbPool.Query(context.Background(), "SELECT key, value FROM settings")
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": "failed to fetch settings"})
+	}
+	defer rows.Close()
+	result := map[string]string{}
+	for rows.Next() {
+		var k, v string
+		if rows.Scan(&k, &v) == nil {
+			result[k] = v
+		}
+	}
+	return c.JSON(result)
+}
+
+func handleAdminUpdateSettings(c *fiber.Ctx) error {
+	var body map[string]string
+	if err := c.BodyParser(&body); err != nil {
+		return c.Status(400).JSON(fiber.Map{"error": "invalid request body"})
+	}
+	for k, v := range body {
+		dbPool.Exec(context.Background(),
+			"INSERT INTO settings (key, value) VALUES ($1, $2) ON CONFLICT (key) DO UPDATE SET value = $2",
+			k, v)
+	}
+	adminID, _ := c.Locals("userId").(string)
+	writeAuditLog(context.Background(), adminID, "update_settings", "", "", fmt.Sprintf("%v", body))
+	return c.JSON(fiber.Map{"success": true})
+}
+
+func handleAdminEmailStats(c *fiber.Ctx) error {
+	ctx := context.Background()
+	var thisMonth, lastMonth, total int
+	dbPool.QueryRow(ctx, `
+		SELECT COALESCE(SUM(recipients), 0) FROM email_log
+		WHERE sent_at >= DATE_TRUNC('month', NOW())`).Scan(&thisMonth)
+	dbPool.QueryRow(ctx, `
+		SELECT COALESCE(SUM(recipients), 0) FROM email_log
+		WHERE sent_at >= DATE_TRUNC('month', NOW() - INTERVAL '1 month')
+		  AND sent_at < DATE_TRUNC('month', NOW())`).Scan(&lastMonth)
+	dbPool.QueryRow(ctx, "SELECT COALESCE(SUM(recipients), 0) FROM email_log").Scan(&total)
+
+	// Per-type breakdown this month
+	rows, err := dbPool.Query(ctx, `
+		SELECT type, COALESCE(SUM(recipients), 0)
+		FROM email_log
+		WHERE sent_at >= DATE_TRUNC('month', NOW())
+		GROUP BY type ORDER BY 2 DESC`)
+	breakdown := map[string]int{}
+	if err == nil {
+		defer rows.Close()
+		for rows.Next() {
+			var t string
+			var n int
+			if rows.Scan(&t, &n) == nil {
+				breakdown[t] = n
+			}
+		}
+	}
+
+	const monthlyLimit = 3000
+	return c.JSON(fiber.Map{
+		"thisMonth":    thisMonth,
+		"lastMonth":    lastMonth,
+		"total":        total,
+		"monthlyLimit": monthlyLimit,
+		"remaining":    monthlyLimit - thisMonth,
+		"breakdown":    breakdown,
+	})
 }
 
 // hmacSha256 computes HMAC-SHA256 hex digest
@@ -1100,6 +1186,35 @@ func main() {
 	`)
 	if err != nil {
 		log.Fatal("Failed to create admin_audit_log table:", err)
+	}
+
+	// Ensure settings table exists
+	_, err = dbPool.Exec(context.Background(), `
+		CREATE TABLE IF NOT EXISTS settings (
+			key   TEXT PRIMARY KEY,
+			value TEXT NOT NULL
+		)
+	`)
+	if err != nil {
+		log.Fatal("Failed to create settings table:", err)
+	}
+	// Default: commit emails enabled
+	dbPool.Exec(context.Background(), `
+		INSERT INTO settings (key, value) VALUES ('commit_emails_enabled', 'true')
+		ON CONFLICT (key) DO NOTHING
+	`)
+
+	// Ensure email_log table exists
+	_, err = dbPool.Exec(context.Background(), `
+		CREATE TABLE IF NOT EXISTS email_log (
+			id         BIGSERIAL PRIMARY KEY,
+			type       TEXT NOT NULL,
+			recipients INT NOT NULL DEFAULT 1,
+			sent_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
+		)
+	`)
+	if err != nil {
+		log.Fatal("Failed to create email_log table:", err)
 	}
 
 	app := fiber.New()
@@ -1370,6 +1485,9 @@ func main() {
 	adminGroup.Patch("/users/:id", handleAdminUpdateUser)
 	adminGroup.Delete("/users/:id", handleAdminDeleteUser)
 	adminGroup.Get("/audit-log", handleAdminAuditLog)
+	adminGroup.Get("/settings", handleAdminGetSettings)
+	adminGroup.Patch("/settings", handleAdminUpdateSettings)
+	adminGroup.Get("/email-stats", handleAdminEmailStats)
 
 	port := os.Getenv("PORT")
 	if port == "" {
