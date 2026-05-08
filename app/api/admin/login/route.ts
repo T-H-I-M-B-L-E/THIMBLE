@@ -27,7 +27,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Access denied — not an admin' }, { status: 403 })
     }
 
-    const response = NextResponse.json({ success: true, fullName: data.fullName || data.user?.fullName || '' })
+    const response = NextResponse.json({
+      success: true,
+      fullName: data.fullName || data.user?.fullName || '',
+      userId: data.user?.id || data.userId || '',
+    })
     response.cookies.set('admin_token', data.token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',

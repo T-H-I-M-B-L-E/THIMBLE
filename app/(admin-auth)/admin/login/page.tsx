@@ -33,6 +33,7 @@ export default function AdminLoginPage() {
       // Store admin name for splash screen personalisation
       if (data.fullName) sessionStorage.setItem('admin_name', data.fullName)
       else if (data.user?.fullName) sessionStorage.setItem('admin_name', data.user.fullName)
+      if (data.userId) sessionStorage.setItem('admin_id', data.userId)
       router.push('/admin/splash')
     } catch {
       setError('Something went wrong')

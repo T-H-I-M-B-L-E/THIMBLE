@@ -603,6 +603,25 @@ func wsAuth(c *fiber.Ctx) error {
 	return c.Next()
 }
 
+// wsAdminAuth — like wsAuth but also checks is_admin in DB
+func wsAdminAuth(c *fiber.Ctx) error {
+	token := c.Query("token")
+	if token == "" {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
+	}
+	claims, err := validateJWT(token)
+	if err != nil {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
+	}
+	var isAdmin bool
+	dbPool.QueryRow(context.Background(), "SELECT is_admin FROM users WHERE id = $1", claims.UserID).Scan(&isAdmin)
+	if !isAdmin {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "forbidden"})
+	}
+	c.Locals("userId", claims.UserID)
+	return c.Next()
+}
+
 func handleAdminStats(c *fiber.Ctx) error {
 	ctx := context.Background()
 	var stats AdminStats
@@ -1262,6 +1281,17 @@ func main() {
 		)
 	`)
 	dbPool.Exec(context.Background(), `
+		CREATE TABLE IF NOT EXISTS admin_chat_messages (
+			id         BIGSERIAL PRIMARY KEY,
+			user_id    TEXT NOT NULL,
+			user_name  TEXT NOT NULL DEFAULT '',
+			content    TEXT NOT NULL,
+			timestamp  BIGINT NOT NULL DEFAULT EXTRACT(EPOCH FROM NOW()) * 1000,
+			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+		)
+	`)
+
+	dbPool.Exec(context.Background(), `
 		CREATE TABLE IF NOT EXISTS conversation_messages (
 			id              BIGSERIAL PRIMARY KEY,
 			conversation_id BIGINT NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
@@ -1560,6 +1590,83 @@ func main() {
 		}
 		return c.JSON(msgs)
 	})
+
+	// Admin chat — history
+	app.Get("/admin/chat/history", jwtAuth, adminAuth, func(c *fiber.Ctx) error {
+		rows, err := dbPool.Query(context.Background(),
+			"SELECT id, user_id, user_name, content, timestamp FROM admin_chat_messages ORDER BY timestamp ASC LIMIT 100")
+		if err != nil {
+			return c.JSON([]fiber.Map{})
+		}
+		defer rows.Close()
+		var msgs []fiber.Map
+		for rows.Next() {
+			var id int
+			var userId, userName, content string
+			var ts int64
+			if rows.Scan(&id, &userId, &userName, &content, &ts) == nil {
+				msgs = append(msgs, fiber.Map{"id": id, "userId": userId, "name": userName, "content": content, "timestamp": ts})
+			}
+		}
+		if msgs == nil {
+			msgs = []fiber.Map{}
+		}
+		return c.JSON(msgs)
+	})
+
+	// Admin WebSocket — private admin-only room
+	adminRoom := make(map[*websocket.Conn]string) // conn → userId
+	var adminRoomMu sync.RWMutex
+
+	app.Get("/admin/ws", wsAdminAuth, websocket.New(func(c *websocket.Conn) {
+		userId, _ := c.Locals("userId").(string)
+		var userName string
+		dbPool.QueryRow(context.Background(), "SELECT full_name FROM users WHERE id = $1", userId).Scan(&userName)
+
+		adminRoomMu.Lock()
+		adminRoom[c] = userId
+		adminRoomMu.Unlock()
+
+		defer func() {
+			adminRoomMu.Lock()
+			delete(adminRoom, c)
+			adminRoomMu.Unlock()
+			c.Close()
+		}()
+
+		for {
+			_, msgBytes, err := c.ReadMessage()
+			if err != nil {
+				break
+			}
+
+			var raw map[string]interface{}
+			if err := json.Unmarshal(msgBytes, &raw); err != nil {
+				continue
+			}
+
+			content, _ := raw["content"].(string)
+			if content == "" {
+				continue
+			}
+
+			ts := time.Now().UnixMilli()
+			var insertedID int
+			dbPool.QueryRow(context.Background(),
+				"INSERT INTO admin_chat_messages (user_id, user_name, content, timestamp) VALUES ($1, $2, $3, $4) RETURNING id",
+				userId, userName, content, ts).Scan(&insertedID)
+
+			out, _ := json.Marshal(fiber.Map{
+				"id": insertedID, "userId": userId, "name": userName, "content": content, "timestamp": ts,
+			})
+
+			adminRoomMu.RLock()
+			for conn := range adminRoom {
+				conn.WriteMessage(websocket.TextMessage, out)
+			}
+			adminRoomMu.RUnlock()
+		}
+	}))
 
 	// Posts API
 	app.Get("/api/posts", func(c *fiber.Ctx) error {
