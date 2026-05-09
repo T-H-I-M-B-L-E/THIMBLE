@@ -31,6 +31,9 @@ export function UserSync() {
         followers: user.followers ?? 0,
         following: user.following ?? 0,
         posts: user.posts ?? 0,
+        isBanned: user.isBanned ?? false,
+        bannedUntil: user.bannedUntil ?? null,
+        banMessage: user.banMessage ?? "",
       }
       setUser(userData)
     } else {

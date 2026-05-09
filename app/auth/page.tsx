@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Eye, EyeOff, Sun, Moon } from "lucide-react"
+import { BanWall } from "@/components/ban-wall"
 
 export default function LoginPage() {
   const router = useRouter()
@@ -17,6 +18,7 @@ export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState("")
+  const [banInfo, setBanInfo] = useState<{ bannedUntil: string | null; banMessage: string } | null>(null)
   const isDark = theme === "dark"
 
   const [formData, setFormData] = useState({
@@ -50,6 +52,10 @@ export default function LoginPage() {
       const data = await response.json()
 
       if (!response.ok) {
+        if (response.status === 403 && data.error === "banned") {
+          setBanInfo({ bannedUntil: data.bannedUntil ?? null, banMessage: data.banMessage ?? "" })
+          return
+        }
         setError(data.error || "Invalid email or password")
         return
       }
@@ -64,6 +70,10 @@ export default function LoginPage() {
     } finally {
       setIsLoading(false)
     }
+  }
+
+  if (banInfo) {
+    return <BanWall bannedUntil={banInfo.bannedUntil} banMessage={banInfo.banMessage} />
   }
 
   return (

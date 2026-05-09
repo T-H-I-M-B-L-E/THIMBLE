@@ -459,9 +459,16 @@ func handleLogin(c *fiber.Ctx) error {
 	var hashedPassword string
 	var isAdmin bool
 	var avatarUrl, bio, location, website, verificationStatus *string
+	var bannedUntil *time.Time
 	err := dbPool.QueryRow(context.Background(),
-		"SELECT id, email, password_hash, full_name, role, avatar_url, bio, location, website, verification_status, followers, following, posts, is_admin FROM users WHERE email = $1",
-		req.Email).Scan(&user.ID, &user.Email, &hashedPassword, &user.FullName, &user.Role, &avatarUrl, &bio, &location, &website, &verificationStatus, &user.Followers, &user.Following, &user.Posts, &isAdmin)
+		`SELECT id, email, password_hash, full_name, role, avatar_url, bio, location, website,
+		        verification_status, followers, following, posts, is_admin,
+		        is_banned, banned_until, ban_message
+		 FROM users WHERE email = $1`,
+		req.Email).Scan(&user.ID, &user.Email, &hashedPassword, &user.FullName, &user.Role,
+		&avatarUrl, &bio, &location, &website, &verificationStatus,
+		&user.Followers, &user.Following, &user.Posts, &isAdmin,
+		&user.IsBanned, &bannedUntil, &user.BanMessage)
 
 	if err != nil {
 		log.Printf("Login scan error for %s: %v", req.Email, err)
@@ -472,10 +479,29 @@ func handleLogin(c *fiber.Ctx) error {
 	if location != nil { user.Location = *location }
 	if website != nil { user.Website = *website }
 	if verificationStatus != nil { user.VerificationStatus = *verificationStatus }
+	if bannedUntil != nil {
+		s := bannedUntil.UTC().Format(time.RFC3339)
+		user.BannedUntil = &s
+		// Timed ban that already expired — treat as not banned
+		if bannedUntil.Before(time.Now()) {
+			user.IsBanned = false
+			user.BannedUntil = nil
+			user.BanMessage = ""
+		}
+	}
 
-	// Verify password
+	// Verify password before revealing ban status (don't leak account existence)
 	if err := bcrypt.CompareHashAndPassword([]byte(hashedPassword), []byte(req.Password)); err != nil {
 		return c.Status(401).JSON(fiber.Map{"error": "invalid email or password"})
+	}
+
+	// Block banned users from logging in
+	if user.IsBanned {
+		return c.Status(403).JSON(fiber.Map{
+			"error":       "banned",
+			"banMessage":  user.BanMessage,
+			"bannedUntil": user.BannedUntil,
+		})
 	}
 
 	// Record login timestamp and increment counter
