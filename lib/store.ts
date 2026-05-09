@@ -24,6 +24,9 @@ export interface User {
   followers?: number
   following?: number
   posts?: number
+  isBanned?: boolean
+  bannedUntil?: string | null
+  banMessage?: string
 }
 
 export interface Gig {

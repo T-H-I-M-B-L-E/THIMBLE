@@ -11,6 +11,9 @@ interface AdminUser {
   role: string
   verificationStatus: string
   isAdmin: boolean
+  isBanned: boolean
+  bannedUntil: string | null
+  banMessage: string
   createdAt: string
   lastLoginAt: string | null
   totalLogins: number
@@ -22,10 +25,123 @@ interface AdminUser {
 const ROLES = ['model', 'designer', 'manufacturer', 'photographer', 'brand']
 const VERIFICATION = ['unverified', 'pending', 'verified']
 
+const DURATION_OPTIONS = [
+  { label: '1 hour', hours: 1 },
+  { label: '6 hours', hours: 6 },
+  { label: '12 hours', hours: 12 },
+  { label: '24 hours', hours: 24 },
+  { label: '3 days', hours: 72 },
+  { label: '7 days', hours: 168 },
+  { label: '30 days', hours: 720 },
+  { label: 'Permanent', hours: 0 },
+]
+
 const statusColor: Record<string, string> = {
   verified: 'text-emerald-400 bg-emerald-400/10',
   pending: 'text-yellow-400 bg-yellow-400/10',
   unverified: 'text-neutral-400 bg-neutral-800',
+}
+
+interface BanModal {
+  userId: string
+  userName: string
+  currentlyBanned: boolean
+  bannedUntil: string | null
+}
+
+function BanModalUI({ modal, onClose, onSave }: {
+  modal: BanModal
+  onClose: () => void
+  onSave: (userId: string, durationHours: number, message: string) => Promise<void>
+}) {
+  const [durationHours, setDurationHours] = useState(24)
+  const [message, setMessage] = useState('')
+  const [saving, setSaving] = useState(false)
+
+  const handleSave = async () => {
+    setSaving(true)
+    await onSave(modal.userId, durationHours, message)
+    setSaving(false)
+    onClose()
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm px-4"
+      onClick={e => { if (e.target === e.currentTarget) onClose() }}>
+      <div className="w-full max-w-md bg-neutral-900 border border-neutral-700 rounded-2xl overflow-hidden shadow-2xl">
+        {/* Header */}
+        <div className="px-6 py-5 border-b border-neutral-800">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-xs uppercase tracking-[0.25em] text-red-500/80 mb-1">Ban User</p>
+              <p className="text-white font-medium">{modal.userName}</p>
+            </div>
+            <button onClick={onClose} className="text-neutral-600 hover:text-white transition-colors text-xl leading-none">×</button>
+          </div>
+        </div>
+
+        <div className="px-6 py-5 space-y-5">
+          {/* Duration */}
+          <div>
+            <label className="text-xs uppercase tracking-widest text-neutral-500 block mb-3">Duration</label>
+            <div className="grid grid-cols-4 gap-2">
+              {DURATION_OPTIONS.map(opt => (
+                <button
+                  key={opt.hours}
+                  onClick={() => setDurationHours(opt.hours)}
+                  className={`py-2 px-1 rounded-lg text-xs transition-colors text-center ${
+                    durationHours === opt.hours
+                      ? 'bg-red-500/20 border border-red-500/50 text-red-300'
+                      : 'bg-neutral-800 border border-neutral-700 text-neutral-400 hover:bg-neutral-700'
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Custom message */}
+          <div>
+            <label className="text-xs uppercase tracking-widest text-neutral-500 block mb-2">
+              Message to user
+            </label>
+            <textarea
+              value={message}
+              onChange={e => setMessage(e.target.value)}
+              placeholder="Tell them why they've been banned…"
+              rows={4}
+              className="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-3 text-sm text-white placeholder-neutral-600 focus:outline-none focus:border-red-500/50 transition-colors resize-none"
+            />
+            <p className="text-xs text-neutral-600 mt-1">This message will be shown on the ban screen.</p>
+          </div>
+
+          {durationHours === 0 && (
+            <div className="flex items-center gap-2 bg-red-500/10 border border-red-500/20 rounded-lg px-4 py-3">
+              <span className="text-red-400 text-xs">⚠</span>
+              <p className="text-xs text-red-400">Permanent ban — account will be locked indefinitely.</p>
+            </div>
+          )}
+        </div>
+
+        <div className="px-6 pb-6 flex gap-3">
+          <button
+            onClick={onClose}
+            className="flex-1 py-3 rounded-xl text-sm text-neutral-400 border border-neutral-700 hover:bg-neutral-800 transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            className="flex-1 py-3 rounded-xl text-sm font-medium bg-red-600 hover:bg-red-500 text-white transition-colors disabled:opacity-50"
+          >
+            {saving ? 'Banning…' : 'Ban User'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
 }
 
 function UsersTable() {
@@ -37,6 +153,7 @@ function UsersTable() {
   const [search, setSearch] = useState(searchParams.get('search') || '')
   const [roleFilter, setRoleFilter] = useState(searchParams.get('role') || '')
   const [actionLoading, setActionLoading] = useState<string | null>(null)
+  const [banModal, setBanModal] = useState<BanModal | null>(null)
 
   const fetchUsers = useCallback(async () => {
     setLoading(true)
@@ -84,8 +201,36 @@ function UsersTable() {
     }
   }
 
+  const banUser = async (userId: string, durationHours: number, message: string) => {
+    await fetch(`/api/admin/users/${userId}/ban`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ durationHours, message }),
+    })
+    fetchUsers()
+  }
+
+  const unbanUser = async (id: string) => {
+    setActionLoading(id)
+    try {
+      await fetch(`/api/admin/users/${id}/ban`, { method: 'DELETE', credentials: 'include' })
+      fetchUsers()
+    } finally {
+      setActionLoading(null)
+    }
+  }
+
   return (
     <div className="p-4 sm:p-8">
+      {banModal && (
+        <BanModalUI
+          modal={banModal}
+          onClose={() => setBanModal(null)}
+          onSave={banUser}
+        />
+      )}
+
       <div className="mb-6 flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-light tracking-widest uppercase">Users</h1>
@@ -136,11 +281,18 @@ function UsersTable() {
               </thead>
               <tbody>
                 {users.map(u => (
-                  <tr key={u.id} className="border-b border-neutral-800/50 hover:bg-neutral-800/30 transition-colors">
+                  <tr key={u.id} className={`border-b border-neutral-800/50 transition-colors ${u.isBanned ? 'bg-red-950/20 hover:bg-red-950/30' : 'hover:bg-neutral-800/30'}`}>
                     <td className="px-4 py-3 min-w-40">
                       <p className="font-medium text-white">{u.fullName}</p>
                       <p className="text-neutral-500 text-xs mt-0.5">{u.email}</p>
-                      {u.isAdmin && <span className="text-xs text-purple-400">admin</span>}
+                      <div className="flex gap-1.5 mt-0.5 flex-wrap">
+                        {u.isAdmin && <span className="text-xs text-purple-400">admin</span>}
+                        {u.isBanned && (
+                          <span className="text-xs text-red-400 font-medium">
+                            banned{u.bannedUntil ? ` · until ${new Date(u.bannedUntil).toLocaleDateString()}` : ' · permanent'}
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td className="px-4 py-3">
                       <select
@@ -174,7 +326,7 @@ function UsersTable() {
                       {new Date(u.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                     </td>
                     <td className="px-4 py-3">
-                      <div className="flex gap-2">
+                      <div className="flex gap-2 flex-wrap">
                         <button
                           onClick={() => updateUser(u.id, { isAdmin: !u.isAdmin })}
                           disabled={actionLoading === u.id}
@@ -182,6 +334,23 @@ function UsersTable() {
                         >
                           {u.isAdmin ? 'Revoke Admin' : 'Make Admin'}
                         </button>
+                        {u.isBanned ? (
+                          <button
+                            onClick={() => unbanUser(u.id)}
+                            disabled={actionLoading === u.id}
+                            className="text-xs px-2 py-1 rounded bg-neutral-800 hover:bg-emerald-900 text-neutral-300 hover:text-emerald-400 transition-colors whitespace-nowrap"
+                          >
+                            Unban
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => setBanModal({ userId: u.id, userName: u.fullName, currentlyBanned: false, bannedUntil: null })}
+                            disabled={actionLoading === u.id}
+                            className="text-xs px-2 py-1 rounded bg-neutral-800 hover:bg-red-900 text-neutral-300 hover:text-red-400 transition-colors"
+                          >
+                            Ban
+                          </button>
+                        )}
                         <button
                           onClick={() => deleteUser(u.id, u.fullName)}
                           disabled={actionLoading === u.id}

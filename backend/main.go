@@ -27,18 +27,21 @@ import (
 
 // User represents an authenticated user
 type User struct {
-	ID                 string `json:"id"`
-	Email              string `json:"email"`
-	FullName           string `json:"fullName"`
-	Role               string `json:"role"`
-	AvatarUrl          string `json:"avatarUrl,omitempty"`
-	Bio                string `json:"bio,omitempty"`
-	Location           string `json:"location,omitempty"`
-	Website            string `json:"website,omitempty"`
-	VerificationStatus string `json:"verificationStatus"`
-	Followers          int    `json:"followers"`
-	Following          int    `json:"following"`
-	Posts              int    `json:"posts"`
+	ID                 string  `json:"id"`
+	Email              string  `json:"email"`
+	FullName           string  `json:"fullName"`
+	Role               string  `json:"role"`
+	AvatarUrl          string  `json:"avatarUrl,omitempty"`
+	Bio                string  `json:"bio,omitempty"`
+	Location           string  `json:"location,omitempty"`
+	Website            string  `json:"website,omitempty"`
+	VerificationStatus string  `json:"verificationStatus"`
+	Followers          int     `json:"followers"`
+	Following          int     `json:"following"`
+	Posts              int     `json:"posts"`
+	IsBanned           bool    `json:"isBanned"`
+	BannedUntil        *string `json:"bannedUntil,omitempty"`
+	BanMessage         string  `json:"banMessage,omitempty"`
 }
 
 type AdminUserView struct {
@@ -48,6 +51,9 @@ type AdminUserView struct {
 	Role               string     `json:"role"`
 	VerificationStatus string     `json:"verificationStatus"`
 	IsAdmin            bool       `json:"isAdmin"`
+	IsBanned           bool       `json:"isBanned"`
+	BannedUntil        *string    `json:"bannedUntil,omitempty"`
+	BanMessage         string     `json:"banMessage,omitempty"`
 	CreatedAt          time.Time  `json:"createdAt"`
 	LastLoginAt        *time.Time `json:"lastLoginAt"`
 	TotalLogins        int        `json:"totalLogins"`
@@ -709,7 +715,7 @@ func handleAdminListUsers(c *fiber.Ctx) error {
 	role := c.Query("role", "")
 	adminOnly := c.Query("admin", "")
 
-	query := `SELECT id, email, full_name, role, verification_status, is_admin, created_at, last_login_at, total_logins, followers, following, posts FROM users WHERE 1=1`
+	query := `SELECT id, email, full_name, role, verification_status, is_admin, is_banned, banned_until, ban_message, created_at, last_login_at, total_logins, followers, following, posts FROM users WHERE 1=1`
 	args := []interface{}{}
 	argIdx := 1
 
@@ -740,7 +746,14 @@ func handleAdminListUsers(c *fiber.Ctx) error {
 	var users []AdminUserView
 	for rows.Next() {
 		var u AdminUserView
-		if err := rows.Scan(&u.ID, &u.Email, &u.FullName, &u.Role, &u.VerificationStatus, &u.IsAdmin, &u.CreatedAt, &u.LastLoginAt, &u.TotalLogins, &u.Followers, &u.Following, &u.Posts); err == nil {
+		var bannedUntil *time.Time
+		if err := rows.Scan(&u.ID, &u.Email, &u.FullName, &u.Role, &u.VerificationStatus, &u.IsAdmin,
+			&u.IsBanned, &bannedUntil, &u.BanMessage,
+			&u.CreatedAt, &u.LastLoginAt, &u.TotalLogins, &u.Followers, &u.Following, &u.Posts); err == nil {
+			if bannedUntil != nil {
+				s := bannedUntil.UTC().Format(time.RFC3339)
+				u.BannedUntil = &s
+			}
 			users = append(users, u)
 		}
 	}
@@ -818,6 +831,75 @@ func handleAdminUpdateUser(c *fiber.Ctx) error {
 	var targetName string
 	dbPool.QueryRow(ctx, "SELECT full_name FROM users WHERE id = $1", id).Scan(&targetName)
 	writeAuditLog(ctx, adminID, "update_user", id, targetName, fmt.Sprintf("%v", body))
+
+	return c.JSON(fiber.Map{"success": true})
+}
+
+func handleAdminBanUser(c *fiber.Ctx) error {
+	ctx := context.Background()
+	id := c.Params("id")
+
+	var body struct {
+		DurationHours int    `json:"durationHours"` // 0 = permanent
+		Message       string `json:"message"`
+	}
+	if err := c.BodyParser(&body); err != nil {
+		return c.Status(400).JSON(fiber.Map{"error": "invalid request body"})
+	}
+
+	var bannedUntil *time.Time
+	if body.DurationHours > 0 {
+		t := time.Now().UTC().Add(time.Duration(body.DurationHours) * time.Hour)
+		bannedUntil = &t
+	}
+
+	var result interface{ RowsAffected() int64 }
+	var err error
+	if bannedUntil != nil {
+		result, err = dbPool.Exec(ctx,
+			"UPDATE users SET is_banned = true, banned_until = $1, ban_message = $2, updated_at = NOW() WHERE id = $3",
+			bannedUntil, body.Message, id)
+	} else {
+		result, err = dbPool.Exec(ctx,
+			"UPDATE users SET is_banned = true, banned_until = NULL, ban_message = $1, updated_at = NOW() WHERE id = $2",
+			body.Message, id)
+	}
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": "failed to ban user"})
+	}
+	if result.RowsAffected() == 0 {
+		return c.Status(404).JSON(fiber.Map{"error": "user not found"})
+	}
+
+	adminID, _ := c.Locals("userId").(string)
+	var targetName string
+	dbPool.QueryRow(ctx, "SELECT full_name FROM users WHERE id = $1", id).Scan(&targetName)
+	dur := "permanent"
+	if body.DurationHours > 0 {
+		dur = fmt.Sprintf("%dh", body.DurationHours)
+	}
+	writeAuditLog(ctx, adminID, "ban_user", id, targetName, fmt.Sprintf("duration=%s msg=%q", dur, body.Message))
+
+	return c.JSON(fiber.Map{"success": true})
+}
+
+func handleAdminUnbanUser(c *fiber.Ctx) error {
+	ctx := context.Background()
+	id := c.Params("id")
+
+	result, err := dbPool.Exec(ctx,
+		"UPDATE users SET is_banned = false, banned_until = NULL, ban_message = '', updated_at = NOW() WHERE id = $1", id)
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": "failed to unban user"})
+	}
+	if result.RowsAffected() == 0 {
+		return c.Status(404).JSON(fiber.Map{"error": "user not found"})
+	}
+
+	adminID, _ := c.Locals("userId").(string)
+	var targetName string
+	dbPool.QueryRow(ctx, "SELECT full_name FROM users WHERE id = $1", id).Scan(&targetName)
+	writeAuditLog(ctx, adminID, "unban_user", id, targetName, "ban lifted")
 
 	return c.JSON(fiber.Map{"success": true})
 }
@@ -1291,6 +1373,11 @@ func main() {
 		)
 	`)
 
+	// Ban columns — safe to run every startup (idempotent)
+	dbPool.Exec(context.Background(), `ALTER TABLE users ADD COLUMN IF NOT EXISTS is_banned BOOLEAN NOT NULL DEFAULT FALSE`)
+	dbPool.Exec(context.Background(), `ALTER TABLE users ADD COLUMN IF NOT EXISTS banned_until TIMESTAMPTZ`)
+	dbPool.Exec(context.Background(), `ALTER TABLE users ADD COLUMN IF NOT EXISTS ban_message TEXT NOT NULL DEFAULT ''`)
+
 	dbPool.Exec(context.Background(), `
 		CREATE TABLE IF NOT EXISTS conversation_messages (
 			id              BIGSERIAL PRIMARY KEY,
@@ -1378,9 +1465,14 @@ func main() {
 		id := c.Params("id")
 		var user User
 		var avatarUrl, bio, location, website, verificationStatus *string
+		var bannedUntil *time.Time
 		err := dbPool.QueryRow(context.Background(),
-			"SELECT id, email, full_name, role, avatar_url, bio, location, website, verification_status, followers, following, posts FROM users WHERE id = $1",
-			id).Scan(&user.ID, &user.Email, &user.FullName, &user.Role, &avatarUrl, &bio, &location, &website, &verificationStatus, &user.Followers, &user.Following, &user.Posts)
+			`SELECT id, email, full_name, role, avatar_url, bio, location, website, verification_status,
+			        followers, following, posts, is_banned, banned_until, ban_message
+			 FROM users WHERE id = $1`, id).
+			Scan(&user.ID, &user.Email, &user.FullName, &user.Role, &avatarUrl, &bio, &location, &website,
+				&verificationStatus, &user.Followers, &user.Following, &user.Posts,
+				&user.IsBanned, &bannedUntil, &user.BanMessage)
 		if err != nil {
 			return c.Status(404).JSON(fiber.Map{"error": "user not found"})
 		}
@@ -1389,6 +1481,16 @@ func main() {
 		if location != nil { user.Location = *location }
 		if website != nil { user.Website = *website }
 		if verificationStatus != nil { user.VerificationStatus = *verificationStatus }
+		if bannedUntil != nil {
+			s := bannedUntil.UTC().Format(time.RFC3339)
+			user.BannedUntil = &s
+			// Auto-lift expired bans
+			if bannedUntil.Before(time.Now()) {
+				user.IsBanned = false
+				user.BannedUntil = nil
+				user.BanMessage = ""
+			}
+		}
 		return c.JSON(user)
 	})
 
@@ -1769,6 +1871,8 @@ func main() {
 	adminGroup.Get("/users/:id", handleAdminGetUser)
 	adminGroup.Patch("/users/:id", handleAdminUpdateUser)
 	adminGroup.Delete("/users/:id", handleAdminDeleteUser)
+	adminGroup.Post("/users/:id/ban", handleAdminBanUser)
+	adminGroup.Delete("/users/:id/ban", handleAdminUnbanUser)
 	adminGroup.Get("/audit-log", handleAdminAuditLog)
 	adminGroup.Get("/settings", handleAdminGetSettings)
 	adminGroup.Patch("/settings", handleAdminUpdateSettings)

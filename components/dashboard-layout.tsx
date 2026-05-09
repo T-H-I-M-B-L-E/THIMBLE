@@ -7,6 +7,7 @@ import { useAuth } from "@/lib/useAuth"
 import { useStore } from "@/lib/store"
 import { VerificationModal } from "./verification-modal"
 import { VerificationBanner } from "./verification-banner"
+import { BanWall } from "./ban-wall"
 import { useState } from "react"
 import { Home, Grid3X3, Briefcase, MessageSquare, User, Bell, Plus, Search, LogOut, Shield } from "lucide-react"
 import { cn } from "@/lib/utils"
@@ -42,6 +43,10 @@ export function DashboardLayout({ children, role, showRail = false }: DashboardL
   const isActive = (href: string, exact?: boolean) => {
     if (exact) return pathname === href
     return pathname === href || pathname.startsWith(href + "/")
+  }
+
+  if (user?.isBanned) {
+    return <BanWall bannedUntil={user.bannedUntil} banMessage={user.banMessage} />
   }
 
   return (
