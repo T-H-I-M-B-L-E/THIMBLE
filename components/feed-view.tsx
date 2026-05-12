@@ -5,7 +5,7 @@ import { useAuth } from "@/lib/useAuth"
 import Image from "next/image"
 import { Heart, MessageSquare, Bookmark, Share2, Plus, MoreHorizontal, Trash2 } from "lucide-react"
 import { useState, useEffect } from "react"
-import { getApiUrl } from "@/lib/platform"
+import { CreatePostModal } from "@/components/create-post-modal"
 
 interface Post {
   id: number | string
@@ -25,33 +25,34 @@ export function FeedView() {
   const [isLoading, setIsLoading] = useState(true)
   const [activeFilter, setActiveFilter] = useState("For you")
   const [likedPosts, setLikedPosts] = useState<Set<string>>(new Set())
+  const [isCreatePostOpen, setIsCreatePostOpen] = useState(false)
 
   useEffect(() => {
     fetchPosts()
   }, [])
 
-  const fetchPosts = async () => {
-    const postsUrl = getApiUrl("/api/posts")
-
-    if (!postsUrl) {
-      setPosts(
-        designPosts.map((post) => ({
-          id: post.id,
-          userId: post.userId,
-          authorName: post.author,
-          authorAvatar: post.authorAvatar || "",
-          imageUrl: post.image,
-          description: post.description,
-          likes: post.likes,
-          createdAt: post.createdAt,
-        }))
-      )
-      setIsLoading(false)
-      return
+  useEffect(() => {
+    const handlePostCreated = () => {
+      fetchPosts()
     }
 
+    window.addEventListener("thimble:post-created", handlePostCreated)
+    return () => {
+      window.removeEventListener("thimble:post-created", handlePostCreated)
+    }
+  }, [])
+
+  const fetchPosts = async () => {
     try {
-      const res = await fetch(postsUrl)
+      const res = await fetch("/api/posts", {
+        cache: "no-store",
+        credentials: "include",
+      })
+
+      if (!res.ok) {
+        throw new Error(`Failed to fetch posts: ${res.status}`)
+      }
+
       const data = await res.json()
       setPosts(data)
     } catch (err) {
@@ -76,17 +77,10 @@ export function FeedView() {
   const handleDelete = async (postId: number | string) => {
     if (!confirm("Are you sure you want to delete this post?")) return
 
-    const postsUrl = getApiUrl(`/api/posts/${postId}`)
-
-    if (!postsUrl) {
-      removeDesignPost(String(postId))
-      setPosts(posts.filter(p => String(p.id) !== String(postId)))
-      return
-    }
-
     try {
-      const res = await fetch(postsUrl, {
-        method: "DELETE"
+      const res = await fetch(`/api/posts/${postId}`, {
+        method: "DELETE",
+        credentials: "include",
       })
       if (res.ok) {
         setPosts(posts.filter(p => String(p.id) !== String(postId)))
@@ -116,6 +110,13 @@ export function FeedView() {
 
   return (
     <div className="t-feed">
+      <CreatePostModal
+        isOpen={isCreatePostOpen}
+        onClose={() => setIsCreatePostOpen(false)}
+        onSuccess={fetchPosts}
+        user={user}
+      />
+
       {/* Composer Bar */}
       <div className="t-composer-bar">
         {user?.avatar ? (
@@ -132,19 +133,19 @@ export function FeedView() {
             {user?.fullName?.[0] ?? "U"}
           </div>
         )}
-        <button className="t-composer-input" onClick={() => {}}>
+        <button className="t-composer-input" onClick={() => setIsCreatePostOpen(true)}>
           What are you working on?
         </button>
         <div className="t-composer-actions">
-          <button className="t-chip">
+          <button className="t-chip" onClick={() => setIsCreatePostOpen(true)}>
             <span className="t-chip-dot photo" />
             Photo
           </button>
-          <button className="t-chip">
+          <button className="t-chip" onClick={() => setIsCreatePostOpen(true)}>
             <span className="t-chip-dot gig" />
             Gig
           </button>
-          <button className="t-chip">
+          <button className="t-chip" onClick={() => setIsCreatePostOpen(true)}>
             <span className="t-chip-dot ask" />
             Ask
           </button>

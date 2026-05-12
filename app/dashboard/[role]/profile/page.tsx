@@ -8,7 +8,7 @@ import { useState, useEffect } from "react"
 import { useParams } from "next/navigation"
 import { EditProfileModal } from "@/components/edit-profile-modal"
 import { useStore } from "@/lib/store"
-import { getApiUrl, getSafeHostname, normalizeWebsiteUrl } from "@/lib/platform"
+import { getSafeHostname, normalizeWebsiteUrl } from "@/lib/platform"
 import { Globe, Instagram, Trash2, Settings, Shield } from "lucide-react"
 
 export default function ProfilePage() {
@@ -29,23 +29,15 @@ export default function ProfilePage() {
   }, [isLoading, user])
 
   const fetchUserPosts = async () => {
-    const postsUrl = getApiUrl("/api/posts")
-
-    if (!postsUrl) {
-      const fallbackPosts = designPosts.filter((post) => post.userId === user?.id)
-      setUserPosts(
-        fallbackPosts.map((post) => ({
-          id: post.id,
-          imageUrl: post.image,
-          description: post.description,
-        }))
-      )
-      setIsLoadingPosts(false)
-      return
-    }
-
     try {
-      const res = await fetch(postsUrl)
+      const res = await fetch("/api/posts", {
+        credentials: "include",
+      })
+
+      if (!res.ok) {
+        throw new Error(`Failed to fetch posts: ${res.status}`)
+      }
+
       const allPosts = await res.json()
       const filtered = allPosts.filter((p: any) => p.userId === user?.id)
       setUserPosts(filtered)
@@ -67,16 +59,10 @@ export default function ProfilePage() {
   const handleDeletePost = async (postId: number | string) => {
     if (!confirm("Remove this piece from your portfolio?")) return
 
-    const deleteUrl = getApiUrl(`/api/posts/${postId}`)
-
-    if (!deleteUrl) {
-      setUserPosts(userPosts.filter(p => String(p.id) !== String(postId)))
-      return
-    }
-
     try {
-      const res = await fetch(deleteUrl, {
-        method: "DELETE"
+      const res = await fetch(`/api/posts/${postId}`, {
+        method: "DELETE",
+        credentials: "include",
       })
       if (res.ok) {
         setUserPosts(userPosts.filter(p => String(p.id) !== String(postId)))

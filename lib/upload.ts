@@ -1,45 +1,45 @@
+export type UploadFolder = 'avatars' | 'posts' | 'verification'
+
 export const uploadFile = async (
   file: File,
-  onProgress?: (progress: number) => void
+  onProgress?: (progress: number) => void,
+  folder: UploadFolder = 'posts'
 ): Promise<string> => {
-  const publicKey = process.env.NEXT_PUBLIC_UPLOADCARE_PUBLIC_KEY || "demopublickey";
+  const formData = new FormData()
+  formData.append('file', file)
+  formData.append('folder', folder)
 
-  if (publicKey === "demopublickey") {
-    console.warn("Uploadcare using demo key. Files will be deleted after 24 hours.");
-  }
-
-  const formData = new FormData();
-  formData.append("UPLOADCARE_PUB_KEY", publicKey);
-  formData.append("UPLOADCARE_STORE", "1");
-  formData.append("file", file);
-
-  const xhr = new XMLHttpRequest();
+  const xhr = new XMLHttpRequest()
 
   return new Promise((resolve, reject) => {
-    xhr.open("POST", "https://upload.uploadcare.com/base/");
+    xhr.open('POST', '/api/upload')
 
     xhr.upload.onprogress = (event) => {
       if (event.lengthComputable && onProgress) {
-        const progress = Math.round((event.loaded / event.total) * 100);
-        onProgress(progress);
+        const progress = Math.round((event.loaded / event.total) * 100)
+        onProgress(progress)
       }
-    };
+    }
 
     xhr.onload = () => {
       if (xhr.status === 200) {
         try {
-          const response = JSON.parse(xhr.responseText);
-          const fileId = response.file;
-          resolve(`https://ucarecdn.com/${fileId}/`);
+          const response = JSON.parse(xhr.responseText)
+          resolve(response.url)
         } catch {
-          reject(new Error("Failed to parse Uploadcare response"));
+          reject(new Error('Failed to parse upload response'))
         }
       } else {
-        reject(new Error("Upload failed. Please try again."));
+        try {
+          const response = JSON.parse(xhr.responseText)
+          reject(new Error(response.error || 'Upload failed. Please try again.'))
+        } catch {
+          reject(new Error('Upload failed. Please try again.'))
+        }
       }
-    };
+    }
 
-    xhr.onerror = () => reject(new Error("Network error during upload"));
-    xhr.send(formData);
-  });
-};
+    xhr.onerror = () => reject(new Error('Network error during upload'))
+    xhr.send(formData)
+  })
+}
