@@ -8,6 +8,7 @@ import { useStore } from "@/lib/store"
 import { VerificationModal } from "./verification-modal"
 import { VerificationBanner } from "./verification-banner"
 import { BanWall } from "./ban-wall"
+import { CreatePostModal } from "./create-post-modal"
 import { useState } from "react"
 import { Home, Grid3X3, Briefcase, MessageSquare, User, Bell, Plus, Search, LogOut, Shield } from "lucide-react"
 import { cn } from "@/lib/utils"
@@ -25,6 +26,7 @@ export function DashboardLayout({ children, role, showRail = false }: DashboardL
   const { logout: authLogout } = useAuth()
   const { user, logout } = useStore()
   const [showVerification, setShowVerification] = useState(false)
+  const [showCreatePost, setShowCreatePost] = useState(false)
 
   const handleLogout = async () => {
     logout()
@@ -51,6 +53,13 @@ export function DashboardLayout({ children, role, showRail = false }: DashboardL
 
   return (
     <div className="flex flex-col min-h-screen" style={{ background: "var(--t-bg)" }}>
+      <CreatePostModal
+        isOpen={showCreatePost}
+        onClose={() => setShowCreatePost(false)}
+        onSuccess={() => router.refresh()}
+        user={user}
+      />
+
       {/* Top bar */}
       <header className="t-topbar">
         <div className="t-topbar-inner">
@@ -75,7 +84,7 @@ export function DashboardLayout({ children, role, showRail = false }: DashboardL
             >
               <MessageSquare size={18} />
             </button>
-            <button className="t-btn-post">
+            <button className="t-btn-post" onClick={() => setShowCreatePost(true)}>
               <Plus size={16} />
               <span>Post</span>
             </button>

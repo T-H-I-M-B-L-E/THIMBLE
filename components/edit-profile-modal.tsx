@@ -41,7 +41,7 @@ export function EditProfileModal({ isOpen, onClose, user }: EditProfileModalProp
       try {
         const url = await uploadFile(file, (progress) => {
           setUploadProgress(progress)
-        })
+        }, "avatars")
         setAvatarUrl(url)
       } catch (err) {
         console.error("Upload failed:", err)

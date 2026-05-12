@@ -1,12 +1,26 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getUserFromToken } from '@/lib/jwt-middleware'
 
+function clearAuthCookie(res: NextResponse) {
+  res.cookies.set('auth_token', '', {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'lax',
+    maxAge: 0,
+    path: '/',
+    domain: process.env.NODE_ENV === 'production' ? '.tvimble.tech' : undefined,
+  })
+  return res
+}
+
 export async function GET(request: NextRequest) {
   try {
     const payload = await getUserFromToken()
 
     if (!payload) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      return clearAuthCookie(
+        NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      )
     }
 
     // Fetch user data from Go backend
@@ -22,6 +36,13 @@ export async function GET(request: NextRequest) {
     if (!response.ok) {
       const text = await response.text()
       console.error(`Failed to fetch user from ${userUrl}: ${response.status} ${text}`)
+
+      if (response.status === 401 || response.status === 404) {
+        return clearAuthCookie(
+          NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+        )
+      }
+
       return NextResponse.json({ error: 'Failed to fetch user' }, { status: response.status })
     }
 

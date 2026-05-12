@@ -11,7 +11,6 @@ import { Tag, Users, Search, ImageIcon, X } from "lucide-react"
 import Image from "next/image"
 import { uploadFile } from "@/lib/upload"
 import { useStore } from "@/lib/store"
-import { getApiUrl } from "@/lib/platform"
 
 interface CreatePostModalProps {
   isOpen: boolean
@@ -36,7 +35,7 @@ export function CreatePostModal({ isOpen, onClose, onSuccess, user }: CreatePost
       try {
         const url = await uploadFile(file, (progress) => {
           setUploadProgress(progress)
-        })
+        }, "posts")
         setImageUrl(url)
       } catch (err) {
         console.error("Upload failed:", err)
@@ -60,18 +59,19 @@ export function CreatePostModal({ isOpen, onClose, onSuccess, user }: CreatePost
         taggedUsers: taggedUsers
       }
 
-      const postsUrl = getApiUrl("/api/posts")
-
-      if (postsUrl) {
-        const res = await fetch(postsUrl, {
+      if (user?.id) {
+        const res = await fetch("/api/posts", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload)
+          body: JSON.stringify(payload),
+          credentials: "include",
         })
 
         if (!res.ok) {
           throw new Error("Failed to publish post.")
         }
+
+        window.dispatchEvent(new Event("thimble:post-created"))
       } else {
         addDesignPost({
           userId: user?.id,
@@ -85,6 +85,8 @@ export function CreatePostModal({ isOpen, onClose, onSuccess, user }: CreatePost
           comments: 0,
           tags: taggedUsers,
         })
+
+        window.dispatchEvent(new Event("thimble:post-created"))
       }
 
         onSuccess()
