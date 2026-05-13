@@ -7,11 +7,9 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Tag, Users, Search, ImageIcon, X } from "lucide-react"
+import { Users, ImageIcon, X } from "lucide-react"
 import Image from "next/image"
 import { uploadFile } from "@/lib/upload"
-import { useStore } from "@/lib/store"
-import { getApiUrl } from "@/lib/platform"
 
 interface CreatePostModalProps {
   isOpen: boolean
@@ -21,7 +19,6 @@ interface CreatePostModalProps {
 }
 
 export function CreatePostModal({ isOpen, onClose, onSuccess, user }: CreatePostModalProps) {
-  const { addDesignPost } = useStore()
   const [caption, setCaption] = useState("")
   const [postType, setPostType] = useState("design")
   const [imageUrl, setImageUrl] = useState("")
@@ -54,37 +51,21 @@ export function CreatePostModal({ isOpen, onClose, onSuccess, user }: CreatePost
       const payload = {
         userId: user?.id,
         authorName: user?.fullName || "User",
-        authorAvatar: (user?.unsafeMetadata?.avatarUrl as string) || user?.imageUrl || "",
+        authorAvatar: user?.avatar || "",
         imageUrl: imageUrl,
         description: caption,
         taggedUsers: taggedUsers
       }
 
-      const postsUrl = getApiUrl("/api/posts")
+      const res = await fetch("/api/posts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify(payload),
+      })
 
-      if (postsUrl) {
-        const res = await fetch(postsUrl, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload)
-        })
-
-        if (!res.ok) {
-          throw new Error("Failed to publish post.")
-        }
-      } else {
-        addDesignPost({
-          userId: user?.id,
-          image: imageUrl,
-          description: caption,
-          author: user?.fullName || "User",
-          authorRole: (user?.unsafeMetadata?.role as any) || null,
-          authorAvatar: (user?.unsafeMetadata?.avatarUrl as string) || user?.imageUrl || "",
-          authorVerified: true,
-          likes: 0,
-          comments: 0,
-          tags: taggedUsers,
-        })
+      if (!res.ok) {
+        throw new Error("Failed to publish post.")
       }
 
         onSuccess()

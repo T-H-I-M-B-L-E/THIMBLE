@@ -12,13 +12,10 @@ import { Label } from "@/components/ui/label"
 import { ImagePlus, X, Loader2 } from "lucide-react"
 import { useEffect } from "react"
 import { uploadFile } from "@/lib/upload"
-import { useStore } from "@/lib/store"
-import { getApiUrl } from "@/lib/platform"
 
 export default function UploadPage() {
   const router = useRouter()
   const { user, isLoading } = useAuth()
-  const { addDesignPost } = useStore()
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
@@ -82,29 +79,13 @@ export default function UploadPage() {
         tags: tagList,
       }
 
-      const postsUrl = getApiUrl("/api/posts")
-      if (postsUrl) {
-        const res = await fetch(postsUrl, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          credentials: "include",
-          body: JSON.stringify(payload),
-        })
-        if (!res.ok) throw new Error("Failed to publish post")
-      } else {
-        addDesignPost({
-          userId: user?.id,
-          image: imageUrl,
-          description: caption,
-          author: user?.fullName || "User",
-          authorRole: (user?.role as any) || null,
-          authorAvatar: user?.avatar || "",
-          authorVerified: user?.verificationStatus === "verified",
-          likes: 0,
-          comments: 0,
-          tags: tagList,
-        })
-      }
+      const res = await fetch("/api/posts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify(payload),
+      })
+      if (!res.ok) throw new Error("Failed to publish post")
 
       router.push("/")
     } catch (err) {

@@ -6,6 +6,7 @@ import { ImageIcon } from "lucide-react"
 import { useState, useEffect } from "react"
 import { PostCard } from "@/components/post-card"
 import type { PostData } from "@/components/post-card"
+import { CreatePostModal } from "@/components/create-post-modal"
 
 export function FeedView() {
   const { user } = useAuth()
@@ -13,6 +14,7 @@ export function FeedView() {
   const [posts, setPosts] = useState<PostData[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [activeFilter, setActiveFilter] = useState("For you")
+  const [createPostOpen, setCreatePostOpen] = useState(false)
 
   useEffect(() => {
     fetchPosts()
@@ -71,9 +73,9 @@ export function FeedView() {
             {user?.fullName?.[0] ?? "U"}
           </div>
         )}
-        <button className="t-composer-input">What are you working on?</button>
+        <button className="t-composer-input" onClick={() => setCreatePostOpen(true)}>What are you working on?</button>
         <div className="t-composer-actions">
-          <button className="t-chip">
+          <button className="t-chip" onClick={() => setCreatePostOpen(true)}>
             <span className="t-chip-dot photo" />
             Photo
           </button>
@@ -130,6 +132,13 @@ export function FeedView() {
           <div className="t-feed-end">You're caught up — last 24 hours.</div>
         </div>
       )}
+
+      <CreatePostModal
+        isOpen={createPostOpen}
+        onClose={() => setCreatePostOpen(false)}
+        onSuccess={() => { setCreatePostOpen(false); fetchPosts() }}
+        user={user}
+      />
     </div>
   )
 }
