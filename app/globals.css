@@ -496,6 +496,7 @@
 .t-pill.on { background: var(--t-ink); color: var(--t-bg); border-color: var(--t-ink); }
 
 .t-feed-stream { display: flex; flex-direction: column; gap: var(--t-row-gap); }
+@media (max-width: 639px) { .t-feed-stream { gap: 16px; } }
 .t-post {
   background: var(--t-surface); border: 1px solid var(--t-line);
   border-radius: 15px; overflow: hidden;
@@ -669,6 +670,11 @@
 .t-btn-sm { height: 30px; padding: 0 10px; font-size: 12px; border-radius: 7px; }
 
 /* ---- Profile ---- */
+.t-profile-avatar {
+  width: 120px; height: 120px;
+  border-radius: 50%; overflow: hidden; border: 4px solid var(--t-bg);
+}
+@media (max-width: 639px) { .t-profile-avatar { width: 80px; height: 80px; border-width: 3px; } }
 .t-profile-cover {
   height: 120px; border-radius: 12px;
   background:
@@ -694,6 +700,7 @@
 .t-profile-meta { padding-top: 42px; min-width: 0; }
 @media (min-width: 640px) { .t-profile-meta { padding-top: 54px; } }
 .t-profile-name { font-size: 24px; font-weight: 700; letter-spacing: -0.02em; margin: 0; }
+@media (max-width: 480px) { .t-profile-name { font-size: 18px; } }
 .t-profile-bio { margin: 10px 0 12px; max-width: 60ch; line-height: 1.55; font-size: 14px; color: var(--t-ink-2); }
 .t-profile-links { display: flex; flex-wrap: wrap; gap: 16px; color: var(--t-ink-2); font-size: 13px; }
 .t-profile-links span { display: inline-flex; gap: 5px; align-items: center; }
@@ -743,22 +750,14 @@
   background: var(--t-surface); border: 1px solid var(--t-line);
   border-radius: 14px; overflow: hidden;
 }
+.t-msg-list { border-right: 1px solid var(--t-line); overflow-y: auto; background: var(--t-surface-2); width: 300px; min-width: 300px; }
 @media (max-width: 880px) {
   .t-messages {
     grid-template-columns: 1fr;
-    height: calc(100dvh - 56px - max(56px, env(safe-area-inset-bottom)));
+    height: calc(100dvh - 80px - max(56px, env(safe-area-inset-bottom)));
     border-radius: 10px;
   }
-}
-.t-msg-list {
-  width: 100%;
-  min-width: 0;
-  border-right: 1px solid var(--t-line);
-  overflow-y: auto;
-  background: var(--t-surface-2);
-}
-@media (max-width: 880px) {
-  .t-msg-list { border-right: 0; }
+  .t-msg-list { min-width: 0; width: 100%; border-right: 0; }
 }
 .t-thread {
   display: flex; gap: 9px; padding: 11px 13px; align-items: center;
