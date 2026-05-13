@@ -362,6 +362,13 @@
 }
 .t-bn-btn:hover, .t-bn-btn.active { color: var(--t-gold); }
 .t-bn-btn.active { background: var(--t-gold-soft); }
+.t-bn-post {
+  display: flex; align-items: center; justify-content: center;
+  width: 44px; height: 44px; border-radius: 12px;
+  background: var(--t-ink); color: var(--t-bg); border: 0; cursor: pointer;
+  transition: background .15s; flex-shrink: 0;
+}
+.t-bn-post:hover { background: color-mix(in oklab, var(--t-ink) 88%, var(--t-gold)); }
 
 /* ---- Responsive overrides (must come after all base rules above) ---- */
 @media (max-width: 1180px) {

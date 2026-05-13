@@ -12,6 +12,7 @@ import { useState } from "react"
 import { Home, Grid3X3, Briefcase, MessageSquare, User, Bell, Plus, Search, LogOut, Shield } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { RightRail } from "./right-rail"
+import { CreatePostModal } from "./create-post-modal"
 
 interface DashboardLayoutProps {
   children: React.ReactNode
@@ -25,6 +26,7 @@ export function DashboardLayout({ children, role, showRail = false }: DashboardL
   const { logout: authLogout } = useAuth()
   const { user, logout } = useStore()
   const [showVerification, setShowVerification] = useState(false)
+  const [createPostOpen, setCreatePostOpen] = useState(false)
 
   const handleLogout = async () => {
     logout()
@@ -75,7 +77,7 @@ export function DashboardLayout({ children, role, showRail = false }: DashboardL
             >
               <MessageSquare size={18} />
             </button>
-            <button className="t-btn-post">
+            <button className="t-btn-post" onClick={() => setCreatePostOpen(true)}>
               <Plus size={16} />
               <span>Post</span>
             </button>
@@ -166,7 +168,24 @@ export function DashboardLayout({ children, role, showRail = false }: DashboardL
 
       {/* Bottom nav (mobile) */}
       <nav className="t-bottomnav">
-        {navItems.map((item) => (
+        {navItems.slice(0, 2).map((item) => (
+          <Link
+            key={item.href}
+            href={item.href}
+            className={cn("t-bn-btn", isActive(item.href, item.exact) && "active")}
+            aria-label={item.label}
+          >
+            <item.icon size={20} />
+          </Link>
+        ))}
+        <button
+          className="t-bn-post"
+          aria-label="Create post"
+          onClick={() => setCreatePostOpen(true)}
+        >
+          <Plus size={22} />
+        </button>
+        {navItems.slice(2).map((item) => (
           <Link
             key={item.href}
             href={item.href}
@@ -179,6 +198,12 @@ export function DashboardLayout({ children, role, showRail = false }: DashboardL
       </nav>
 
       <VerificationModal isOpen={showVerification} onClose={() => setShowVerification(false)} />
+      <CreatePostModal
+        isOpen={createPostOpen}
+        onClose={() => setCreatePostOpen(false)}
+        onSuccess={() => setCreatePostOpen(false)}
+        user={user}
+      />
     </div>
   )
 }
