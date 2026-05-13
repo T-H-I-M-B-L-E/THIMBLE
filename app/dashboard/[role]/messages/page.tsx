@@ -100,7 +100,7 @@ export default function MessagesPage() {
         <div className={cn(
           "t-msg-list flex flex-col",
           selectedId ? "hidden md:flex" : "flex"
-        )} style={{ width: 300, minWidth: 300, background: "var(--t-surface)" }}>
+        )} style={{ background: "var(--t-surface)" }}>
 
           {/* Header */}
           <div className="px-4 pt-4 pb-3" style={{ borderBottom: "1px solid var(--t-line)" }}>

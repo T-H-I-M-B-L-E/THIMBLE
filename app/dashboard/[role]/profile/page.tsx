@@ -114,7 +114,7 @@ export default function ProfilePage() {
 
           <div className="t-profile-head">
             {/* Avatar */}
-            <div style={{ width: "120px", height: "120px", borderRadius: "50%", overflow: "hidden", border: "4px solid var(--t-bg)" }}>
+            <div className="t-profile-avatar">
               <Image
                 src={avatarUrl}
                 alt={user?.fullName || "User"}
