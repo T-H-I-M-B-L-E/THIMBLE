@@ -53,16 +53,17 @@ function NewMessageModal({
   isVerified,
   onClose,
   onCreate,
+  createConversation,
 }: {
   currentUser: { id: string; fullName: string; avatar?: string } | null
   isVerified: boolean
   onClose: () => void
   onCreate: (conv: { id: number }) => void
+  createConversation: (participants: { userId: string; userName: string; userAvatar: string }[]) => Promise<{ id: number }>
 }) {
   const { following, isLoading } = useFollowing(currentUser?.id)
   const [search, setSearch] = useState("")
   const [creating, setCreating] = useState<string | null>(null)
-  const { createConversation } = useConversations(currentUser?.id)
 
   const filtered = following.filter(u =>
     u.userName?.toLowerCase().includes(search.toLowerCase())
@@ -201,7 +202,7 @@ export default function MessagesPage() {
 
   const isVerified = user?.verificationStatus === "verified"
 
-  const { conversations, isLoading: loadingConvs, createConversation } = useConversations(user?.id)
+  const { conversations, isLoading: loadingConvs, createConversation, refresh } = useConversations(user?.id)
   const selectedConv = conversations.find(c => c.id === selectedId)
   const { messages: apiMessages, isLoading: loadingMsgs } = useMessages(selectedId, user?.id)
   const { messages: wsMessages, sendMessage, isConnected, typingUsers, handleTyping } = useSocket(
@@ -550,7 +551,8 @@ export default function MessagesPage() {
           currentUser={user ? { id: user.id, fullName: user.fullName, avatar: user.avatar } : null}
           isVerified={isVerified}
           onClose={() => setShowNewMsg(false)}
-          onCreate={conv => setSelectedId(conv.id)}
+          onCreate={conv => { setSelectedId(conv.id); refresh(); }}
+          createConversation={createConversation}
         />
       )}
     </DashboardLayout>
