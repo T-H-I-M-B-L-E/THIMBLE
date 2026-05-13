@@ -124,6 +124,8 @@ type Post struct {
 	ImageUrl     string    `json:"imageUrl"`
 	Description  string    `json:"description"`
 	Likes        int       `json:"likes"`
+	CommentCount int       `json:"commentCount"`
+	LikedByMe    bool      `json:"likedByMe"`
 	TaggedUsers  []string  `json:"taggedUsers"`
 	CreatedAt    time.Time `json:"createdAt"`
 }
@@ -1399,6 +1401,36 @@ func main() {
 		)
 	`)
 
+	dbPool.Exec(context.Background(), `
+		CREATE TABLE IF NOT EXISTS post_likes (
+			id         BIGSERIAL PRIMARY KEY,
+			post_id    BIGINT NOT NULL REFERENCES posts(id) ON DELETE CASCADE,
+			user_id    TEXT NOT NULL,
+			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+			UNIQUE(post_id, user_id)
+		)
+	`)
+	dbPool.Exec(context.Background(), `
+		CREATE TABLE IF NOT EXISTS post_comments (
+			id          BIGSERIAL PRIMARY KEY,
+			post_id     BIGINT NOT NULL REFERENCES posts(id) ON DELETE CASCADE,
+			user_id     TEXT NOT NULL,
+			user_name   TEXT NOT NULL DEFAULT '',
+			user_avatar TEXT NOT NULL DEFAULT '',
+			content     TEXT NOT NULL,
+			created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+		)
+	`)
+	dbPool.Exec(context.Background(), `
+		CREATE TABLE IF NOT EXISTS follows (
+			id           BIGSERIAL PRIMARY KEY,
+			follower_id  TEXT NOT NULL,
+			following_id TEXT NOT NULL,
+			created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+			UNIQUE(follower_id, following_id)
+		)
+	`)
+
 	// Ban columns — safe to run every startup (idempotent)
 	dbPool.Exec(context.Background(), `ALTER TABLE users ADD COLUMN IF NOT EXISTS is_banned BOOLEAN NOT NULL DEFAULT FALSE`)
 	dbPool.Exec(context.Background(), `ALTER TABLE users ADD COLUMN IF NOT EXISTS banned_until TIMESTAMPTZ`)
@@ -1798,8 +1830,24 @@ func main() {
 
 	// Posts API
 	app.Get("/api/posts", func(c *fiber.Ctx) error {
+		// Optionally read caller from JWT (cookie or header) — not required
+		callerID := ""
+		authHeader := c.Get("Authorization")
+		if strings.HasPrefix(authHeader, "Bearer ") {
+			if claims, err := validateJWT(strings.TrimPrefix(authHeader, "Bearer ")); err == nil {
+				callerID = claims.UserID
+			}
+		} else if tok := c.Cookies("auth_token"); tok != "" {
+			if claims, err := validateJWT(tok); err == nil {
+				callerID = claims.UserID
+			}
+		}
+
 		rows, err := dbPool.Query(context.Background(),
-			"SELECT id, user_id, author_name, author_avatar, image_url, description, likes, tagged_users, created_at FROM posts ORDER BY created_at DESC LIMIT 20")
+			`SELECT p.id, p.user_id, p.author_name, p.author_avatar, p.image_url, p.description, p.likes, p.tagged_users, p.created_at,
+			        (SELECT COUNT(*) FROM post_comments pc WHERE pc.post_id = p.id) AS comment_count,
+			        CASE WHEN $1 <> '' THEN EXISTS(SELECT 1 FROM post_likes pl WHERE pl.post_id = p.id AND pl.user_id = $1) ELSE FALSE END AS liked_by_me
+			 FROM posts p ORDER BY p.created_at DESC LIMIT 50`, callerID)
 		if err != nil {
 			return c.Status(500).JSON(fiber.Map{"error": "failed to fetch posts"})
 		}
@@ -1809,7 +1857,7 @@ func main() {
 		for rows.Next() {
 			var p Post
 			var taggedJSON []byte
-			if err := rows.Scan(&p.Id, &p.UserId, &p.AuthorName, &p.AuthorAvatar, &p.ImageUrl, &p.Description, &p.Likes, &taggedJSON, &p.CreatedAt); err == nil {
+			if err := rows.Scan(&p.Id, &p.UserId, &p.AuthorName, &p.AuthorAvatar, &p.ImageUrl, &p.Description, &p.Likes, &taggedJSON, &p.CreatedAt, &p.CommentCount, &p.LikedByMe); err == nil {
 				json.Unmarshal(taggedJSON, &p.TaggedUsers)
 				posts = append(posts, p)
 			}
@@ -1863,6 +1911,237 @@ func main() {
 		}
 
 		return c.SendStatus(204)
+	})
+
+	// ── Likes ────────────────────────────────────────────────────────────────────
+
+	app.Get("/api/posts/:id/likes", jwtAuth, func(c *fiber.Ctx) error {
+		postId := c.Params("id")
+		rows, err := dbPool.Query(context.Background(),
+			`SELECT pl.user_id, u.full_name, u.avatar_url FROM post_likes pl
+			 LEFT JOIN users u ON u.id = pl.user_id
+			 WHERE pl.post_id = $1 ORDER BY pl.created_at DESC`, postId)
+		if err != nil {
+			return c.Status(500).JSON(fiber.Map{"error": "failed to fetch likes"})
+		}
+		defer rows.Close()
+		type Liker struct {
+			UserID   string `json:"userId"`
+			UserName string `json:"userName"`
+			Avatar   string `json:"avatar"`
+		}
+		var likers []Liker
+		for rows.Next() {
+			var l Liker
+			rows.Scan(&l.UserID, &l.UserName, &l.Avatar)
+			likers = append(likers, l)
+		}
+		if likers == nil {
+			likers = []Liker{}
+		}
+		return c.JSON(likers)
+	})
+
+	app.Post("/api/posts/:id/likes", jwtAuth, func(c *fiber.Ctx) error {
+		userId, _ := c.Locals("userId").(string)
+		postId := c.Params("id")
+		_, err := dbPool.Exec(context.Background(),
+			`INSERT INTO post_likes (post_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`, postId, userId)
+		if err != nil {
+			return c.Status(500).JSON(fiber.Map{"error": "failed to like post"})
+		}
+		dbPool.Exec(context.Background(), `UPDATE posts SET likes = (SELECT COUNT(*) FROM post_likes WHERE post_id = $1) WHERE id = $1`, postId)
+		var count int
+		dbPool.QueryRow(context.Background(), `SELECT likes FROM posts WHERE id = $1`, postId).Scan(&count)
+		return c.JSON(fiber.Map{"likes": count})
+	})
+
+	app.Delete("/api/posts/:id/likes", jwtAuth, func(c *fiber.Ctx) error {
+		userId, _ := c.Locals("userId").(string)
+		postId := c.Params("id")
+		dbPool.Exec(context.Background(),
+			`DELETE FROM post_likes WHERE post_id = $1 AND user_id = $2`, postId, userId)
+		dbPool.Exec(context.Background(), `UPDATE posts SET likes = (SELECT COUNT(*) FROM post_likes WHERE post_id = $1) WHERE id = $1`, postId)
+		var count int
+		dbPool.QueryRow(context.Background(), `SELECT likes FROM posts WHERE id = $1`, postId).Scan(&count)
+		return c.JSON(fiber.Map{"likes": count})
+	})
+
+	// ── Comments ──────────────────────────────────────────────────────────────────
+
+	app.Get("/api/posts/:id/comments", jwtAuth, func(c *fiber.Ctx) error {
+		postId := c.Params("id")
+		rows, err := dbPool.Query(context.Background(),
+			`SELECT id, user_id, user_name, user_avatar, content, created_at
+			 FROM post_comments WHERE post_id = $1 ORDER BY created_at ASC`, postId)
+		if err != nil {
+			return c.Status(500).JSON(fiber.Map{"error": "failed to fetch comments"})
+		}
+		defer rows.Close()
+		type CommentOut struct {
+			ID         int64     `json:"id"`
+			UserID     string    `json:"userId"`
+			UserName   string    `json:"userName"`
+			UserAvatar string    `json:"userAvatar"`
+			Content    string    `json:"content"`
+			CreatedAt  time.Time `json:"createdAt"`
+		}
+		var comments []CommentOut
+		for rows.Next() {
+			var cm CommentOut
+			rows.Scan(&cm.ID, &cm.UserID, &cm.UserName, &cm.UserAvatar, &cm.Content, &cm.CreatedAt)
+			comments = append(comments, cm)
+		}
+		if comments == nil {
+			comments = []CommentOut{}
+		}
+		return c.JSON(comments)
+	})
+
+	app.Post("/api/posts/:id/comments", jwtAuth, func(c *fiber.Ctx) error {
+		userId, _ := c.Locals("userId").(string)
+		postId := c.Params("id")
+
+		var body struct {
+			Content string `json:"content"`
+		}
+		if err := c.BodyParser(&body); err != nil || strings.TrimSpace(body.Content) == "" {
+			return c.Status(400).JSON(fiber.Map{"error": "content is required"})
+		}
+
+		// Fetch author info
+		var userName, userAvatar string
+		dbPool.QueryRow(context.Background(), `SELECT full_name, COALESCE(avatar_url,'') FROM users WHERE id = $1`, userId).Scan(&userName, &userAvatar)
+
+		type CommentOut struct {
+			ID         int64     `json:"id"`
+			UserID     string    `json:"userId"`
+			UserName   string    `json:"userName"`
+			UserAvatar string    `json:"userAvatar"`
+			Content    string    `json:"content"`
+			CreatedAt  time.Time `json:"createdAt"`
+		}
+		var cm CommentOut
+		err := dbPool.QueryRow(context.Background(),
+			`INSERT INTO post_comments (post_id, user_id, user_name, user_avatar, content)
+			 VALUES ($1, $2, $3, $4, $5) RETURNING id, user_id, user_name, user_avatar, content, created_at`,
+			postId, userId, userName, userAvatar, strings.TrimSpace(body.Content)).
+			Scan(&cm.ID, &cm.UserID, &cm.UserName, &cm.UserAvatar, &cm.Content, &cm.CreatedAt)
+		if err != nil {
+			return c.Status(500).JSON(fiber.Map{"error": "failed to post comment"})
+		}
+		return c.Status(201).JSON(cm)
+	})
+
+	// ── Follows ───────────────────────────────────────────────────────────────────
+
+	// GET /api/follows?followerId=X&followingId=Y   → { isFollowing: bool }
+	// GET /api/follows?followerId=X&type=following  → []FollowingUser
+	app.Get("/api/follows", jwtAuth, func(c *fiber.Ctx) error {
+		followerID := c.Query("followerId")
+		followingID := c.Query("followingId")
+		listType := c.Query("type") // "following" or "followers"
+
+		if followerID != "" && followingID != "" {
+			// Check single relationship
+			var exists bool
+			dbPool.QueryRow(context.Background(),
+				`SELECT EXISTS(SELECT 1 FROM follows WHERE follower_id = $1 AND following_id = $2)`,
+				followerID, followingID).Scan(&exists)
+			return c.JSON(fiber.Map{"isFollowing": exists})
+		}
+
+		if listType == "following" && followerID != "" {
+			type FollowingUser struct {
+				UserID     string `json:"userId"`
+				UserName   string `json:"userName"`
+				UserAvatar string `json:"userAvatar"`
+				Role       string `json:"role"`
+			}
+			rows, err := dbPool.Query(context.Background(),
+				`SELECT u.id, u.full_name, COALESCE(u.avatar_url,''), COALESCE(u.role,'')
+				 FROM follows f JOIN users u ON u.id = f.following_id
+				 WHERE f.follower_id = $1 ORDER BY f.created_at DESC`, followerID)
+			if err != nil {
+				return c.Status(500).JSON(fiber.Map{"error": "failed to fetch following"})
+			}
+			defer rows.Close()
+			var list []FollowingUser
+			for rows.Next() {
+				var fu FollowingUser
+				rows.Scan(&fu.UserID, &fu.UserName, &fu.UserAvatar, &fu.Role)
+				list = append(list, fu)
+			}
+			if list == nil {
+				list = []FollowingUser{}
+			}
+			return c.JSON(list)
+		}
+
+		return c.Status(400).JSON(fiber.Map{"error": "invalid query parameters"})
+	})
+
+	app.Post("/api/follows", jwtAuth, func(c *fiber.Ctx) error {
+		followerID, _ := c.Locals("userId").(string)
+		var body struct {
+			FollowingID string `json:"followingId"`
+		}
+		if err := c.BodyParser(&body); err != nil || body.FollowingID == "" {
+			return c.Status(400).JSON(fiber.Map{"error": "followingId is required"})
+		}
+		if followerID == body.FollowingID {
+			return c.Status(400).JSON(fiber.Map{"error": "cannot follow yourself"})
+		}
+		_, err := dbPool.Exec(context.Background(),
+			`INSERT INTO follows (follower_id, following_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`,
+			followerID, body.FollowingID)
+		if err != nil {
+			return c.Status(500).JSON(fiber.Map{"error": "failed to follow"})
+		}
+		return c.JSON(fiber.Map{"success": true})
+	})
+
+	app.Delete("/api/follows", jwtAuth, func(c *fiber.Ctx) error {
+		followerID, _ := c.Locals("userId").(string)
+		var body struct {
+			FollowingID string `json:"followingId"`
+		}
+		if err := c.BodyParser(&body); err != nil || body.FollowingID == "" {
+			return c.Status(400).JSON(fiber.Map{"error": "followingId is required"})
+		}
+		dbPool.Exec(context.Background(),
+			`DELETE FROM follows WHERE follower_id = $1 AND following_id = $2`,
+			followerID, body.FollowingID)
+		return c.JSON(fiber.Map{"success": true})
+	})
+
+	// ── User directory ────────────────────────────────────────────────────────────
+
+	app.Get("/api/users", jwtAuth, func(c *fiber.Ctx) error {
+		rows, err := dbPool.Query(context.Background(),
+			`SELECT id, full_name, COALESCE(avatar_url,''), COALESCE(role,''), verification_status
+			 FROM users ORDER BY full_name ASC LIMIT 200`)
+		if err != nil {
+			return c.Status(500).JSON(fiber.Map{"error": "failed to fetch users"})
+		}
+		defer rows.Close()
+		type UserSummary struct {
+			ID                 string `json:"id"`
+			FullName           string `json:"fullName"`
+			AvatarUrl          string `json:"avatarUrl"`
+			Role               string `json:"role"`
+			VerificationStatus string `json:"verificationStatus"`
+		}
+		var users []UserSummary
+		for rows.Next() {
+			var u UserSummary
+			rows.Scan(&u.ID, &u.FullName, &u.AvatarUrl, &u.Role, &u.VerificationStatus)
+			users = append(users, u)
+		}
+		if users == nil {
+			users = []UserSummary{}
+		}
+		return c.JSON(users)
 	})
 
 	// Gigs API
