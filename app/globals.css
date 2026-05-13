@@ -205,8 +205,7 @@
 }
 .t-topbar-right { display: flex; align-items: center; gap: 4px; margin-left: auto; }
 @media (min-width: 640px) { .t-topbar-right { gap: 8px; } }
-/* Hide message icon in topbar on mobile — bottom nav handles it */
-@media (max-width: 639px) { .t-topbar-right .t-icon-btn:first-child { display: none; } }
+/* Hide messages shortcut from topbar on mobile — bottom nav handles it */
 @media (max-width: 639px) {
   .t-topbar-inner { padding: 10px 10px; gap: 8px; }
   .t-brand-name { font-size: 16px; }
@@ -526,6 +525,12 @@
 @media (max-width: 639px) {
   .t-post-body { padding: 12px; }
   .t-post-actions { flex-wrap: wrap; row-gap: 8px; }
+}
+@media (max-width: 480px) {
+  .t-post { border-radius: 10px; }
+  .t-post-head { padding: 10px 12px; }
+  .t-post-body { padding: 10px 12px 14px; }
+  .t-action { padding: 5px 7px; gap: 4px; }
 }
 .t-action {
   display: inline-flex; align-items: center; gap: 6px;
