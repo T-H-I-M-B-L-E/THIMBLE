@@ -205,8 +205,15 @@
 }
 .t-topbar-right { display: flex; align-items: center; gap: 4px; margin-left: auto; }
 @media (min-width: 640px) { .t-topbar-right { gap: 8px; } }
-/* Hide messages shortcut from topbar on mobile — bottom nav handles it */
-@media (max-width: 639px) { .t-topbar-right .t-icon-btn + .t-icon-btn { display: none; } }
+/* Mobile topbar: tighter spacing, smaller brand, hide Messages (bottom nav handles it) */
+@media (max-width: 639px) {
+  .t-topbar-inner { padding: 8px 12px; gap: 8px; }
+  .t-brand { gap: 7px; }
+  .t-brand-name { font-size: 16px; }
+  .t-brand-mark { width: 22px; height: 22px; }
+  .t-topbar-right { gap: 2px; }
+  .t-topbar-right .t-icon-btn[aria-label="Messages"] { display: none; }
+}
 .t-topbar-avatar {
   width: 32px; height: 32px; border-radius: 50%; object-fit: cover;
   cursor: pointer; border: 2px solid var(--t-line); transition: border-color .15s;
@@ -258,8 +265,8 @@
   .t-shell, .t-shell.has-rail { grid-template-columns: minmax(0, 1fr); padding: 0 12px; }
   .t-sidenav { display: none; }
   .t-bottomnav { display: flex; }
-  /* Push main content up so bottom nav doesn't cover it */
-  .t-main { padding-bottom: calc(72px + max(8px, env(safe-area-inset-bottom))); }
+  /* Tighter top padding + reserve space for bottom nav */
+  .t-main { padding: 16px 0 calc(72px + max(8px, env(safe-area-inset-bottom))); }
 }
 @media (max-width: 480px) {
   .t-shell, .t-shell.has-rail { padding: 0 8px; }
@@ -387,8 +394,25 @@
 .t-composer-input:hover { border-color: var(--t-line-2); }
 .t-composer-actions { display: flex; gap: 5px; }
 @media (max-width: 540px) {
-  .t-composer-actions { display: none; }
-  .t-composer-bar { gap: 8px; padding: 10px; }
+  .t-composer-bar {
+    display: grid;
+    grid-template-columns: 40px minmax(0, 1fr);
+    gap: 8px 10px;
+    padding: 10px;
+    align-items: center;
+  }
+  .t-composer-bar > .t-avatar,
+  .t-composer-bar > .t-avatar-ph { grid-area: 1 / 1; }
+  .t-composer-input { grid-area: 1 / 2; }
+  .t-composer-actions {
+    grid-area: 2 / 1 / 2 / -1;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    padding-bottom: 2px;
+  }
+  .t-composer-actions::-webkit-scrollbar { display: none; }
+  .t-composer-actions .t-chip { flex-shrink: 0; }
 }
 .t-chip {
   display: inline-flex; align-items: center; gap: 7px;
@@ -446,11 +470,20 @@
   background: var(--t-gold-soft); padding: 2px 8px; border-radius: 999px;
 }
 .t-feed-end { text-align: center; color: var(--t-ink-3); font-size: 13px; padding: 24px 0 10px; }
+@media (max-width: 639px) {
+  .t-post { border-radius: 12px; }
+  .t-post-head { padding: 11px 13px; }
+  .t-post-body { padding: 11px 13px 15px; }
+  .t-post-author { gap: 9px; min-width: 0; flex: 1 1 auto; }
+  .t-post-author-meta { min-width: 0; flex: 1 1 auto; overflow: hidden; }
+  .t-post-author-meta > div { min-width: 0; }
+}
 @media (max-width: 480px) {
   .t-post { border-radius: 10px; }
   .t-post-head { padding: 10px 12px; }
   .t-post-body { padding: 10px 12px 14px; }
-  .t-action { padding: 5px 7px; gap: 4px; }
+  .t-post-actions { gap: 2px; }
+  .t-action { padding: 5px 7px; gap: 4px; font-size: 12px; }
 }
 
 /* ---- Post author meta helpers ---- */
@@ -566,6 +599,65 @@
 }
 .t-grid-item:hover .t-grid-overlay { opacity: 1; }
 
+/* ---- Empty state + Comments panel ---- */
+.t-empty-state {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  padding: 48px 24px; text-align: center; gap: 8px; color: var(--t-ink-3);
+}
+.t-empty-state-icon {
+  width: 56px; height: 56px; border-radius: 50%;
+  background: var(--t-surface-2); border: 1px solid var(--t-line);
+  display: flex; align-items: center; justify-content: center;
+  color: var(--t-gold); margin-bottom: 8px;
+}
+.t-empty-state h3 { font-size: 15px; font-weight: 600; color: var(--t-ink); margin: 0; }
+.t-empty-state p { font-size: 13px; line-height: 1.5; max-width: 280px; margin: 0; }
+@media (max-width: 480px) {
+  .t-empty-state { padding: 32px 16px; }
+  .t-empty-state-icon { width: 48px; height: 48px; }
+}
+
+.t-comments-panel {
+  background: var(--t-surface); border: 1px solid var(--t-line);
+  border-radius: 13px; padding: 16px;
+  display: flex; flex-direction: column; gap: 14px;
+}
+.t-comments-list {
+  display: flex; flex-direction: column; gap: 14px;
+  max-height: 360px; overflow-y: auto;
+}
+.t-comments-list::-webkit-scrollbar { width: 4px; }
+.t-comments-list::-webkit-scrollbar-thumb { background: var(--t-line-2); border-radius: 2px; }
+.t-comment { display: flex; gap: 10px; align-items: flex-start; }
+.t-comment-body {
+  flex: 1; min-width: 0;
+  background: var(--t-surface-2); border: 1px solid var(--t-line);
+  border-radius: 10px; padding: 8px 11px;
+}
+.t-comment-head {
+  display: flex; align-items: baseline; justify-content: space-between;
+  gap: 8px; margin-bottom: 3px;
+}
+.t-comment-head .t-strong { font-size: 13px; }
+.t-comment-body p { margin: 0; font-size: 13px; line-height: 1.45; color: var(--t-ink); word-break: break-word; }
+.t-comment-form {
+  display: flex; gap: 8px; align-items: center;
+  padding-top: 12px; border-top: 1px solid var(--t-line);
+}
+.t-comment-form input {
+  flex: 1; height: 38px; padding: 0 13px;
+  background: var(--t-surface-2); border: 1px solid var(--t-line);
+  border-radius: 999px; outline: none; font-family: inherit;
+  font-size: 14px; color: var(--t-ink);
+  transition: border-color .15s;
+}
+.t-comment-form input:focus { border-color: var(--t-gold); }
+@media (max-width: 480px) {
+  .t-comments-panel { padding: 12px; border-radius: 10px; }
+  .t-comments-list { max-height: 280px; }
+  .t-comment-body { padding: 7px 10px; }
+}
+
 /* ---- Messages ---- */
 .t-messages {
   display: grid; grid-template-columns: 300px 1fr;
@@ -577,8 +669,8 @@
 @media (max-width: 880px) {
   .t-messages {
     grid-template-columns: 1fr;
-    /* 80px = 56px topbar + 24px t-main padding-top */
-    height: calc(100dvh - 80px - max(56px, env(safe-area-inset-bottom)));
+    /* 72px = 56px topbar + 16px t-main padding-top */
+    height: calc(100dvh - 72px - max(56px, env(safe-area-inset-bottom)));
     border-radius: 10px;
   }
   .t-msg-list { min-width: 0; width: 100%; }

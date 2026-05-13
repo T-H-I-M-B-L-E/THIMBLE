@@ -11,17 +11,23 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { ImagePlus, X, Loader2 } from "lucide-react"
 import { useEffect } from "react"
+import { uploadFile } from "@/lib/upload"
+import { useStore } from "@/lib/store"
+import { getApiUrl } from "@/lib/platform"
 
 export default function UploadPage() {
   const router = useRouter()
   const { user, isLoading } = useAuth()
+  const { addDesignPost } = useStore()
   const fileInputRef = useRef<HTMLInputElement>(null)
 
+  const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [selectedImage, setSelectedImage] = useState<string | null>(null)
   const [caption, setCaption] = useState("")
   const [tags, setTags] = useState("")
   const [isUploading, setIsUploading] = useState(false)
   const [uploadProgress, setUploadProgress] = useState(0)
+  const [uploadError, setUploadError] = useState<string | null>(null)
 
   useEffect(() => {
     if (!isLoading && !user) {
@@ -32,6 +38,7 @@ export default function UploadPage() {
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (file) {
+      setSelectedFile(file)
       const reader = new FileReader()
       reader.onloadend = () => {
         setSelectedImage(reader.result as string)
@@ -41,7 +48,9 @@ export default function UploadPage() {
   }
 
   const handleRemoveImage = () => {
+    setSelectedFile(null)
     setSelectedImage(null)
+    setUploadError(null)
     if (fileInputRef.current) {
       fileInputRef.current.value = ""
     }
@@ -49,22 +58,60 @@ export default function UploadPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!selectedImage || !caption.trim()) return
+    if (!selectedFile || !caption.trim()) return
 
     setIsUploading(true)
-    
-    // Simulate upload progress
-    for (let i = 0; i <= 100; i += 20) {
-      setUploadProgress(i)
-      await new Promise((resolve) => setTimeout(resolve, 200))
-    }
+    setUploadError(null)
+    setUploadProgress(0)
 
-    // Simulate successful upload
-    setTimeout(() => {
+    try {
+      const imageUrl = await uploadFile(selectedFile, (p) => setUploadProgress(p))
+
+      const tagList = tags
+        .split(/[\s,]+/)
+        .map(t => t.trim().replace(/^#/, ""))
+        .filter(Boolean)
+
+      const payload = {
+        userId: user?.id,
+        authorName: user?.fullName || "User",
+        authorAvatar: user?.avatar || "",
+        imageUrl,
+        description: caption,
+        taggedUsers: [] as string[],
+        tags: tagList,
+      }
+
+      const postsUrl = getApiUrl("/api/posts")
+      if (postsUrl) {
+        const res = await fetch(postsUrl, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify(payload),
+        })
+        if (!res.ok) throw new Error("Failed to publish post")
+      } else {
+        addDesignPost({
+          userId: user?.id,
+          image: imageUrl,
+          description: caption,
+          author: user?.fullName || "User",
+          authorRole: (user?.role as any) || null,
+          authorAvatar: user?.avatar || "",
+          authorVerified: user?.verificationStatus === "verified",
+          likes: 0,
+          comments: 0,
+          tags: tagList,
+        })
+      }
+
+      router.push("/")
+    } catch (err) {
+      setUploadError(err instanceof Error ? err.message : "Upload failed")
       setIsUploading(false)
       setUploadProgress(0)
-      router.push("/")
-    }, 500)
+    }
   }
 
   if (isLoading) {
@@ -170,10 +217,14 @@ export default function UploadPage() {
               />
             </div>
 
+            {uploadError && (
+              <p className="text-sm text-destructive">{uploadError}</p>
+            )}
+
             {/* Submit Button */}
             <Button
               type="submit"
-              disabled={!selectedImage || !caption.trim() || isUploading}
+              disabled={!selectedFile || !caption.trim() || isUploading}
               className="w-full bg-primary text-primary-foreground hover:bg-primary/90 font-medium h-11 sm:h-12"
             >
               {isUploading ? (

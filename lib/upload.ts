@@ -2,44 +2,46 @@ export const uploadFile = async (
   file: File,
   onProgress?: (progress: number) => void
 ): Promise<string> => {
-  const publicKey = process.env.NEXT_PUBLIC_UPLOADCARE_PUBLIC_KEY || "demopublickey";
-
-  if (publicKey === "demopublickey") {
-    console.warn("Uploadcare using demo key. Files will be deleted after 24 hours.");
-  }
-
-  const formData = new FormData();
-  formData.append("UPLOADCARE_PUB_KEY", publicKey);
-  formData.append("UPLOADCARE_STORE", "1");
-  formData.append("file", file);
-
-  const xhr = new XMLHttpRequest();
+  const formData = new FormData()
+  formData.append("file", file)
 
   return new Promise((resolve, reject) => {
-    xhr.open("POST", "https://upload.uploadcare.com/base/");
+    const xhr = new XMLHttpRequest()
+    xhr.open("POST", "/api/upload")
+    xhr.withCredentials = true
 
     xhr.upload.onprogress = (event) => {
       if (event.lengthComputable && onProgress) {
-        const progress = Math.round((event.loaded / event.total) * 100);
-        onProgress(progress);
+        const progress = Math.round((event.loaded / event.total) * 100)
+        onProgress(progress)
       }
-    };
+    }
 
     xhr.onload = () => {
-      if (xhr.status === 200) {
+      if (xhr.status >= 200 && xhr.status < 300) {
         try {
-          const response = JSON.parse(xhr.responseText);
-          const fileId = response.file;
-          resolve(`https://ucarecdn.com/${fileId}/`);
+          const response = JSON.parse(xhr.responseText)
+          if (!response.url) {
+            reject(new Error("Upload response missing URL"))
+            return
+          }
+          resolve(response.url as string)
         } catch {
-          reject(new Error("Failed to parse Uploadcare response"));
+          reject(new Error("Failed to parse upload response"))
         }
       } else {
-        reject(new Error("Upload failed. Please try again."));
+        let message = "Upload failed. Please try again."
+        try {
+          const errorBody = JSON.parse(xhr.responseText)
+          if (errorBody?.error) message = errorBody.error
+        } catch {
+          // keep default message
+        }
+        reject(new Error(message))
       }
-    };
+    }
 
-    xhr.onerror = () => reject(new Error("Network error during upload"));
-    xhr.send(formData);
-  });
-};
+    xhr.onerror = () => reject(new Error("Network error during upload"))
+    xhr.send(formData)
+  })
+}
