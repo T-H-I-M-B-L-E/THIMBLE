@@ -3,7 +3,7 @@
 import { useStore } from "@/lib/store"
 import { useAuth } from "@/lib/useAuth"
 import Image from "next/image"
-import { Heart, MessageSquare, Bookmark, Share2, Plus, MoreHorizontal, Trash2 } from "lucide-react"
+import { Heart, MessageSquare, Bookmark, Share2, ImageIcon, MoreHorizontal, Trash2 } from "lucide-react"
 import { useState, useEffect } from "react"
 import { getApiUrl } from "@/lib/platform"
 
@@ -20,7 +20,7 @@ interface Post {
 
 export function FeedView() {
   const { user } = useAuth()
-  const { designPosts, removeDesignPost } = useStore()
+  const { removeDesignPost } = useStore()
   const [posts, setPosts] = useState<Post[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [activeFilter, setActiveFilter] = useState("For you")
@@ -34,18 +34,7 @@ export function FeedView() {
     const postsUrl = getApiUrl("/api/posts")
 
     if (!postsUrl) {
-      setPosts(
-        designPosts.map((post) => ({
-          id: post.id,
-          userId: post.userId,
-          authorName: post.author,
-          authorAvatar: post.authorAvatar || "",
-          imageUrl: post.image,
-          description: post.description,
-          likes: post.likes,
-          createdAt: post.createdAt,
-        }))
-      )
+      setPosts([])
       setIsLoading(false)
       return
     }
@@ -53,21 +42,10 @@ export function FeedView() {
     try {
       const res = await fetch(postsUrl)
       const data = await res.json()
-      setPosts(data)
+      setPosts(Array.isArray(data) ? data : [])
     } catch (err) {
       console.error("Failed to fetch posts:", err)
-      setPosts(
-        designPosts.map((post) => ({
-          id: post.id,
-          userId: post.userId,
-          authorName: post.author,
-          authorAvatar: post.authorAvatar || "",
-          imageUrl: post.image,
-          description: post.description,
-          likes: post.likes,
-          createdAt: post.createdAt,
-        }))
-      )
+      setPosts([])
     } finally {
       setIsLoading(false)
     }
@@ -168,6 +146,14 @@ export function FeedView() {
       {isLoading ? (
         <div className="flex items-center justify-center py-24">
           <div className="animate-spin rounded-full h-12 w-12 border-t-2" style={{ borderColor: "var(--t-gold)" }}></div>
+        </div>
+      ) : posts.length === 0 ? (
+        <div className="t-empty-state">
+          <div className="t-empty-state-icon">
+            <ImageIcon size={24} />
+          </div>
+          <h3>Nothing here yet</h3>
+          <p>Be the first to share your work — use the composer above to post a photo.</p>
         </div>
       ) : (
         <div className="t-feed-stream">
