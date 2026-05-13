@@ -6,12 +6,24 @@ import { ImageIcon, Briefcase, MessageSquare, Shield, Camera, Upload, Palette, F
 import Link from "next/link"
 import Image from "next/image"
 import { useParams } from "next/navigation"
+import { useState, useEffect } from "react"
+import { useAuth } from "@/lib/useAuth"
 
 export default function RoleDashboard() {
   const params = useParams()
   const role = params.role as string
-  const { user, gigs, designPosts } = useStore()
+  const { user: storeUser, gigs } = useStore()
+  const { user } = useAuth()
   const isVerified = user?.verificationStatus === "verified"
+
+  const [recentPosts, setRecentPosts] = useState<{ id: number | string; imageUrl: string; description: string }[]>([])
+
+  useEffect(() => {
+    fetch("/api/posts", { credentials: "include" })
+      .then(r => r.json())
+      .then(data => setRecentPosts(Array.isArray(data) ? data.slice(0, 6) : []))
+      .catch(() => {})
+  }, [])
 
   // Role-specific config
   const roleConfig = {
@@ -137,10 +149,14 @@ export default function RoleDashboard() {
             </Link>
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "8px" }}>
-            {designPosts.slice(0, 6).map((post) => (
+            {recentPosts.length === 0 ? (
+              <div style={{ gridColumn: "1 / -1", padding: "32px", textAlign: "center", color: "var(--t-ink-3)", fontSize: "13px" }}>
+                No posts yet — go to the <Link href={`/dashboard/${role}/feed`} style={{ color: "var(--t-gold-ink)" }}>feed</Link> to explore or share your work.
+              </div>
+            ) : recentPosts.map((post) => (
               <div key={post.id} style={{ position: "relative", aspectRatio: "3/4", overflow: "hidden", borderRadius: "10px", background: "var(--t-surface-2)" }}>
                 <Image
-                  src={post.image}
+                  src={post.imageUrl}
                   alt={post.description}
                   fill
                   style={{ objectFit: "cover" }}
