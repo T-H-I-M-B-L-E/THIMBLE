@@ -7,7 +7,6 @@ import { useRouter } from "next/navigation"
 import { useState, useEffect } from "react"
 import { useParams } from "next/navigation"
 import { EditProfileModal } from "@/components/edit-profile-modal"
-import { useStore } from "@/lib/store"
 import { getSafeHostname, normalizeWebsiteUrl } from "@/lib/platform"
 import { Globe, Instagram, Trash2, Settings, Shield } from "lucide-react"
 
@@ -16,7 +15,6 @@ export default function ProfilePage() {
   const params = useParams()
   const role = params.role as string
   const { user, isLoading } = useAuth()
-  const { designPosts } = useStore()
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
   const [userPosts, setUserPosts] = useState<any[]>([])
   const [isLoadingPosts, setIsLoadingPosts] = useState(true)
@@ -31,6 +29,7 @@ export default function ProfilePage() {
   const fetchUserPosts = async () => {
     try {
       const res = await fetch("/api/posts", {
+        cache: "no-store",
         credentials: "include",
       })
 
@@ -43,14 +42,7 @@ export default function ProfilePage() {
       setUserPosts(filtered)
     } catch (err) {
       console.error("Failed to fetch user posts:", err)
-      const fallbackPosts = designPosts.filter((post) => post.userId === user?.id)
-      setUserPosts(
-        fallbackPosts.map((post) => ({
-          id: post.id,
-          imageUrl: post.image,
-          description: post.description,
-        }))
-      )
+      setUserPosts([])
     } finally {
       setIsLoadingPosts(false)
     }

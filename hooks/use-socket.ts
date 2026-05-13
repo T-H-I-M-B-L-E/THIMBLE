@@ -33,6 +33,14 @@ export function useSocket(
   useEffect(() => {
     setMessages([])
     setTypingUsers(new Map())
+    
+    // Cleanup typing indicator when changing conversations
+    return () => {
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current)
+        typingTimeoutRef.current = null
+      }
+    }
   }, [conversationId])
 
   useEffect(() => {
@@ -94,19 +102,6 @@ export function useSocket(
     }
   }, [url, conversationId])
 
-  const sendMessage = useCallback((content: string) => {
-    if (socketRef.current?.readyState === WebSocket.OPEN && user && conversationId) {
-      const message: ChatMessage = {
-        conversationId,
-        userId: user.id,
-        name: user.fullName,
-        content,
-        timestamp: Date.now(),
-      }
-      socketRef.current.send(JSON.stringify(message))
-    }
-  }, [user, conversationId])
-
   const sendTypingIndicator = useCallback((isTyping: boolean) => {
     if (socketRef.current?.readyState === WebSocket.OPEN && user && conversationId) {
       const event: TypingEvent = {
@@ -120,10 +115,44 @@ export function useSocket(
     }
   }, [user, conversationId])
 
+  const sendMessage = useCallback((content: string) => {
+    if (socketRef.current?.readyState === WebSocket.OPEN && user && conversationId) {
+      // Clear typing indicator when sending message
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current)
+        typingTimeoutRef.current = null
+        sendTypingIndicator(false)
+      }
+      
+      const message: ChatMessage = {
+        conversationId,
+        userId: user.id,
+        name: user.fullName,
+        content,
+        timestamp: Date.now(),
+      }
+      socketRef.current.send(JSON.stringify(message))
+    }
+  }, [user, conversationId, sendTypingIndicator])
+
   const handleTyping = useCallback(() => {
-    sendTypingIndicator(true)
-    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current)
-    typingTimeoutRef.current = setTimeout(() => sendTypingIndicator(false), 2000)
+    // Only send if we're not already typing (to avoid spam)
+    const isCurrentlyTyping = typingTimeoutRef.current !== null
+    
+    if (!isCurrentlyTyping) {
+      sendTypingIndicator(true)
+    }
+    
+    // Clear existing timeout and set new one
+    if (typingTimeoutRef.current) {
+      clearTimeout(typingTimeoutRef.current)
+    }
+    
+    // Set timeout to stop typing after 3 seconds of inactivity
+    typingTimeoutRef.current = setTimeout(() => {
+      sendTypingIndicator(false)
+      typingTimeoutRef.current = null
+    }, 3000)
   }, [sendTypingIndicator])
 
   return { messages, sendMessage, isConnected, setMessages, typingUsers, handleTyping }

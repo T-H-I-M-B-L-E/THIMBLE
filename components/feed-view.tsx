@@ -1,11 +1,11 @@
 "use client"
 
-import { useStore } from "@/lib/store"
 import { useAuth } from "@/lib/useAuth"
 import Image from "next/image"
 import { Heart, MessageSquare, Bookmark, Share2, Plus, MoreHorizontal, Trash2 } from "lucide-react"
 import { useState, useEffect } from "react"
 import { CreatePostModal } from "@/components/create-post-modal"
+import { useRouter } from "next/navigation"
 
 interface Post {
   id: number | string
@@ -15,16 +15,32 @@ interface Post {
   imageUrl: string
   description: string
   likes: number
+  comments: number
+  likedByMe?: boolean
+  createdAt: string
+}
+
+interface Comment {
+  id: number
+  postId: number
+  userId: string
+  userName: string
+  userAvatar: string
+  content: string
   createdAt: string
 }
 
 export function FeedView() {
+  const router = useRouter()
   const { user } = useAuth()
-  const { designPosts, removeDesignPost } = useStore()
   const [posts, setPosts] = useState<Post[]>([])
+  const [commentsByPost, setCommentsByPost] = useState<Record<string, Comment[]>>({})
+  const [openComments, setOpenComments] = useState<Set<string>>(new Set())
+  const [commentDrafts, setCommentDrafts] = useState<Record<string, string>>({})
+  const [loadingComments, setLoadingComments] = useState<Record<string, boolean>>({})
   const [isLoading, setIsLoading] = useState(true)
+  const [feedError, setFeedError] = useState("")
   const [activeFilter, setActiveFilter] = useState("For you")
-  const [likedPosts, setLikedPosts] = useState<Set<string>>(new Set())
   const [isCreatePostOpen, setIsCreatePostOpen] = useState(false)
 
   useEffect(() => {
@@ -54,21 +70,12 @@ export function FeedView() {
       }
 
       const data = await res.json()
+      setFeedError("")
       setPosts(data)
     } catch (err) {
       console.error("Failed to fetch posts:", err)
-      setPosts(
-        designPosts.map((post) => ({
-          id: post.id,
-          userId: post.userId,
-          authorName: post.author,
-          authorAvatar: post.authorAvatar || "",
-          imageUrl: post.image,
-          description: post.description,
-          likes: post.likes,
-          createdAt: post.createdAt,
-        }))
-      )
+      setFeedError("Could not load the live feed right now.")
+      setPosts([])
     } finally {
       setIsLoading(false)
     }
@@ -83,7 +90,7 @@ export function FeedView() {
         credentials: "include",
       })
       if (res.ok) {
-        setPosts(posts.filter(p => String(p.id) !== String(postId)))
+        setPosts((currentPosts) => currentPosts.filter((p) => String(p.id) !== String(postId)))
       } else {
         const error = await res.json()
         alert("Failed to delete: " + (error.error || "Unknown error"))
@@ -94,16 +101,141 @@ export function FeedView() {
     }
   }
 
-  const toggleLike = (postId: string | number) => {
-    setLikedPosts(prev => {
-      const newSet = new Set(prev)
-      if (newSet.has(String(postId))) {
-        newSet.delete(String(postId))
-      } else {
-        newSet.add(String(postId))
+  const handleComposerOpen = () => {
+    if (!user) {
+      router.push("/auth/signup")
+      return
+    }
+    setIsCreatePostOpen(true)
+  }
+
+  const handleLike = async (postId: string | number) => {
+    if (!user) {
+      router.push("/auth")
+      return
+    }
+
+    const key = String(postId)
+    const currentPost = posts.find((post) => String(post.id) === key)
+    if (!currentPost) return
+
+    const optimisticLiked = !currentPost.likedByMe
+    const optimisticLikes = currentPost.likes + (optimisticLiked ? 1 : -1)
+
+    setPosts((currentPosts) =>
+      currentPosts.map((post) =>
+        String(post.id) === key
+          ? { ...post, likedByMe: optimisticLiked, likes: Math.max(0, optimisticLikes) }
+          : post
+      )
+    )
+
+    try {
+      const res = await fetch(`/api/posts/${postId}/like`, {
+        method: "POST",
+        credentials: "include",
+      })
+
+      const data = await res.json()
+      if (!res.ok) {
+        throw new Error(data.error || "Failed to toggle like")
       }
-      return newSet
-    })
+
+      setPosts((currentPosts) =>
+        currentPosts.map((post) =>
+          String(post.id) === key
+            ? { ...post, likedByMe: data.liked, likes: data.likes }
+            : post
+        )
+      )
+    } catch (error) {
+      console.error("Failed to toggle like:", error)
+      setPosts((currentPosts) =>
+        currentPosts.map((post) =>
+          String(post.id) === key ? currentPost : post
+        )
+      )
+    }
+  }
+
+  const loadComments = async (postId: string) => {
+    setLoadingComments((state) => ({ ...state, [postId]: true }))
+
+    try {
+      const res = await fetch(`/api/posts/${postId}/comments`, {
+        cache: "no-store",
+        credentials: "include",
+      })
+      const data = await res.json()
+
+      if (!res.ok) {
+        throw new Error(data.error || "Failed to fetch comments")
+      }
+
+      setCommentsByPost((state) => ({ ...state, [postId]: data }))
+    } catch (error) {
+      console.error("Failed to load comments:", error)
+      setCommentsByPost((state) => ({ ...state, [postId]: [] }))
+    } finally {
+      setLoadingComments((state) => ({ ...state, [postId]: false }))
+    }
+  }
+
+  const toggleComments = async (postId: string | number) => {
+    const key = String(postId)
+    const isOpen = openComments.has(key)
+
+    if (isOpen) {
+      setOpenComments((state) => {
+        const next = new Set(state)
+        next.delete(key)
+        return next
+      })
+      return
+    }
+
+    setOpenComments((state) => new Set(state).add(key))
+    if (!commentsByPost[key]) {
+      await loadComments(key)
+    }
+  }
+
+  const handleCommentSubmit = async (postId: string | number) => {
+    if (!user) {
+      router.push("/auth")
+      return
+    }
+
+    const key = String(postId)
+    const content = commentDrafts[key]?.trim()
+    if (!content) return
+
+    try {
+      const res = await fetch(`/api/posts/${postId}/comments`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content }),
+      })
+      const data = await res.json()
+
+      if (!res.ok) {
+        throw new Error(data.error || "Failed to add comment")
+      }
+
+      setCommentsByPost((state) => ({
+        ...state,
+        [key]: [...(state[key] || []), data],
+      }))
+      setCommentDrafts((state) => ({ ...state, [key]: "" }))
+      setPosts((currentPosts) =>
+        currentPosts.map((post) =>
+          String(post.id) === key ? { ...post, comments: post.comments + 1 } : post
+        )
+      )
+    } catch (error) {
+      console.error("Failed to add comment:", error)
+    }
   }
 
   const filterTabs = ["For you", "Following", "Designers", "Models", "Photographers", "Brands"]
@@ -133,19 +265,19 @@ export function FeedView() {
             {user?.fullName?.[0] ?? "U"}
           </div>
         )}
-        <button className="t-composer-input" onClick={() => setIsCreatePostOpen(true)}>
+        <button className="t-composer-input" onClick={handleComposerOpen}>
           What are you working on?
         </button>
         <div className="t-composer-actions">
-          <button className="t-chip" onClick={() => setIsCreatePostOpen(true)}>
+          <button className="t-chip" onClick={handleComposerOpen}>
             <span className="t-chip-dot photo" />
             Photo
           </button>
-          <button className="t-chip" onClick={() => setIsCreatePostOpen(true)}>
+          <button className="t-chip" onClick={handleComposerOpen}>
             <span className="t-chip-dot gig" />
             Gig
           </button>
-          <button className="t-chip" onClick={() => setIsCreatePostOpen(true)}>
+          <button className="t-chip" onClick={handleComposerOpen}>
             <span className="t-chip-dot ask" />
             Ask
           </button>
@@ -169,6 +301,16 @@ export function FeedView() {
       {isLoading ? (
         <div className="flex items-center justify-center py-24">
           <div className="animate-spin rounded-full h-12 w-12 border-t-2" style={{ borderColor: "var(--t-gold)" }}></div>
+        </div>
+      ) : feedError ? (
+        <div className="t-empty-state">
+          <p>{feedError}</p>
+          <button className="t-btn-quiet" onClick={fetchPosts}>Try again</button>
+        </div>
+      ) : posts.length === 0 ? (
+        <div className="t-empty-state">
+          <p>No live posts yet.</p>
+          <button className="t-btn-quiet" onClick={handleComposerOpen}>Create the first post</button>
         </div>
       ) : (
         <div className="t-feed-stream">
@@ -218,15 +360,15 @@ export function FeedView() {
               <div className="t-post-body">
                 <div className="t-post-actions">
                   <button
-                    className={`t-action ${likedPosts.has(String(post.id)) ? "on" : ""}`}
-                    onClick={() => toggleLike(post.id)}
+                    className={`t-action ${post.likedByMe ? "on" : ""}`}
+                    onClick={() => handleLike(post.id)}
                   >
-                    <Heart size={16} fill={likedPosts.has(String(post.id)) ? "currentColor" : "none"} />
+                    <Heart size={16} fill={post.likedByMe ? "currentColor" : "none"} />
                     <span>{post.likes}</span>
                   </button>
-                  <button className="t-action">
+                  <button className="t-action" onClick={() => toggleComments(post.id)}>
                     <MessageSquare size={16} />
-                    <span>18</span>
+                    <span>{post.comments}</span>
                   </button>
                   <button className="t-action">
                     <Share2 size={16} />
@@ -238,6 +380,66 @@ export function FeedView() {
 
                 {post.description && (
                   <p className="t-post-caption">{post.description}</p>
+                )}
+
+                {openComments.has(String(post.id)) && (
+                  <div className="t-comments-panel">
+                    <div className="t-comments-list">
+                      {loadingComments[String(post.id)] ? (
+                        <p className="t-muted-xs">Loading comments…</p>
+                      ) : (commentsByPost[String(post.id)] || []).length > 0 ? (
+                        commentsByPost[String(post.id)].map((comment) => (
+                          <div key={comment.id} className="t-comment">
+                            {comment.userAvatar ? (
+                              <Image
+                                src={comment.userAvatar}
+                                alt={comment.userName}
+                                width={32}
+                                height={32}
+                                className="t-avatar t-avatar-sm"
+                              />
+                            ) : (
+                              <div className="t-avatar t-avatar-sm t-avatar-ph">
+                                {comment.userName?.[0] ?? "U"}
+                              </div>
+                            )}
+                            <div className="t-comment-body">
+                              <div className="t-comment-head">
+                                <span className="t-strong">{comment.userName}</span>
+                                <span className="t-muted-xs">
+                                  {new Date(comment.createdAt).toLocaleString()}
+                                </span>
+                              </div>
+                              <p>{comment.content}</p>
+                            </div>
+                          </div>
+                        ))
+                      ) : (
+                        <p className="t-muted-xs">No comments yet.</p>
+                      )}
+                    </div>
+
+                    <div className="t-comment-form">
+                      <textarea
+                        value={commentDrafts[String(post.id)] || ""}
+                        onChange={(e) =>
+                          setCommentDrafts((state) => ({
+                            ...state,
+                            [String(post.id)]: e.target.value,
+                          }))
+                        }
+                        placeholder={user ? "Add a comment…" : "Sign in to comment"}
+                        disabled={!user}
+                      />
+                      <button
+                        className="t-btn-quiet"
+                        onClick={() => handleCommentSubmit(post.id)}
+                        disabled={!user || !(commentDrafts[String(post.id)] || "").trim()}
+                      >
+                        Reply
+                      </button>
+                    </div>
+                  </div>
                 )}
 
                 <div className="t-post-tags">

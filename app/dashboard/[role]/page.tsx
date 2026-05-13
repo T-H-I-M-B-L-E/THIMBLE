@@ -81,39 +81,27 @@ export default function RoleDashboard() {
 
   return (
     <DashboardLayout role={role} showRail={true}>
-      <div style={{ maxWidth: "900px", width: "100%", margin: "0 auto" }}>
+      <div className="t-role-dashboard">
         {/* Welcome Section */}
-        <div style={{ marginBottom: "24px" }}>
+        <div className="t-role-intro">
           <h1 className="t-page-title">Welcome back, {user?.fullName?.split(" ")[0] || "Creator"}</h1>
           <p className="t-page-sub">{config.welcome}</p>
         </div>
 
         {/* Quick Actions */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: "12px", marginBottom: "32px" }}>
+        <div className="t-role-actions-grid">
           {config.quickActions.map((action, i) => {
             const Icon = action.icon
             return (
               <button
                 key={i}
                 disabled={action.disabled}
+                className="t-role-action-btn"
                 style={{
-                  padding: "16px",
-                  display: "flex",
-                  flexDirection: "column",
-                  alignItems: "center",
-                  gap: "8px",
                   background: action.disabled ? "var(--t-surface-2)" : "var(--t-ink)",
                   color: action.disabled ? "var(--t-ink-3)" : "var(--t-bg)",
-                  border: "1px solid var(--t-line)",
-                  borderRadius: "9px",
                   cursor: action.disabled ? "not-allowed" : "pointer",
-                  fontFamily: "inherit",
-                  fontSize: "12px",
-                  fontWeight: 600,
-                  textTransform: "uppercase",
-                  letterSpacing: "0.05em",
                   opacity: action.disabled ? 0.6 : 1,
-                  transition: "all .15s"
                 }}
               >
                 <Icon size={18} />
@@ -124,8 +112,8 @@ export default function RoleDashboard() {
         </div>
 
         {/* Portfolio Grid */}
-        <div style={{ marginBottom: "32px", padding: "16px", background: "var(--t-surface)", border: "1px solid var(--t-line)", borderRadius: "13px" }}>
-          <div style={{ marginBottom: "16px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <div className="t-role-section-card">
+          <div className="t-role-section-head">
             <h2 className="t-page-title" style={{ margin: 0, fontSize: "18px" }}>
               <ImageIcon size={16} style={{ display: "inline", marginRight: "8px" }} />
               {role === "model" || role === "photographer" ? "Portfolio" : "Your Work"}
@@ -136,9 +124,9 @@ export default function RoleDashboard() {
               </button>
             </Link>
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "8px" }}>
+          <div className="t-role-post-grid">
             {designPosts.slice(0, 6).map((post) => (
-              <div key={post.id} style={{ position: "relative", aspectRatio: "3/4", overflow: "hidden", borderRadius: "10px", background: "var(--t-surface-2)" }}>
+              <div key={post.id} className="t-role-post-card">
                 <Image
                   src={post.image}
                   alt={post.description}
@@ -151,8 +139,8 @@ export default function RoleDashboard() {
         </div>
 
         {/* Available Gigs */}
-        <div style={{ padding: "16px", background: "var(--t-surface)", border: "1px solid var(--t-line)", borderRadius: "13px" }}>
-          <div style={{ marginBottom: "16px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <div className="t-role-section-card">
+          <div className="t-role-section-head">
             <h2 className="t-page-title" style={{ margin: 0, fontSize: "18px" }}>
               <Briefcase size={16} style={{ display: "inline", marginRight: "8px" }} />
               Available Gigs

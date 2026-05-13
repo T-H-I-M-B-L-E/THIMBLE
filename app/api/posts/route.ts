@@ -6,11 +6,19 @@ function getApiBaseUrl() {
   return process.env.API_BASE_URL || process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8080'
 }
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
+    const token = request.cookies.get('auth_token')?.value
+    const headers: Record<string, string> = {}
+
+    if (token) {
+      headers.Authorization = `Bearer ${token}`
+    }
+
     const response = await fetch(`${getApiBaseUrl()}/api/posts`, {
       cache: 'no-store',
       signal: AbortSignal.timeout(5000),
+      headers,
     })
 
     const text = await response.text()

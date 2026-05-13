@@ -20,6 +20,7 @@ import (
 	"github.com/gofiber/websocket/v2"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/resend/resend-go/v2"
 	"golang.org/x/crypto/bcrypt"
@@ -124,8 +125,20 @@ type Post struct {
 	ImageUrl     string    `json:"imageUrl"`
 	Description  string    `json:"description"`
 	Likes        int       `json:"likes"`
+	Comments     int       `json:"comments"`
+	LikedByMe    bool      `json:"likedByMe"`
 	TaggedUsers  []string  `json:"taggedUsers"`
 	CreatedAt    time.Time `json:"createdAt"`
+}
+
+type PostComment struct {
+	Id         int       `json:"id"`
+	PostId     int       `json:"postId"`
+	UserId     string    `json:"userId"`
+	UserName   string    `json:"userName"`
+	UserAvatar string    `json:"userAvatar"`
+	Content    string    `json:"content"`
+	CreatedAt  time.Time `json:"createdAt"`
 }
 
 type Gig struct {
@@ -264,6 +277,28 @@ func validateJWT(tokenString string) (*Claims, error) {
 	}
 
 	return claims, nil
+}
+
+func optionalUserIDFromRequest(c *fiber.Ctx) string {
+	authHeader := c.Get("Authorization")
+	var tokenString string
+
+	if strings.HasPrefix(authHeader, "Bearer ") {
+		tokenString = strings.TrimPrefix(authHeader, "Bearer ")
+	} else if token := c.Cookies("auth_token"); token != "" {
+		tokenString = token
+	}
+
+	if tokenString == "" {
+		return ""
+	}
+
+	claims, err := validateJWT(tokenString)
+	if err != nil {
+		return ""
+	}
+
+	return claims.UserID
 }
 
 // jwtAuth middleware validates JWT from Authorization header or cookies
@@ -1299,12 +1334,42 @@ func main() {
 			image_url    TEXT NOT NULL DEFAULT '',
 			description  TEXT NOT NULL DEFAULT '',
 			likes        INT NOT NULL DEFAULT 0,
+			comments     INT NOT NULL DEFAULT 0,
 			tagged_users JSONB NOT NULL DEFAULT '[]',
 			created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
 		)
 	`)
 	if err != nil {
 		log.Fatal("Failed to create posts table:", err)
+	}
+	dbPool.Exec(context.Background(), `ALTER TABLE posts ADD COLUMN IF NOT EXISTS comments INT NOT NULL DEFAULT 0`)
+
+	_, err = dbPool.Exec(context.Background(), `
+		CREATE TABLE IF NOT EXISTS post_likes (
+			id BIGSERIAL PRIMARY KEY,
+			post_id BIGINT NOT NULL REFERENCES posts(id) ON DELETE CASCADE,
+			user_id TEXT NOT NULL,
+			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+			UNIQUE(post_id, user_id)
+		)
+	`)
+	if err != nil {
+		log.Fatal("Failed to create post_likes table:", err)
+	}
+
+	_, err = dbPool.Exec(context.Background(), `
+		CREATE TABLE IF NOT EXISTS post_comments (
+			id BIGSERIAL PRIMARY KEY,
+			post_id BIGINT NOT NULL REFERENCES posts(id) ON DELETE CASCADE,
+			user_id TEXT NOT NULL,
+			user_name TEXT NOT NULL DEFAULT '',
+			user_avatar TEXT NOT NULL DEFAULT '',
+			content TEXT NOT NULL,
+			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+		)
+	`)
+	if err != nil {
+		log.Fatal("Failed to create post_comments table:", err)
 	}
 
 	// Ensure gigs table exists
@@ -1798,8 +1863,26 @@ func main() {
 
 	// Posts API
 	app.Get("/api/posts", func(c *fiber.Ctx) error {
-		rows, err := dbPool.Query(context.Background(),
-			"SELECT id, user_id, author_name, author_avatar, image_url, description, likes, tagged_users, created_at FROM posts ORDER BY created_at DESC LIMIT 20")
+		userID := optionalUserIDFromRequest(c)
+		var rows pgx.Rows
+		var err error
+
+		if userID != "" {
+			rows, err = dbPool.Query(context.Background(),
+				`SELECT p.id, p.user_id, p.author_name, p.author_avatar, p.image_url, p.description,
+				        p.likes, p.comments, p.tagged_users, p.created_at,
+				        EXISTS(SELECT 1 FROM post_likes pl WHERE pl.post_id = p.id AND pl.user_id = $1) AS liked_by_me
+				 FROM posts p
+				 ORDER BY p.created_at DESC
+				 LIMIT 20`, userID)
+		} else {
+			rows, err = dbPool.Query(context.Background(),
+				`SELECT id, user_id, author_name, author_avatar, image_url, description,
+				        likes, comments, tagged_users, created_at, false AS liked_by_me
+				 FROM posts
+				 ORDER BY created_at DESC
+				 LIMIT 20`)
+		}
 		if err != nil {
 			return c.Status(500).JSON(fiber.Map{"error": "failed to fetch posts"})
 		}
@@ -1809,7 +1892,7 @@ func main() {
 		for rows.Next() {
 			var p Post
 			var taggedJSON []byte
-			if err := rows.Scan(&p.Id, &p.UserId, &p.AuthorName, &p.AuthorAvatar, &p.ImageUrl, &p.Description, &p.Likes, &taggedJSON, &p.CreatedAt); err == nil {
+			if err := rows.Scan(&p.Id, &p.UserId, &p.AuthorName, &p.AuthorAvatar, &p.ImageUrl, &p.Description, &p.Likes, &p.Comments, &taggedJSON, &p.CreatedAt, &p.LikedByMe); err == nil {
 				json.Unmarshal(taggedJSON, &p.TaggedUsers)
 				posts = append(posts, p)
 			}
@@ -1845,8 +1928,133 @@ func main() {
 		if err != nil {
 			return c.Status(500).JSON(fiber.Map{"error": "failed to create post"})
 		}
+		p.Comments = 0
+		p.LikedByMe = false
 
 		return c.Status(201).JSON(p)
+	})
+
+	app.Post("/api/posts/:id/like", jwtAuth, func(c *fiber.Ctx) error {
+		postID := c.Params("id")
+		userID, _ := c.Locals("userId").(string)
+		ctx := context.Background()
+
+		var count int
+		err := dbPool.QueryRow(ctx,
+			"SELECT COUNT(*) FROM post_likes WHERE post_id = $1 AND user_id = $2",
+			postID, userID).Scan(&count)
+		if err != nil {
+			return c.Status(500).JSON(fiber.Map{"error": "failed to check like state"})
+		}
+
+		if count > 0 {
+			if _, err := dbPool.Exec(ctx, "DELETE FROM post_likes WHERE post_id = $1 AND user_id = $2", postID, userID); err != nil {
+				return c.Status(500).JSON(fiber.Map{"error": "failed to remove like"})
+			}
+			if _, err := dbPool.Exec(ctx, "UPDATE posts SET likes = GREATEST(likes - 1, 0) WHERE id = $1", postID); err != nil {
+				return c.Status(500).JSON(fiber.Map{"error": "failed to update like count"})
+			}
+
+			var likes int
+			dbPool.QueryRow(ctx, "SELECT likes FROM posts WHERE id = $1", postID).Scan(&likes)
+			return c.JSON(fiber.Map{"liked": false, "likes": likes})
+		}
+
+		if _, err := dbPool.Exec(ctx, "INSERT INTO post_likes (post_id, user_id) VALUES ($1, $2)", postID, userID); err != nil {
+			return c.Status(500).JSON(fiber.Map{"error": "failed to add like"})
+		}
+		if _, err := dbPool.Exec(ctx, "UPDATE posts SET likes = likes + 1 WHERE id = $1", postID); err != nil {
+			return c.Status(500).JSON(fiber.Map{"error": "failed to update like count"})
+		}
+
+		var likes int
+		dbPool.QueryRow(ctx, "SELECT likes FROM posts WHERE id = $1", postID).Scan(&likes)
+		return c.JSON(fiber.Map{"liked": true, "likes": likes})
+	})
+
+	app.Get("/api/posts/:id/comments", func(c *fiber.Ctx) error {
+		postID := c.Params("id")
+		rows, err := dbPool.Query(context.Background(),
+			`SELECT id, post_id, user_id, user_name, user_avatar, content, created_at
+			 FROM post_comments
+			 WHERE post_id = $1
+			 ORDER BY created_at ASC
+			 LIMIT 100`, postID)
+		if err != nil {
+			return c.JSON([]PostComment{})
+		}
+		defer rows.Close()
+
+		var comments []PostComment
+		for rows.Next() {
+			var comment PostComment
+			if err := rows.Scan(
+				&comment.Id,
+				&comment.PostId,
+				&comment.UserId,
+				&comment.UserName,
+				&comment.UserAvatar,
+				&comment.Content,
+				&comment.CreatedAt,
+			); err == nil {
+				comments = append(comments, comment)
+			}
+		}
+
+		if comments == nil {
+			comments = []PostComment{}
+		}
+
+		return c.JSON(comments)
+	})
+
+	app.Post("/api/posts/:id/comments", jwtAuth, func(c *fiber.Ctx) error {
+		postID := c.Params("id")
+		userID, _ := c.Locals("userId").(string)
+		ctx := context.Background()
+
+		var body struct {
+			Content string `json:"content"`
+		}
+		if err := c.BodyParser(&body); err != nil {
+			return c.Status(400).JSON(fiber.Map{"error": "invalid request body"})
+		}
+		if strings.TrimSpace(body.Content) == "" {
+			return c.Status(400).JSON(fiber.Map{"error": "content required"})
+		}
+
+		var userName, userAvatar string
+		if err := dbPool.QueryRow(ctx,
+			"SELECT full_name, COALESCE(avatar_url, '') FROM users WHERE id = $1",
+			userID,
+		).Scan(&userName, &userAvatar); err != nil {
+			return c.Status(500).JSON(fiber.Map{"error": "failed to load user"})
+		}
+
+		var comment PostComment
+		err := dbPool.QueryRow(ctx,
+			`INSERT INTO post_comments (post_id, user_id, user_name, user_avatar, content)
+			 VALUES ($1, $2, $3, $4, $5)
+			 RETURNING id, post_id, user_id, user_name, user_avatar, content, created_at`,
+			postID, userID, userName, userAvatar, strings.TrimSpace(body.Content),
+		).Scan(
+			&comment.Id,
+			&comment.PostId,
+			&comment.UserId,
+			&comment.UserName,
+			&comment.UserAvatar,
+			&comment.Content,
+			&comment.CreatedAt,
+		)
+		if err != nil {
+			return c.Status(500).JSON(fiber.Map{"error": "failed to add comment"})
+		}
+
+		if _, err := dbPool.Exec(ctx, "UPDATE posts SET comments = comments + 1 WHERE id = $1", postID); err != nil {
+			return c.Status(500).JSON(fiber.Map{"error": "failed to update comment count"})
+		}
+
+		return c.Status(201).JSON(comment)
 	})
 
 	app.Delete("/api/posts/:id", jwtAuth, func(c *fiber.Ctx) error {
