@@ -1,56 +1,49 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/lib/useAuth"
 import { getPostAuthPath } from "@/lib/platform"
-import { ArrowRight, BadgeCheck, Users, Handshake, ShieldCheck, ChevronDown } from "lucide-react"
+import { ArrowRight, ChevronDown, UserPlus, BadgeCheck, Handshake, CreditCard, Award, Users2, Globe } from "lucide-react"
 
 const ROLES = [
-  { label: "I'm a Designer", value: "designer" },
-  { label: "I'm a Model", value: "model" },
-  { label: "I'm a Manufacturer", value: "manufacturer" },
-  { label: "I'm a Photographer", value: "photographer" },
-  { label: "I'm a Fashion Brand", value: "brand" },
+  "I'm a Designer",
+  "I'm a Model",
+  "I'm a Manufacturer",
+  "I'm a Photographer",
+  "I'm a Fashion Brand",
 ]
 
 const STEPS = [
   {
-    number: "01",
-    icon: Users,
+    icon: UserPlus,
+    num: "01",
     title: "Create Your Profile",
     body: "Sign up and choose your role — designer, model, manufacturer, photographer, or brand. Upload your portfolio, experience, and verification documents.",
   },
   {
-    number: "02",
     icon: BadgeCheck,
+    num: "02",
     title: "Get Verified & Build Trust",
     body: "We verify identities and portfolios to protect every user from scams. A verified badge helps you stand out and attract serious collaborations.",
   },
   {
-    number: "03",
     icon: Handshake,
+    num: "03",
     title: "Discover & Collaborate",
     body: "Browse opportunities, find inspiration from other creatives, post jobs, send offers, and chat safely inside the platform.",
-    examples: [
-      "Designers & brands find manufacturers",
-      "Brands book models and photographers",
-      "Creatives join real fashion projects",
-    ],
   },
   {
-    number: "04",
-    icon: ShieldCheck,
+    icon: CreditCard,
+    num: "04",
     title: "Pay & Get Paid Securely",
     body: "All payments happen inside Thimble using secure escrow. Money is only released when work is delivered and approved.",
-    footnote: "No scams. No ghosting. No stress.",
   },
 ]
 
 export default function HomePage() {
   const router = useRouter()
   const { user, isLoading } = useAuth()
-  const [activeRole, setActiveRole] = useState<string | null>(null)
 
   useEffect(() => {
     if (isLoading || !user) return
@@ -63,8 +56,8 @@ export default function HomePage() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-black">
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-neutral-700 border-t-white" />
+      <div className="min-h-screen flex items-center justify-center bg-[#131313]">
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-neutral-700 border-t-[#e6c364]" />
       </div>
     )
   }
@@ -72,203 +65,265 @@ export default function HomePage() {
   if (user) return null
 
   return (
-    <div className="min-h-screen flex flex-col bg-[#080808] text-white">
+    <div className="min-h-screen bg-[#131313] text-[#e5e2e1] font-sans selection:bg-[#e6c364] selection:text-black">
 
-      {/* ── Navbar ── */}
-      <nav className="sticky top-0 z-30 flex items-center justify-between px-6 md:px-12 lg:px-16 py-4 bg-[#080808]/90 backdrop-blur-md border-b border-white/5">
-        <span className="text-white font-light tracking-[0.35em] text-lg select-none">THIMBLE</span>
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => router.push("/auth")}
-            className="text-sm text-neutral-400 hover:text-white transition-colors px-3 py-2 hidden sm:block"
-          >
-            Sign In
-          </button>
-          <button
-            onClick={() => router.push("/auth/signup")}
-            className="text-sm bg-white text-black font-medium px-5 py-2 hover:bg-neutral-100 transition-colors"
-          >
-            Join Free
-          </button>
-        </div>
-      </nav>
+      {/* ── Top Nav ── */}
+      <nav className="fixed top-0 w-full z-50 bg-[#131313]/80 backdrop-blur-xl border-b border-white/10">
+        <div className="flex justify-between items-center w-full px-6 max-w-[1440px] mx-auto h-20">
+          {/* Logo */}
+          <div className="font-bodoni text-[32px] leading-[40px] text-[#e6c364] tracking-tighter uppercase">
+            Thimble
+          </div>
 
-      {/* ══════════════════════════════════════════
-          HERO
-      ══════════════════════════════════════════ */}
-      <section className="relative flex flex-col justify-center min-h-[90vh] px-6 md:px-12 lg:px-16 pt-12 pb-20 overflow-hidden">
-
-        {/* Ambient background glow */}
-        <div
-          className="pointer-events-none absolute inset-0"
-          style={{
-            backgroundImage:
-              "radial-gradient(ellipse 70% 55% at 10% 60%, rgba(201,168,76,0.12) 0%, transparent 65%), radial-gradient(ellipse 50% 60% at 90% 15%, rgba(255,255,255,0.04) 0%, transparent 60%)",
-          }}
-        />
-
-        <div className="relative z-10 max-w-4xl">
-          {/* Eyebrow */}
-          <p className="text-xs uppercase tracking-[0.3em] text-[#C9A84C] mb-6 font-medium">
-            The Fashion Creative Platform
-          </p>
-
-          {/* Headline */}
-          <h1 className="text-[clamp(2.6rem,7.5vw,6rem)] font-bold leading-[1.04] tracking-tight mb-6">
-            Where fashion<br />
-            meets its own{" "}
-            <span className="relative inline-block whitespace-nowrap">
-              world.
-              <svg
-                aria-hidden="true"
-                className="absolute -bottom-3 left-0 w-full"
-                viewBox="0 0 200 24"
-                fill="none"
-                xmlns="http://www.w3.org/2000/svg"
-                preserveAspectRatio="none"
+          {/* Nav links */}
+          <div className="hidden md:flex gap-12">
+            {["Designers", "Models", "Manufacturers", "Brands"].map((label) => (
+              <button
+                key={label}
+                onClick={() => router.push("/auth/signup")}
+                className="text-[16px] leading-[24px] font-light uppercase tracking-widest text-[#d0c5b2] hover:text-[#e6c364] transition-colors duration-300"
               >
-                <ellipse cx="100" cy="12" rx="97" ry="9" stroke="#C9A84C" strokeWidth="2.5" fill="none" />
-              </svg>
-            </span>
-          </h1>
-
-          {/* Subheadline */}
-          <p className="text-base md:text-lg text-neutral-400 leading-relaxed mb-10 max-w-xl">
-            Designers, Models, Manufacturers, Photographers and Fashion Brands — all in one trusted platform built to make collaboration easy.
-          </p>
+                {label}
+              </button>
+            ))}
+          </div>
 
           {/* CTAs */}
-          <div className="flex flex-wrap gap-4 items-center">
+          <div className="flex items-center gap-6">
             <button
-              onClick={() => router.push("/auth/signup")}
-              className="flex items-center gap-2 h-14 px-8 bg-[#C9A84C] text-black font-semibold text-sm hover:bg-[#b8963e] transition-colors"
+              onClick={() => router.push("/auth")}
+              className="text-[16px] leading-[24px] font-light text-[#e5e2e1] hover:text-[#e6c364] transition-colors"
             >
-              Join Thimble — It&apos;s Free <ArrowRight className="h-4 w-4" />
+              Sign In
             </button>
             <button
-              onClick={scrollToHowItWorks}
-              className="flex items-center gap-2 h-14 px-8 border border-neutral-600 text-white text-sm font-medium hover:border-neutral-400 hover:bg-white/5 transition-all"
+              onClick={() => router.push("/auth/signup")}
+              className="bg-[#c9a84c] text-[#503d00] px-8 py-2 text-[12px] leading-[16px] tracking-widest uppercase font-medium hover:opacity-90 transition-opacity"
             >
-              See How It Works <ChevronDown className="h-4 w-4" />
+              Join
             </button>
           </div>
         </div>
+      </nav>
 
-        {/* Scroll hint */}
-        <div className="absolute bottom-8 left-1/2 -translate-x-1/2 flex flex-col items-center gap-1 opacity-30">
-          <div className="w-px h-10 bg-white animate-pulse" />
-        </div>
-      </section>
+      {/* ══════════════════════════════
+          HERO
+      ══════════════════════════════ */}
+      <section className="relative min-h-screen pt-40 pb-20 px-5 md:px-20 overflow-hidden">
+        <div className="max-w-[1440px] mx-auto grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
 
-      {/* ══════════════════════════════════════════
-          MINI ROLE SELECTOR
-      ══════════════════════════════════════════ */}
-      <section className="border-y border-white/8 bg-[#0d0d0d] px-6 md:px-12 lg:px-16 py-14">
-        <p className="text-xs uppercase tracking-[0.25em] text-neutral-500 mb-6 text-center">Who are you on Thimble?</p>
-        <div className="flex flex-wrap justify-center gap-3">
-          {ROLES.map((role) => (
-            <button
-              key={role.value}
-              onClick={() => {
-                setActiveRole(role.value)
-                router.push("/auth/signup")
-              }}
-              className={`text-sm px-6 py-3 rounded-full border transition-all duration-200 ${
-                activeRole === role.value
-                  ? "border-[#C9A84C] bg-[#C9A84C]/10 text-[#C9A84C]"
-                  : "border-neutral-700 text-neutral-300 hover:border-neutral-400 hover:bg-white/5"
-              }`}
-            >
-              {role.label}
-            </button>
-          ))}
-        </div>
-      </section>
+          {/* Left — copy */}
+          <div className="lg:col-span-8 z-10">
+            <p className="text-[12px] leading-[16px] tracking-[0.3em] font-medium uppercase text-[#e6c364] mb-8">
+              The Fashion Creative Platform
+            </p>
 
-      {/* ══════════════════════════════════════════
-          HOW IT WORKS — 4 STEPS
-      ══════════════════════════════════════════ */}
-      <section id="how-it-works" className="px-6 md:px-12 lg:px-16 py-20 md:py-28">
-        {/* Section header */}
-        <div className="text-center mb-16">
-          <p className="text-xs uppercase tracking-[0.3em] text-[#C9A84C] mb-3 font-medium">The Process</p>
-          <h2 className="text-3xl md:text-4xl lg:text-5xl font-bold tracking-tight">
-            How Thimble works<br className="hidden md:block" /> in 4 steps
-          </h2>
-        </div>
+            <h1 className="font-bodoni text-[32px] md:text-[84px] leading-none md:leading-[92px] tracking-[-0.02em] italic text-[#e5e2e1] mb-8">
+              Where fashion <br />
+              meets its{" "}
+              <span className="editorial-underline italic">own world.</span>
+            </h1>
 
-        {/* Steps grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-5xl mx-auto">
-          {STEPS.map((step, i) => {
-            const Icon = step.icon
-            return (
-              <div
-                key={i}
-                className="group relative border border-neutral-800 bg-[#0d0d0d] p-8 hover:border-neutral-600 transition-all duration-300"
+            <p className="text-[18px] leading-[28px] tracking-[0.01em] font-light text-[#d0c5b2] max-w-2xl mb-12">
+              Designers, Models, Manufacturers, Photographers and Fashion Brands — all in one trusted platform built to make collaboration easy.
+            </p>
+
+            <div className="flex flex-col sm:flex-row gap-6">
+              <button
+                onClick={() => router.push("/auth/signup")}
+                className="bg-[#e6c364] text-black text-[12px] leading-[16px] tracking-widest uppercase font-medium px-10 py-5 flex items-center justify-center gap-3 hover:scale-[1.02] transition-transform"
               >
-                {/* Step number */}
-                <span className="text-[4rem] font-bold text-white/5 leading-none select-none absolute top-6 right-8 group-hover:text-white/8 transition-colors">
-                  {step.number}
-                </span>
+                Join Thimble — It&apos;s Free
+                <ArrowRight className="h-[18px] w-[18px]" />
+              </button>
+              <button
+                onClick={scrollToHowItWorks}
+                className="border border-white/20 text-[#e5e2e1] text-[12px] leading-[16px] tracking-widest uppercase font-medium px-10 py-5 flex items-center justify-center gap-3 hover:bg-white/5 transition-colors"
+              >
+                See How It Works
+                <ChevronDown className="h-[18px] w-[18px]" />
+              </button>
+            </div>
+          </div>
 
-                {/* Icon */}
-                <div className="mb-5 inline-flex items-center justify-center w-11 h-11 border border-[#C9A84C]/30 bg-[#C9A84C]/8">
-                  <Icon className="h-5 w-5 text-[#C9A84C]" />
-                </div>
-
-                <h3 className="text-lg font-semibold mb-3 tracking-tight">{step.title}</h3>
-                <p className="text-sm text-neutral-400 leading-relaxed mb-4">{step.body}</p>
-
-                {/* Examples (step 3) */}
-                {step.examples && (
-                  <ul className="space-y-1.5 mb-2">
-                    {step.examples.map((ex) => (
-                      <li key={ex} className="flex items-start gap-2 text-xs text-neutral-500">
-                        <span className="text-[#C9A84C] mt-0.5 shrink-0">›</span>
-                        {ex}
-                      </li>
-                    ))}
-                  </ul>
-                )}
-
-                {/* Footnote (step 4) */}
-                {step.footnote && (
-                  <p className="text-xs text-[#C9A84C] font-medium mt-3">{step.footnote}</p>
-                )}
-              </div>
-            )
-          })}
+          {/* Right — editorial image */}
+          <div className="lg:col-span-4 relative h-[600px] hidden lg:block">
+            <div className="absolute inset-0 border border-white/10 -m-8" />
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="https://lh3.googleusercontent.com/aida-public/AB6AXuA4_CCd5h6sDfwLgqgT1Kmix2jxMYkAvtPO2Umx69aEQv9VAR_AZA-JxbZKKRHijgJixubRXG8RKP_QDo-DIbyqvPKmibFsaDnmZz5jQz9DSVhdLevD1if588cKK2GerWNojJE4-K5OPHycjm9h4tSFeG1z9vC7j2IOTwqL5DWagu3ER4gwJ9PTDeU-rNk_0QCUBlLnuFc8PHmzzmpY8tCqPFHb7NIeZU9Zx31o4wDo4gvxGZwnqVPMSYm2ooQn0yt1EtbV9wnr8lwJ"
+              alt="High-fashion editorial portrait"
+              className="w-full h-full object-cover grayscale brightness-75"
+            />
+            {/* Featured creative card */}
+            <div className="absolute -bottom-8 -left-8 bg-[#2a2a2a] border border-white/10 p-6 max-w-[240px]">
+              <p className="text-[12px] leading-[16px] tracking-[0.15em] font-medium text-[#e6c364] uppercase mb-2">
+                Featured Creative
+              </p>
+              <p className="font-bodoni text-[20px] text-[#e5e2e1] italic">Elena Von Straten</p>
+              <p className="text-[14px] font-light text-[#b4b5b5]">Avant-Garde Designer, Milan</p>
+            </div>
+          </div>
         </div>
       </section>
 
-      {/* ══════════════════════════════════════════
+      {/* ══════════════════════════════
+          ROLE SELECTION
+      ══════════════════════════════ */}
+      <section className="py-32 border-y border-white/5">
+        <div className="max-w-[1440px] mx-auto px-5 md:px-20 text-center">
+          <h2 className="text-[12px] leading-[16px] tracking-widest uppercase text-[#d0c5b2] mb-12">
+            Who are you on Thimble?
+          </h2>
+          <div className="flex flex-wrap justify-center gap-4">
+            {ROLES.map((role) => (
+              <button
+                key={role}
+                onClick={() => router.push("/auth/signup")}
+                className="px-8 py-3 rounded-full border border-white/10 text-[16px] font-light text-[#d0c5b2] hover:border-[#e6c364] hover:text-[#e6c364] transition-all"
+              >
+                {role}
+              </button>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ══════════════════════════════
+          HOW IT WORKS — 4 STEPS
+      ══════════════════════════════ */}
+      <section id="how-it-works" className="py-32 bg-[#0e0e0e]">
+        <div className="max-w-[1440px] mx-auto px-5 md:px-20">
+          {/* Header */}
+          <div className="text-center mb-24">
+            <p className="text-[12px] leading-[16px] tracking-widest uppercase font-medium text-[#e6c364] mb-4">
+              The Process
+            </p>
+            <h2 className="font-bodoni text-[48px] leading-[56px] italic text-[#e5e2e1]">
+              How Thimble works in 4 steps
+            </h2>
+          </div>
+
+          {/* Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-px bg-white/5 border border-white/5">
+            {STEPS.map((step) => {
+              const Icon = step.icon
+              return (
+                <div
+                  key={step.num}
+                  className="bg-[#131313] hover:bg-[#1c1b1b] p-12 relative group transition-colors duration-500"
+                >
+                  {/* Background number */}
+                  <span className="font-bodoni text-[120px] leading-none opacity-10 group-hover:opacity-20 transition-opacity italic absolute top-4 right-8 select-none text-[#e5e2e1]">
+                    {step.num}
+                  </span>
+
+                  <div className="relative z-10">
+                    {/* Icon */}
+                    <div className="w-12 h-12 flex items-center justify-center bg-[#201f1f] mb-8">
+                      <Icon className="h-5 w-5 text-[#e6c364]" />
+                    </div>
+
+                    <h3 className="font-bodoni text-[24px] leading-[32px] text-[#e5e2e1] mb-4">
+                      {step.title}
+                    </h3>
+                    <p className="text-[16px] leading-[24px] font-light text-[#d0c5b2]">
+                      {step.body}
+                    </p>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      </section>
+
+      {/* ══════════════════════════════
           FINAL CTA
-      ══════════════════════════════════════════ */}
-      <section className="bg-[#C9A84C] px-6 md:px-12 lg:px-16 py-20 md:py-24 text-center">
-        <h2 className="text-3xl md:text-4xl lg:text-5xl font-bold text-black tracking-tight mb-4 max-w-2xl mx-auto leading-tight">
-          Create your free account today
-        </h2>
-        <p className="text-black/60 text-base mb-10 max-w-md mx-auto">
-          Join thousands of fashion creatives already collaborating on Thimble.
-        </p>
-        <button
-          onClick={() => router.push("/auth/signup")}
-          className="inline-flex items-center gap-2 h-14 px-10 bg-black text-white font-semibold text-sm hover:bg-neutral-900 transition-colors"
-        >
-          Join Thimble — It&apos;s Free <ArrowRight className="h-4 w-4" />
-        </button>
+      ══════════════════════════════ */}
+      <section className="relative py-48 overflow-hidden">
+        {/* Gold background */}
+        <div className="absolute inset-0 z-0 bg-[#c9a84c]" />
+
+        {/* Texture image overlay */}
+        <div className="absolute inset-0 z-0 opacity-20 overflow-hidden">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="https://lh3.googleusercontent.com/aida-public/AB6AXuCtiDwfvP3lBOlf7_6-Of69ifJCg8Ld_5n7oOfqkwHWhv6xiR2WxQHdpeeP0mXa59Snw870PA3Vae6uuCeh6E7gCqYn_YSzostfTKbBTV2Q6RZ1vjN4gbk4FppLBnTQZz2mnJJRtc_-UxU630aKNMaGhKQUX4QPD6YuB0YpQ8kvF8Wjvj2cf99iyo9KnBQJg5Taec5ktUBcEI8EyhhNd2HAFTbqiKzuYEuYKzl_8_N89esQ0JkwOcsQiVQ8EOdIVA8QXkz_2LvBPcCL"
+            alt="Fashion studio texture"
+            className="w-full h-full object-cover"
+          />
+        </div>
+
+        <div className="relative z-10 max-w-[1440px] mx-auto px-5 md:px-20 text-center">
+          <h2 className="font-bodoni text-[48px] leading-[56px] text-black mb-8">
+            Create your free account today
+          </h2>
+          <p className="text-[18px] leading-[28px] font-light text-black/70 mb-12 max-w-xl mx-auto">
+            Join thousands of fashion creatives already collaborating on Thimble.
+          </p>
+          <button
+            onClick={() => router.push("/auth/signup")}
+            className="bg-black text-[#e6c364] text-[12px] leading-[16px] tracking-[0.2em] uppercase font-medium px-16 py-6 flex items-center justify-center gap-4 mx-auto hover:scale-105 transition-transform"
+          >
+            Join Thimble — It&apos;s Free
+            <ArrowRight className="h-5 w-5" />
+          </button>
+        </div>
       </section>
 
       {/* ── Footer ── */}
-      <footer className="border-t border-white/5 px-6 md:px-12 lg:px-16 py-8 bg-[#080808]">
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-          <span className="text-white font-light tracking-[0.35em] text-sm select-none">THIMBLE</span>
-          <p className="text-xs text-neutral-600 text-center">
-            &copy; {new Date().getFullYear()} Thimble. The fashion creative platform.
+      <footer className="bg-[#0e0e0e] w-full py-16 border-t border-white/5">
+        <div className="flex flex-col md:flex-row justify-between items-start px-5 md:px-20 max-w-[1440px] mx-auto gap-12">
+          {/* Brand */}
+          <div className="flex flex-col gap-6">
+            <div className="font-bodoni text-[48px] leading-[56px] text-[#e6c364] uppercase">Thimble</div>
+            <p className="text-[16px] leading-[24px] font-light text-[#d0c5b2] max-w-xs">
+              Connecting the global fashion industry through a single, trusted creative ecosystem.
+            </p>
+          </div>
+
+          {/* Link columns */}
+          <div className="grid grid-cols-2 lg:grid-cols-3 gap-16">
+            <div className="flex flex-col gap-4">
+              <p className="text-[12px] tracking-[0.15em] font-medium uppercase text-[#e5e2e1] mb-4">Platform</p>
+              {["Designers", "Models", "Manufacturers"].map((l) => (
+                <a key={l} href="#" className="text-[16px] font-light text-[#d0c5b2] hover:text-[#e5e2e1] transition-colors">
+                  {l}
+                </a>
+              ))}
+            </div>
+            <div className="flex flex-col gap-4">
+              <p className="text-[12px] tracking-[0.15em] font-medium uppercase text-[#e5e2e1] mb-4">Company</p>
+              {["About Us", "Careers", "Contact"].map((l) => (
+                <a key={l} href="#" className="text-[16px] font-light text-[#d0c5b2] hover:text-[#e5e2e1] transition-colors">
+                  {l}
+                </a>
+              ))}
+            </div>
+            <div className="flex flex-col gap-4">
+              <p className="text-[12px] tracking-[0.15em] font-medium uppercase text-[#e5e2e1] mb-4">Legal</p>
+              {["Privacy", "Terms"].map((l) => (
+                <a key={l} href="#" className="text-[16px] font-light text-[#d0c5b2] hover:text-[#e5e2e1] transition-colors">
+                  {l}
+                </a>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Bottom bar */}
+        <div className="max-w-[1440px] mx-auto px-5 md:px-20 mt-20 pt-8 border-t border-white/5 flex flex-col md:flex-row justify-between items-center gap-4">
+          <p className="text-[16px] font-light text-[#d0c5b2] opacity-60">
+            © {new Date().getFullYear()} Thimble. All rights reserved.
           </p>
-          <div className="flex gap-5 text-xs text-neutral-600">
-            <button onClick={() => router.push("/auth")} className="hover:text-neutral-400 transition-colors">Sign In</button>
-            <button onClick={() => router.push("/auth/signup")} className="hover:text-neutral-400 transition-colors">Sign Up</button>
+          <div className="flex gap-8">
+            {[Award, Users2, Globe].map((Icon, i) => (
+              <Icon
+                key={i}
+                className="h-5 w-5 text-[#d0c5b2] hover:text-[#e6c364] cursor-pointer transition-colors"
+              />
+            ))}
           </div>
         </div>
       </footer>

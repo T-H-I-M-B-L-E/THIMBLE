@@ -4,11 +4,19 @@ import { ThemeProvider } from '@/lib/theme-context'
 import { UserSync } from '@/components/user-sync'
 import { WelcomeOverlay } from '@/components/welcome-overlay'
 import { headers } from 'next/headers'
+import { Bodoni_Moda } from 'next/font/google'
 import './globals.css'
 
+const bodoniModa = Bodoni_Moda({
+  subsets: ['latin'],
+  display: 'swap',
+  style: ['normal', 'italic'],
+  variable: '--font-bodoni',
+})
+
 export const metadata: Metadata = {
-  title: 'THIMBLE - Fashion Creative Platform',
-  description: 'Where fashion designers, models, and creatives showcase their work and collaborate',
+  title: 'Thimble | The Fashion Creative Platform',
+  description: 'Where fashion meets its own world. Designers, Models, Manufacturers, Photographers and Fashion Brands — all in one trusted platform built to make collaboration easy.',
   generator: 'v0.app',
   icons: {
     icon: [
@@ -46,7 +54,7 @@ export default async function RootLayout({
   const isAdmin = host.startsWith('admin.')
 
   return (
-    <html lang="en" className="bg-background">
+    <html lang="en" className={`bg-background ${bodoniModa.variable}`}>
       <body className="antialiased">
         <ThemeProvider>
           {!isAdmin && <UserSync />}
