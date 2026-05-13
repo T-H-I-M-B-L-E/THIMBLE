@@ -257,20 +257,6 @@
 .t-shell.has-rail {
   grid-template-columns: var(--t-side-w) minmax(0, 1fr) var(--t-rail-w);
 }
-@media (max-width: 1180px) {
-  .t-shell.has-rail { grid-template-columns: var(--t-side-w) minmax(0, 1fr); }
-  .t-rail { display: none !important; }
-}
-@media (max-width: 880px) {
-  .t-shell, .t-shell.has-rail { grid-template-columns: minmax(0, 1fr); padding: 0 12px; }
-  .t-sidenav { display: none; }
-  .t-bottomnav { display: flex; }
-  /* Tighter top padding + reserve space for bottom nav */
-  .t-main { padding: 16px 0 calc(72px + max(8px, env(safe-area-inset-bottom))); }
-}
-@media (max-width: 480px) {
-  .t-shell, .t-shell.has-rail { padding: 0 8px; }
-}
 
 /* ---- Side nav ---- */
 .t-sidenav {
@@ -376,6 +362,21 @@
 }
 .t-bn-btn:hover, .t-bn-btn.active { color: var(--t-gold); }
 .t-bn-btn.active { background: var(--t-gold-soft); }
+
+/* ---- Responsive overrides (must come after all base rules above) ---- */
+@media (max-width: 1180px) {
+  .t-shell.has-rail { grid-template-columns: var(--t-side-w) minmax(0, 1fr); }
+  .t-rail { display: none !important; }
+}
+@media (max-width: 880px) {
+  .t-shell, .t-shell.has-rail { grid-template-columns: minmax(0, 1fr); padding: 0 12px; }
+  .t-sidenav { display: none; }
+  .t-bottomnav { display: flex; }
+  .t-main { padding: 16px 0 calc(72px + max(8px, env(safe-area-inset-bottom))); }
+}
+@media (max-width: 480px) {
+  .t-shell, .t-shell.has-rail { padding: 0 8px; }
+}
 
 /* ---- Feed ---- */
 .t-feed { display: flex; flex-direction: column; gap: 18px; }
