@@ -1715,7 +1715,14 @@ func main() {
 			return c.Status(500).JSON(fiber.Map{"error": "failed to create conversation"})
 		}
 
-		// Add creator + provided participants
+		// Add creator as participant
+		var creatorName, creatorAvatar string
+		dbPool.QueryRow(ctx, "SELECT full_name, COALESCE(avatar_url, '') FROM users WHERE id = $1", userId).Scan(&creatorName, &creatorAvatar)
+		dbPool.Exec(ctx,
+			"INSERT INTO conversation_participants (conversation_id, user_id, user_name, user_avatar) VALUES ($1, $2, $3, $4) ON CONFLICT DO NOTHING",
+			convId, userId, creatorName, creatorAvatar)
+
+		// Add provided participants
 		seen := map[string]bool{userId: true}
 		for _, p := range req.Participants {
 			if seen[p.UserID] {
