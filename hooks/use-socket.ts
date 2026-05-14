@@ -43,21 +43,27 @@ export function useSocket(
 
     let cancelled = false
     let socket: WebSocket | null = null
+    let retryTimeout: ReturnType<typeof setTimeout> | null = null
+    let attempt = 0
 
     const connect = async () => {
+      if (cancelled) return
       try {
-        // Fetch WS token via API (httpOnly cookie can't be read by JS)
-        const res = await fetch('/api/ws-token', { credentials: 'include' })
+        // Issue a short-lived one-time ticket — avoids exposing JWT in URL logs
+        const res = await fetch('/api/ws-ticket', { method: 'POST', credentials: 'include' })
         if (!res.ok || cancelled) return
-        const { token } = await res.json()
+        const { ticket } = await res.json()
         if (cancelled) return
 
-        const wsUrl = `${url}?conversationId=${conversationId}&token=${encodeURIComponent(token)}`
+        const wsUrl = `${url}?conversationId=${conversationId}&ticket=${encodeURIComponent(ticket)}`
         socket = new WebSocket(wsUrl)
         socketRef.current = socket
 
         socket.onopen = () => {
-          if (!cancelled) setIsConnected(true)
+          if (!cancelled) {
+            setIsConnected(true)
+            attempt = 0 // reset backoff on successful connection
+          }
         }
 
         socket.onmessage = (event) => {
@@ -78,17 +84,37 @@ export function useSocket(
           } catch { /* ignore parse errors */ }
         }
 
-        socket.onclose = () => { if (!cancelled) setIsConnected(false) }
-        socket.onerror = () => { if (!cancelled) setIsConnected(false) }
+        socket.onclose = () => {
+          if (!cancelled) {
+            setIsConnected(false)
+            scheduleReconnect()
+          }
+        }
+        socket.onerror = () => {
+          if (!cancelled) setIsConnected(false)
+          // onclose fires after onerror, so reconnect is handled there
+        }
       } catch {
-        if (!cancelled) setIsConnected(false)
+        if (!cancelled) {
+          setIsConnected(false)
+          scheduleReconnect()
+        }
       }
+    }
+
+    const scheduleReconnect = () => {
+      if (cancelled) return
+      // Exponential backoff: 1s, 2s, 4s, 8s, capped at 30s
+      const delay = Math.min(1000 * Math.pow(2, attempt), 30_000)
+      attempt++
+      retryTimeout = setTimeout(connect, delay)
     }
 
     connect()
 
     return () => {
       cancelled = true
+      if (retryTimeout) clearTimeout(retryTimeout)
       socket?.close()
       socketRef.current = null
     }
