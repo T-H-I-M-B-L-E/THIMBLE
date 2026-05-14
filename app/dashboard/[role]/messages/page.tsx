@@ -9,7 +9,6 @@ import { useConversations, useMessages } from "@/hooks/use-conversations"
 import { useFollowing } from "@/hooks/use-social"
 import { useStore } from "@/lib/store"
 import { cn } from "@/lib/utils"
-import { getWebSocketUrl } from "@/lib/platform"
 import Image from "next/image"
 
 function Avatar({ src, name, size = 40 }: { src?: string; name?: string; size?: number }) {
@@ -198,7 +197,8 @@ export default function MessagesPage() {
   const [showNewMsg, setShowNewMsg] = useState(false)
   const scrollRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
-  const websocketUrl = getWebSocketUrl() ? `${getWebSocketUrl()}/ws` : null
+  const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL || 'https://thimble-production.up.railway.app'
+  const websocketUrl = apiBase.replace(/^http/, 'ws') + '/ws'
 
   const isVerified = user?.verificationStatus === "verified"
 
