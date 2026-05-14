@@ -21,7 +21,7 @@ export function FeedView() {
   const visiblePosts = (() => {
     if (activeFilter === "Following") {
       const followingIds = new Set(following.map(f => f.userId))
-      return posts.filter(p => followingIds.has(p.userId) && p.userId !== user?.id)
+      return posts.filter(p => p.userId && followingIds.has(p.userId) && p.userId !== user?.id)
     }
     return posts
   })()
