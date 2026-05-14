@@ -12,23 +12,6 @@ const trendingTopics = [
   { tag: "#AvantGarde", posts: 5428 },
 ]
 
-const suggestedAccounts = [
-  {
-    name: "Harper & Stone Studio",
-    username: "@harperandstone",
-    avatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=48&h=48&fit=crop",
-  },
-  {
-    name: "Luna Designs Co",
-    username: "@lunadesigns",
-    avatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=48&h=48&fit=crop",
-  },
-  {
-    name: "Vibe Collective",
-    username: "@vibecollective",
-    avatar: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=48&h=48&fit=crop",
-  },
-]
 
 export function Sidebar() {
   const { theme, toggleTheme } = useTheme()
@@ -86,36 +69,6 @@ export function Sidebar() {
         </div>
       </div>
 
-      {/* Suggested Accounts */}
-      <div>
-        <h3 className="font-serif text-lg tracking-wide mb-6">Voices to Follow</h3>
-        <div className="space-y-6">
-          {suggestedAccounts.map((account) => (
-            <div
-              key={account.username}
-              className="flex items-center justify-between group"
-            >
-              <Link href="#" className="flex items-center gap-4 flex-1 min-w-0">
-                <div className="relative w-10 h-10 rounded-full overflow-hidden flex-shrink-0 border border-neutral-100 dark:border-neutral-900">
-                  <Image
-                    src={account.avatar}
-                    alt={account.name}
-                    fill
-                    className="object-cover transition-transform duration-700 group-hover:scale-110"
-                  />
-                </div>
-                <div className="min-w-0">
-                  <p className="font-medium text-sm truncate">{account.name}</p>
-                  <p className="text-[10px] text-neutral-400 uppercase tracking-widest truncate mt-0.5">{account.username}</p>
-                </div>
-              </Link>
-              <button className="ml-2 text-[10px] uppercase tracking-[0.2em] font-medium border-b border-transparent hover:border-black dark:hover:border-white pb-0.5 transition-colors">
-                Follow
-              </button>
-            </div>
-          ))}
-        </div>
-      </div>
 
       {/* Footer */}
       <div className="text-[10px] text-neutral-400 space-y-4 pt-8 border-t border-neutral-200 dark:border-neutral-800 uppercase tracking-widest mt-auto">
