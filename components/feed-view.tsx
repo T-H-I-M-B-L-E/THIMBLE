@@ -7,6 +7,7 @@ import { useState, useEffect } from "react"
 import { PostCard } from "@/components/post-card"
 import type { PostData } from "@/components/post-card"
 import { CreatePostModal } from "@/components/create-post-modal"
+import { useFollowing } from "@/hooks/use-social"
 
 export function FeedView() {
   const { user } = useAuth()
@@ -15,6 +16,15 @@ export function FeedView() {
   const [isLoading, setIsLoading] = useState(true)
   const [activeFilter, setActiveFilter] = useState("For you")
   const [createPostOpen, setCreatePostOpen] = useState(false)
+  const { following } = useFollowing(user?.id)
+
+  const visiblePosts = (() => {
+    if (activeFilter === "Following") {
+      const followingIds = new Set(following.map(f => f.userId))
+      return posts.filter(p => followingIds.has(p.userId) && p.userId !== user?.id)
+    }
+    return posts
+  })()
 
   useEffect(() => {
     fetchPosts()
@@ -111,17 +121,17 @@ export function FeedView() {
             style={{ width: 48, height: 48, border: "2px solid var(--t-line)", borderTopColor: "var(--t-gold)" }}
           />
         </div>
-      ) : posts.length === 0 ? (
+      ) : visiblePosts.length === 0 ? (
         <div className="t-empty-state">
           <div className="t-empty-state-icon">
             <ImageIcon size={24} />
           </div>
-          <h3>Nothing here yet</h3>
-          <p>Be the first to share your work — use the composer above to post a photo.</p>
+          <h3>{activeFilter === "Following" ? "Nothing from people you follow yet" : "Nothing here yet"}</h3>
+          <p>{activeFilter === "Following" ? "Follow people to see their posts here." : "Be the first to share your work — use the composer above to post a photo."}</p>
         </div>
       ) : (
         <div className="t-feed-stream">
-          {posts.map(post => (
+          {visiblePosts.map(post => (
             <PostCard
               key={post.id}
               post={post}
