@@ -39,16 +39,12 @@ export function useAuth(): AuthHook {
 
     fetchUser()
 
-    // Re-fetch when the tab regains focus — picks up admin changes instantly
+    // Re-fetch when the tab regains focus — picks up role/ban changes without polling
     const onFocus = () => fetchUser()
     window.addEventListener('focus', onFocus)
 
-    // Poll every 30s so changes reflect even if the tab stays open
-    const interval = setInterval(fetchUser, 30_000)
-
     return () => {
       window.removeEventListener('focus', onFocus)
-      clearInterval(interval)
     }
   }, [])
 

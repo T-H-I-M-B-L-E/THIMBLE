@@ -14,3 +14,23 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   })
   return NextResponse.json(await res.json(), { status: res.status })
 }
+
+export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const payload = await getUserFromToken()
+  if (!payload) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const { id } = await params
+  const body = await request.json()
+  const token = request.cookies.get('auth_token')?.value
+
+  if (!body.content?.trim()) {
+    return NextResponse.json({ error: 'Message cannot be empty' }, { status: 400 })
+  }
+
+  const res = await fetch(`${api()}/api/conversations/${id}/messages`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+  return NextResponse.json(await res.json(), { status: res.status })
+}

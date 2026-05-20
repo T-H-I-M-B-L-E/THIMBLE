@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Tag, Users, Search, ImageIcon, X } from "lucide-react"
+import { Users, ImageIcon, X } from "lucide-react"
 import Image from "next/image"
 import { uploadFile } from "@/lib/upload"
 
@@ -51,7 +51,7 @@ export function CreatePostModal({ isOpen, onClose, onSuccess, user }: CreatePost
       const payload = {
         userId: user?.id,
         authorName: user?.fullName || "User",
-        authorAvatar: (user?.unsafeMetadata?.avatarUrl as string) || user?.imageUrl || "",
+        authorAvatar: user?.avatar || "",
         imageUrl: imageUrl,
         description: caption,
         taggedUsers: taggedUsers
@@ -64,8 +64,8 @@ export function CreatePostModal({ isOpen, onClose, onSuccess, user }: CreatePost
       const res = await fetch("/api/posts", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
         credentials: "include",
+        body: JSON.stringify(payload),
       })
 
       if (!res.ok) {

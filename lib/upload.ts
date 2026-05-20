@@ -9,10 +9,10 @@ export const uploadFile = async (
   formData.append('file', file)
   formData.append('folder', folder)
 
-  const xhr = new XMLHttpRequest()
-
   return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest()
     xhr.open('POST', '/api/upload')
+    xhr.withCredentials = true
 
     xhr.upload.onprogress = (event) => {
       if (event.lengthComputable && onProgress) {
@@ -22,20 +22,26 @@ export const uploadFile = async (
     }
 
     xhr.onload = () => {
-      if (xhr.status === 200) {
+      if (xhr.status >= 200 && xhr.status < 300) {
         try {
           const response = JSON.parse(xhr.responseText)
-          resolve(response.url)
+          if (!response.url) {
+            reject(new Error('Upload response missing URL'))
+            return
+          }
+          resolve(response.url as string)
         } catch {
           reject(new Error('Failed to parse upload response'))
         }
       } else {
+        let message = 'Upload failed. Please try again.'
         try {
-          const response = JSON.parse(xhr.responseText)
-          reject(new Error(response.error || 'Upload failed. Please try again.'))
+          const errorBody = JSON.parse(xhr.responseText)
+          if (errorBody?.error) message = errorBody.error
         } catch {
-          reject(new Error('Upload failed. Please try again.'))
+          // keep default message
         }
+        reject(new Error(message))
       }
     }
 

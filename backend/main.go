@@ -2,28 +2,18 @@ package main
 
 import (
 	"context"
-	"crypto/hmac"
-	"crypto/rand"
-	"crypto/sha256"
-	"encoding/hex"
-	"encoding/json"
-	"fmt"
 	"log"
-	"math/big"
 	"os"
-	"strings"
-	"sync"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
+	"github.com/gofiber/fiber/v2/middleware/limiter"
 	"github.com/gofiber/websocket/v2"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/resend/resend-go/v2"
-	"golang.org/x/crypto/bcrypt"
 )
 
 // User represents an authenticated user
@@ -1293,18 +1283,7 @@ func main() {
 	}
 	defer dbPool.Close()
 
-	// Ensure pending_signups table exists
-	_, err = dbPool.Exec(context.Background(), `
-		CREATE TABLE IF NOT EXISTS pending_signups (
-			email        TEXT PRIMARY KEY,
-			password_hash TEXT NOT NULL,
-			full_name    TEXT NOT NULL,
-			created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
-		)
-	`)
-	if err != nil {
-		log.Fatal("Failed to create pending_signups table:", err)
-	}
+	runMigrations(context.Background())
 
 	// Add last_login_at and total_logins columns if they don't exist
 	dbPool.Exec(context.Background(), `ALTER TABLE users ADD COLUMN IF NOT EXISTS last_login_at TIMESTAMPTZ`)
@@ -1481,624 +1460,75 @@ func main() {
 		)
 	`)
 
+	go sweepExpiredTickets()
+
 	app := fiber.New()
 	app.Use(cors.New(cors.Config{
-		AllowOrigins: allowedOrigins,
-		AllowHeaders: "Origin, Content-Type, Accept, Authorization",
+		AllowOrigins:     allowedOrigins,
+		AllowHeaders:     "Origin, Content-Type, Accept, Authorization",
 		AllowCredentials: true,
 	}))
 
-	// Auth endpoints (public)
-	app.Post("/auth/signup", handleSignup)
-	app.Post("/auth/verify-email", handleVerifyEmail)
-	app.Post("/auth/login", handleLogin)
+	// Rate limiter: 10 req/min per IP on auth endpoints
+	authLimiter := limiter.New(limiter.Config{
+		Max:        10,
+		Expiration: 1 * time.Minute,
+		KeyGenerator: func(c *fiber.Ctx) string { return c.IP() },
+		LimitReached: func(c *fiber.Ctx) error {
+			return c.Status(fiber.StatusTooManyRequests).JSON(fiber.Map{"error": "too many requests, please try again later"})
+		},
+	})
+
+	// ── Auth (public) ─────────────────────────────────────────────────────────
+	app.Post("/auth/signup", authLimiter, handleSignup)
+	app.Post("/auth/verify-email", authLimiter, handleVerifyEmail)
+	app.Post("/auth/login", authLimiter, handleLogin)
 	app.Post("/auth/logout", handleLogout)
-	app.Post("/auth/forgot-password", handleForgotPassword)
-	app.Post("/auth/reset-password", handleResetPassword)
+	app.Post("/auth/forgot-password", authLimiter, handleForgotPassword)
+	app.Post("/auth/reset-password", authLimiter, handleResetPassword)
+	app.Post("/auth/make-admin", handleMakeAdmin)
+
+	// ── WebSocket ticket ──────────────────────────────────────────────────────
+	app.Post("/api/ws-ticket", jwtAuth, handleIssueWSTicket)
+
+	// ── Users ─────────────────────────────────────────────────────────────────
+	app.Patch("/users/:id", jwtAuth, handleUpdateUserProfile)
+	app.Get("/users/:id", jwtAuth, handleGetUserProfile)
+	app.Get("/api/users", jwtAuth, handleListAllUsers)
+
+	// ── WebSocket — conversation rooms ────────────────────────────────────────
+	app.Get("/ws", wsAuth, websocket.New(handleConversationWS))
+
+	// ── Conversations ─────────────────────────────────────────────────────────
+	app.Get("/api/conversations", jwtAuth, handleListConversations)
+	app.Post("/api/conversations", jwtAuth, handleCreateConversation)
+	app.Get("/api/conversations/:id/messages", jwtAuth, handleGetConversationMessages)
+
+	// ── Admin chat ────────────────────────────────────────────────────────────
+	app.Get("/admin/chat/history", jwtAuth, adminAuth, handleAdminChatHistory)
+	app.Get("/admin/ws", wsAdminAuth, websocket.New(handleAdminWS))
+
+	// ── Posts ─────────────────────────────────────────────────────────────────
+	app.Get("/api/posts", handleListPosts)
+	app.Post("/api/posts", jwtAuth, handleCreatePost)
+	app.Delete("/api/posts/:id", jwtAuth, handleDeletePost)
+	app.Get("/api/posts/:id/likes", jwtAuth, handleGetPostLikes)
+	app.Post("/api/posts/:id/likes", jwtAuth, handleLikePost)
+	app.Delete("/api/posts/:id/likes", jwtAuth, handleUnlikePost)
+	app.Get("/api/posts/:id/comments", jwtAuth, handleGetPostComments)
+	app.Post("/api/posts/:id/comments", jwtAuth, handleCreatePostComment)
+
+	// ── Follows ───────────────────────────────────────────────────────────────
+	app.Get("/api/follows", jwtAuth, handleGetFollows)
+	app.Post("/api/follows", jwtAuth, handleFollow)
+	app.Delete("/api/follows", jwtAuth, handleUnfollow)
+
+	// ── Gigs ──────────────────────────────────────────────────────────────────
+	app.Get("/api/gigs", handleListGigs)
 
-	// One-time bootstrap: make a user admin (secured by ADMIN_BOOTSTRAP_SECRET env var)
-	app.Post("/auth/make-admin", func(c *fiber.Ctx) error {
-		secret := os.Getenv("ADMIN_BOOTSTRAP_SECRET")
-		if secret == "" {
-			return c.Status(404).JSON(fiber.Map{"error": "not found"})
-		}
-		var req struct {
-			Email  string `json:"email"`
-			Secret string `json:"secret"`
-		}
-		if err := c.BodyParser(&req); err != nil || req.Secret != secret {
-			return c.Status(403).JSON(fiber.Map{"error": "forbidden"})
-		}
-		result, err := dbPool.Exec(context.Background(),
-			"UPDATE users SET is_admin = true WHERE email = $1", req.Email)
-		if err != nil || result.RowsAffected() == 0 {
-			return c.Status(404).JSON(fiber.Map{"error": "user not found"})
-		}
-		return c.JSON(fiber.Map{"success": true})
-	})
-
-	// Update user profile (used by onboarding and profile edit)
-	app.Patch("/users/:id", jwtAuth, func(c *fiber.Ctx) error {
-		id := c.Params("id")
-		callerID := c.Locals("userId").(string)
-		if callerID != id {
-			return c.Status(403).JSON(fiber.Map{"error": "forbidden"})
-		}
-		var body struct {
-			Role     *string `json:"role"`
-			Bio      *string `json:"bio"`
-			Avatar   *string `json:"avatar"`
-			Website  *string `json:"website"`
-			Location *string `json:"location"`
-		}
-		if err := c.BodyParser(&body); err != nil {
-			return c.Status(400).JSON(fiber.Map{"error": "invalid request body"})
-		}
-		_, err := dbPool.Exec(context.Background(),
-			`UPDATE users SET
-				role = COALESCE($1, role),
-				bio = COALESCE($2, bio),
-				avatar_url = COALESCE($3, avatar_url),
-				website = COALESCE($4, website),
-				location = COALESCE($5, location),
-				updated_at = CURRENT_TIMESTAMP
-			WHERE id = $6`,
-			body.Role, body.Bio, body.Avatar, body.Website, body.Location, id)
-		if err != nil {
-			log.Printf("Failed to update user %s: %v", id, err)
-			return c.Status(500).JSON(fiber.Map{"error": "failed to update profile"})
-		}
-		return c.JSON(fiber.Map{"success": true})
-	})
-
-	// Protected user profile endpoint used by /api/auth/me
-	app.Get("/users/:id", jwtAuth, func(c *fiber.Ctx) error {
-		id := c.Params("id")
-		var user User
-		var avatarUrl, bio, location, website, verificationStatus *string
-		var bannedUntil *time.Time
-		err := dbPool.QueryRow(context.Background(),
-			`SELECT id, email, full_name, role, avatar_url, bio, location, website, verification_status,
-			        followers, following, posts, is_banned, banned_until, ban_message
-			 FROM users WHERE id = $1`, id).
-			Scan(&user.ID, &user.Email, &user.FullName, &user.Role, &avatarUrl, &bio, &location, &website,
-				&verificationStatus, &user.Followers, &user.Following, &user.Posts,
-				&user.IsBanned, &bannedUntil, &user.BanMessage)
-		if err != nil {
-			return c.Status(404).JSON(fiber.Map{"error": "user not found"})
-		}
-		if avatarUrl != nil { user.AvatarUrl = *avatarUrl }
-		if bio != nil { user.Bio = *bio }
-		if location != nil { user.Location = *location }
-		if website != nil { user.Website = *website }
-		if verificationStatus != nil { user.VerificationStatus = *verificationStatus }
-		if bannedUntil != nil {
-			s := bannedUntil.UTC().Format(time.RFC3339)
-			user.BannedUntil = &s
-			// Auto-lift expired bans
-			if bannedUntil.Before(time.Now()) {
-				user.IsBanned = false
-				user.BannedUntil = nil
-				user.BanMessage = ""
-			}
-		}
-		return c.JSON(user)
-	})
-
-	// WebSocket — conversation-scoped rooms
-	app.Get("/ws", wsAuth, websocket.New(func(c *websocket.Conn) {
-		userId, _ := c.Locals("userId").(string)
-		convIdStr := c.Query("conversationId")
-		var convId int
-		fmt.Sscanf(convIdStr, "%d", &convId)
-
-		clientsMu.Lock()
-		if convId > 0 {
-			if rooms[convId] == nil {
-				rooms[convId] = make(map[*websocket.Conn]string)
-			}
-			rooms[convId][c] = userId
-		} else {
-			clients[c] = userId
-		}
-		clientsMu.Unlock()
-
-		defer func() {
-			clientsMu.Lock()
-			if convId > 0 {
-				delete(rooms[convId], c)
-			} else {
-				delete(clients, c)
-			}
-			clientsMu.Unlock()
-			c.Close()
-		}()
-
-		for {
-			mt, msgBytes, err := c.ReadMessage()
-			if err != nil {
-				break
-			}
-
-			var eventMap map[string]interface{}
-			if err := json.Unmarshal(msgBytes, &eventMap); err != nil {
-				continue
-			}
-
-			// Typing indicator — broadcast to room only
-			if eventType, ok := eventMap["type"].(string); ok && eventType == "typing" {
-				clientsMu.RLock()
-				for conn := range rooms[convId] {
-					if conn != c {
-						conn.WriteMessage(mt, msgBytes)
-					}
-				}
-				clientsMu.RUnlock()
-				continue
-			}
-
-			var msg ConvMessage
-			if err := json.Unmarshal(msgBytes, &msg); err != nil {
-				continue
-			}
-			msg.UserID = userId
-			if msg.ConversationID == 0 {
-				msg.ConversationID = convId
-			}
-			if msg.Timestamp == 0 {
-				msg.Timestamp = time.Now().UnixMilli()
-			}
-
-			// Persist to DB
-			var insertedID int
-			dbPool.QueryRow(context.Background(),
-				"INSERT INTO conversation_messages (conversation_id, user_id, name, content, timestamp) VALUES ($1, $2, $3, $4, $5) RETURNING id",
-				msg.ConversationID, msg.UserID, msg.Name, msg.Content, msg.Timestamp).Scan(&insertedID)
-			msg.ID = insertedID
-
-			// Update conversation updated_at
-			dbPool.Exec(context.Background(),
-				"UPDATE conversations SET updated_at = NOW() WHERE id = $1", msg.ConversationID)
-
-			out, _ := json.Marshal(msg)
-
-			// Broadcast to everyone in the room
-			clientsMu.RLock()
-			for conn := range rooms[convId] {
-				conn.WriteMessage(mt, out)
-			}
-			clientsMu.RUnlock()
-		}
-	}))
-
-	// Conversations API
-	app.Get("/api/conversations", jwtAuth, func(c *fiber.Ctx) error {
-		userId := c.Query("userId")
-		if userId == "" {
-			userId, _ = c.Locals("userId").(string)
-		}
-		ctx := context.Background()
-		rows, err := dbPool.Query(ctx, `
-			SELECT c.id, c.updated_at
-			FROM conversations c
-			JOIN conversation_participants cp ON cp.conversation_id = c.id
-			WHERE cp.user_id = $1
-			ORDER BY c.updated_at DESC`, userId)
-		if err != nil {
-			return c.JSON([]Conversation{})
-		}
-		defer rows.Close()
-
-		var convs []Conversation
-		for rows.Next() {
-			var conv Conversation
-			var updatedAt time.Time
-			rows.Scan(&conv.ID, &updatedAt)
-			conv.UpdatedAt = updatedAt.Format(time.RFC3339)
-
-			// Load participants
-			pRows, _ := dbPool.Query(ctx,
-				"SELECT id, conversation_id, user_id, user_name, user_avatar, joined_at FROM conversation_participants WHERE conversation_id = $1", conv.ID)
-			if pRows != nil {
-				for pRows.Next() {
-					var p ConversationParticipant
-					var joinedAt time.Time
-					pRows.Scan(&p.ID, &p.ConversationID, &p.UserID, &p.UserName, &p.UserAvatar, &joinedAt)
-					p.JoinedAt = joinedAt.Format(time.RFC3339)
-					conv.Participants = append(conv.Participants, p)
-				}
-				pRows.Close()
-			}
-			if conv.Participants == nil {
-				conv.Participants = []ConversationParticipant{}
-			}
-
-			// Load last message
-			var lm ConvMessage
-			err := dbPool.QueryRow(ctx,
-				"SELECT id, conversation_id, user_id, name, content, timestamp FROM conversation_messages WHERE conversation_id = $1 ORDER BY id DESC LIMIT 1", conv.ID).
-				Scan(&lm.ID, &lm.ConversationID, &lm.UserID, &lm.Name, &lm.Content, &lm.Timestamp)
-			if err == nil {
-				conv.LastMessage = &lm
-			}
-
-			convs = append(convs, conv)
-		}
-		if convs == nil {
-			convs = []Conversation{}
-		}
-		return c.JSON(convs)
-	})
-
-	app.Post("/api/conversations", jwtAuth, func(c *fiber.Ctx) error {
-		userId, _ := c.Locals("userId").(string)
-		ctx := context.Background()
-
-		var req struct {
-			Participants []ConversationParticipant `json:"participants"`
-		}
-		if err := c.BodyParser(&req); err != nil {
-			return c.Status(400).JSON(fiber.Map{"error": "invalid body"})
-		}
-
-		// Create conversation
-		var convId int
-		err := dbPool.QueryRow(ctx, "INSERT INTO conversations DEFAULT VALUES RETURNING id").Scan(&convId)
-		if err != nil {
-			return c.Status(500).JSON(fiber.Map{"error": "failed to create conversation"})
-		}
-
-		// Add creator + provided participants
-		seen := map[string]bool{userId: true}
-		for _, p := range req.Participants {
-			if seen[p.UserID] {
-				continue
-			}
-			seen[p.UserID] = true
-			dbPool.Exec(ctx,
-				"INSERT INTO conversation_participants (conversation_id, user_id, user_name, user_avatar) VALUES ($1, $2, $3, $4) ON CONFLICT DO NOTHING",
-				convId, p.UserID, p.UserName, p.UserAvatar)
-		}
-
-		return c.Status(201).JSON(fiber.Map{"id": convId})
-	})
-
-	app.Get("/api/conversations/:id/messages", jwtAuth, func(c *fiber.Ctx) error {
-		convId := c.Params("id")
-		ctx := context.Background()
-		rows, err := dbPool.Query(ctx,
-			"SELECT id, conversation_id, user_id, name, content, timestamp FROM conversation_messages WHERE conversation_id = $1 ORDER BY timestamp ASC LIMIT 100", convId)
-		if err != nil {
-			return c.JSON([]ConvMessage{})
-		}
-		defer rows.Close()
-		var msgs []ConvMessage
-		for rows.Next() {
-			var m ConvMessage
-			rows.Scan(&m.ID, &m.ConversationID, &m.UserID, &m.Name, &m.Content, &m.Timestamp)
-			msgs = append(msgs, m)
-		}
-		if msgs == nil {
-			msgs = []ConvMessage{}
-		}
-		return c.JSON(msgs)
-	})
-
-	// Admin chat — history
-	app.Get("/admin/chat/history", jwtAuth, adminAuth, func(c *fiber.Ctx) error {
-		rows, err := dbPool.Query(context.Background(),
-			"SELECT id, user_id, user_name, content, timestamp FROM admin_chat_messages ORDER BY timestamp ASC LIMIT 100")
-		if err != nil {
-			return c.JSON([]fiber.Map{})
-		}
-		defer rows.Close()
-		var msgs []fiber.Map
-		for rows.Next() {
-			var id int
-			var userId, userName, content string
-			var ts int64
-			if rows.Scan(&id, &userId, &userName, &content, &ts) == nil {
-				msgs = append(msgs, fiber.Map{"id": id, "userId": userId, "name": userName, "content": content, "timestamp": ts})
-			}
-		}
-		if msgs == nil {
-			msgs = []fiber.Map{}
-		}
-		return c.JSON(msgs)
-	})
-
-	// Admin WebSocket — private admin-only room
-	adminRoom := make(map[*websocket.Conn]string) // conn → userId
-	var adminRoomMu sync.RWMutex
-
-	app.Get("/admin/ws", wsAdminAuth, websocket.New(func(c *websocket.Conn) {
-		userId, _ := c.Locals("userId").(string)
-		var userName string
-		dbPool.QueryRow(context.Background(), "SELECT full_name FROM users WHERE id = $1", userId).Scan(&userName)
-
-		adminRoomMu.Lock()
-		adminRoom[c] = userId
-		adminRoomMu.Unlock()
-
-		defer func() {
-			adminRoomMu.Lock()
-			delete(adminRoom, c)
-			adminRoomMu.Unlock()
-			c.Close()
-		}()
-
-		for {
-			_, msgBytes, err := c.ReadMessage()
-			if err != nil {
-				break
-			}
-
-			var raw map[string]interface{}
-			if err := json.Unmarshal(msgBytes, &raw); err != nil {
-				continue
-			}
-
-			content, _ := raw["content"].(string)
-			if content == "" {
-				continue
-			}
-
-			ts := time.Now().UnixMilli()
-			var insertedID int
-			dbPool.QueryRow(context.Background(),
-				"INSERT INTO admin_chat_messages (user_id, user_name, content, timestamp) VALUES ($1, $2, $3, $4) RETURNING id",
-				userId, userName, content, ts).Scan(&insertedID)
-
-			out, _ := json.Marshal(fiber.Map{
-				"id": insertedID, "userId": userId, "name": userName, "content": content, "timestamp": ts,
-			})
-
-			adminRoomMu.RLock()
-			for conn := range adminRoom {
-				conn.WriteMessage(websocket.TextMessage, out)
-			}
-			adminRoomMu.RUnlock()
-		}
-	}))
-
-	// Posts API
-	app.Get("/api/posts", func(c *fiber.Ctx) error {
-		userID := optionalUserIDFromRequest(c)
-		var rows pgx.Rows
-		var err error
-
-		if userID != "" {
-			rows, err = dbPool.Query(context.Background(),
-				`SELECT p.id, p.user_id, p.author_name, p.author_avatar, p.image_url, p.description,
-				        p.likes, p.comments, p.tagged_users, p.created_at,
-				        EXISTS(SELECT 1 FROM post_likes pl WHERE pl.post_id = p.id AND pl.user_id = $1) AS liked_by_me
-				 FROM posts p
-				 ORDER BY p.created_at DESC
-				 LIMIT 20`, userID)
-		} else {
-			rows, err = dbPool.Query(context.Background(),
-				`SELECT id, user_id, author_name, author_avatar, image_url, description,
-				        likes, comments, tagged_users, created_at, false AS liked_by_me
-				 FROM posts
-				 ORDER BY created_at DESC
-				 LIMIT 20`)
-		}
-		if err != nil {
-			return c.Status(500).JSON(fiber.Map{"error": "failed to fetch posts"})
-		}
-		defer rows.Close()
-
-		var posts []Post
-		for rows.Next() {
-			var p Post
-			var taggedJSON []byte
-			if err := rows.Scan(&p.Id, &p.UserId, &p.AuthorName, &p.AuthorAvatar, &p.ImageUrl, &p.Description, &p.Likes, &p.Comments, &taggedJSON, &p.CreatedAt, &p.LikedByMe); err == nil {
-				json.Unmarshal(taggedJSON, &p.TaggedUsers)
-				posts = append(posts, p)
-			}
-		}
-		if posts == nil {
-			posts = []Post{}
-		}
-		return c.JSON(posts)
-	})
-
-	app.Post("/api/posts", jwtAuth, func(c *fiber.Ctx) error {
-		userId, _ := c.Locals("userId").(string)
-
-		var p Post
-		if err := c.BodyParser(&p); err != nil {
-			return c.Status(400).JSON(fiber.Map{"error": "invalid request body"})
-		}
-
-		if strings.TrimSpace(p.ImageUrl) == "" {
-			return c.Status(400).JSON(fiber.Map{"error": "imageUrl is required"})
-		}
-
-		p.UserId = userId
-		if p.TaggedUsers == nil {
-			p.TaggedUsers = []string{}
-		}
-
-		taggedJSON, _ := json.Marshal(p.TaggedUsers)
-
-		err := dbPool.QueryRow(context.Background(),
-			"INSERT INTO posts (user_id, author_name, author_avatar, image_url, description, tagged_users) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, created_at",
-			p.UserId, p.AuthorName, p.AuthorAvatar, p.ImageUrl, p.Description, taggedJSON).Scan(&p.Id, &p.CreatedAt)
-		if err != nil {
-			return c.Status(500).JSON(fiber.Map{"error": "failed to create post"})
-		}
-		p.Comments = 0
-		p.LikedByMe = false
-
-		return c.Status(201).JSON(p)
-	})
-
-	app.Post("/api/posts/:id/like", jwtAuth, func(c *fiber.Ctx) error {
-		postID := c.Params("id")
-		userID, _ := c.Locals("userId").(string)
-		ctx := context.Background()
-
-		var count int
-		err := dbPool.QueryRow(ctx,
-			"SELECT COUNT(*) FROM post_likes WHERE post_id = $1 AND user_id = $2",
-			postID, userID).Scan(&count)
-		if err != nil {
-			return c.Status(500).JSON(fiber.Map{"error": "failed to check like state"})
-		}
-
-		if count > 0 {
-			if _, err := dbPool.Exec(ctx, "DELETE FROM post_likes WHERE post_id = $1 AND user_id = $2", postID, userID); err != nil {
-				return c.Status(500).JSON(fiber.Map{"error": "failed to remove like"})
-			}
-			if _, err := dbPool.Exec(ctx, "UPDATE posts SET likes = GREATEST(likes - 1, 0) WHERE id = $1", postID); err != nil {
-				return c.Status(500).JSON(fiber.Map{"error": "failed to update like count"})
-			}
-
-			var likes int
-			dbPool.QueryRow(ctx, "SELECT likes FROM posts WHERE id = $1", postID).Scan(&likes)
-			return c.JSON(fiber.Map{"liked": false, "likes": likes})
-		}
-
-		if _, err := dbPool.Exec(ctx, "INSERT INTO post_likes (post_id, user_id) VALUES ($1, $2)", postID, userID); err != nil {
-			return c.Status(500).JSON(fiber.Map{"error": "failed to add like"})
-		}
-		if _, err := dbPool.Exec(ctx, "UPDATE posts SET likes = likes + 1 WHERE id = $1", postID); err != nil {
-			return c.Status(500).JSON(fiber.Map{"error": "failed to update like count"})
-		}
-
-		var likes int
-		dbPool.QueryRow(ctx, "SELECT likes FROM posts WHERE id = $1", postID).Scan(&likes)
-		return c.JSON(fiber.Map{"liked": true, "likes": likes})
-	})
-
-	app.Get("/api/posts/:id/comments", func(c *fiber.Ctx) error {
-		postID := c.Params("id")
-		rows, err := dbPool.Query(context.Background(),
-			`SELECT id, post_id, user_id, user_name, user_avatar, content, created_at
-			 FROM post_comments
-			 WHERE post_id = $1
-			 ORDER BY created_at ASC
-			 LIMIT 100`, postID)
-		if err != nil {
-			return c.JSON([]PostComment{})
-		}
-		defer rows.Close()
-
-		var comments []PostComment
-		for rows.Next() {
-			var comment PostComment
-			if err := rows.Scan(
-				&comment.Id,
-				&comment.PostId,
-				&comment.UserId,
-				&comment.UserName,
-				&comment.UserAvatar,
-				&comment.Content,
-				&comment.CreatedAt,
-			); err == nil {
-				comments = append(comments, comment)
-			}
-		}
-
-		if comments == nil {
-			comments = []PostComment{}
-		}
-
-		return c.JSON(comments)
-	})
-
-	app.Post("/api/posts/:id/comments", jwtAuth, func(c *fiber.Ctx) error {
-		postID := c.Params("id")
-		userID, _ := c.Locals("userId").(string)
-		ctx := context.Background()
-
-		var body struct {
-			Content string `json:"content"`
-		}
-		if err := c.BodyParser(&body); err != nil {
-			return c.Status(400).JSON(fiber.Map{"error": "invalid request body"})
-		}
-		if strings.TrimSpace(body.Content) == "" {
-			return c.Status(400).JSON(fiber.Map{"error": "content required"})
-		}
-
-		var userName, userAvatar string
-		if err := dbPool.QueryRow(ctx,
-			"SELECT full_name, COALESCE(avatar_url, '') FROM users WHERE id = $1",
-			userID,
-		).Scan(&userName, &userAvatar); err != nil {
-			return c.Status(500).JSON(fiber.Map{"error": "failed to load user"})
-		}
-
-		var comment PostComment
-		err := dbPool.QueryRow(ctx,
-			`INSERT INTO post_comments (post_id, user_id, user_name, user_avatar, content)
-			 VALUES ($1, $2, $3, $4, $5)
-			 RETURNING id, post_id, user_id, user_name, user_avatar, content, created_at`,
-			postID, userID, userName, userAvatar, strings.TrimSpace(body.Content),
-		).Scan(
-			&comment.Id,
-			&comment.PostId,
-			&comment.UserId,
-			&comment.UserName,
-			&comment.UserAvatar,
-			&comment.Content,
-			&comment.CreatedAt,
-		)
-		if err != nil {
-			return c.Status(500).JSON(fiber.Map{"error": "failed to add comment"})
-		}
-
-		if _, err := dbPool.Exec(ctx, "UPDATE posts SET comments = comments + 1 WHERE id = $1", postID); err != nil {
-			return c.Status(500).JSON(fiber.Map{"error": "failed to update comment count"})
-		}
-
-		return c.Status(201).JSON(comment)
-	})
-
-	app.Delete("/api/posts/:id", jwtAuth, func(c *fiber.Ctx) error {
-		userId, _ := c.Locals("userId").(string)
-		postId := c.Params("id")
-
-		result, err := dbPool.Exec(context.Background(),
-			"DELETE FROM posts WHERE id = $1 AND user_id = $2", postId, userId)
-		if err != nil {
-			return c.Status(500).JSON(fiber.Map{"error": "failed to delete post"})
-		}
-		if result.RowsAffected() == 0 {
-			return c.Status(404).JSON(fiber.Map{"error": "post not found"})
-		}
-
-		return c.SendStatus(204)
-	})
-
-	// Gigs API
-	app.Get("/api/gigs", func(c *fiber.Ctx) error {
-		rows, err := dbPool.Query(context.Background(),
-			"SELECT id, title, description, location, payment, posted_by, posted_by_role, posted_by_avatar, applications, created_at FROM gigs ORDER BY created_at DESC")
-		if err != nil {
-			return c.Status(500).JSON(fiber.Map{"error": "failed to fetch gigs"})
-		}
-		defer rows.Close()
-
-		var gigs []Gig
-		for rows.Next() {
-			var g Gig
-			if err := rows.Scan(&g.Id, &g.Title, &g.Description, &g.Location, &g.Payment, &g.PostedBy, &g.PostedByRole, &g.PostedByAvatar, &g.Applications, &g.CreatedAt); err == nil {
-				gigs = append(gigs, g)
-			}
-		}
-		if gigs == nil {
-			gigs = []Gig{}
-		}
-		return c.JSON(gigs)
-	})
-
-	// GitHub webhook — receives push events and emails all admins
 	app.Post("/webhooks/github", handleGithubWebhook)
 
-	// Admin routes (JWT + is_admin required)
+	// ── Admin (JWT + is_admin required) ──────────────────────────────────────
 	adminGroup := app.Group("/admin", jwtAuth, adminAuth)
 	adminGroup.Get("/stats", handleAdminStats)
 	adminGroup.Get("/users", handleAdminListUsers)

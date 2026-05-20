@@ -24,7 +24,7 @@ export const getWebSocketUrl = () => {
   const explicitUrl = process.env.NEXT_PUBLIC_WS_URL?.trim()
   if (explicitUrl) return trimTrailingSlash(explicitUrl)
 
-  const apiBaseUrl = getApiBaseUrl()
+  const apiBaseUrl = getApiBaseUrl() || 'https://thimble-production.up.railway.app'
   if (!apiBaseUrl) return null
 
   return apiBaseUrl.replace(/^http/, "ws")
