@@ -8,11 +8,11 @@ import { useStore } from "@/lib/store"
 import { VerificationModal } from "./verification-modal"
 import { VerificationBanner } from "./verification-banner"
 import { BanWall } from "./ban-wall"
+import { CreatePostModal } from "./create-post-modal"
 import { useState } from "react"
 import { Home, Grid3X3, Briefcase, MessageSquare, User, Bell, Plus, Search, LogOut, Shield } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { RightRail } from "./right-rail"
-import { CreatePostModal } from "./create-post-modal"
 
 interface DashboardLayoutProps {
   children: React.ReactNode
@@ -53,6 +53,7 @@ export function DashboardLayout({ children, role, showRail = false }: DashboardL
 
   return (
     <div className="flex flex-col min-h-screen" style={{ background: "var(--t-bg)" }}>
+
       {/* Top bar */}
       <header className="t-topbar">
         <div className="t-topbar-inner">

@@ -46,8 +46,8 @@ export default async function RootLayout({
   const isAdmin = host.startsWith('admin.')
 
   return (
-    <html lang="en" className="bg-background">
-      <body className="antialiased">
+    <html lang="en" className="bg-background" suppressHydrationWarning>
+      <body className="antialiased" suppressHydrationWarning>
         <ThemeProvider>
           {!isAdmin && <UserSync />}
           {!isAdmin && <WelcomeOverlay />}

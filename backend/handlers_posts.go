@@ -80,8 +80,11 @@ func handleCreatePost(c *fiber.Ctx) error {
 	if err := c.BodyParser(&p); err != nil {
 		return c.Status(400).JSON(fiber.Map{"error": "invalid request body"})
 	}
-	if strings.TrimSpace(p.ImageUrl) == "" {
-		return c.Status(400).JSON(fiber.Map{"error": "imageUrl is required"})
+	// A post must carry *something* — either an image or a caption.
+	hasImage := strings.TrimSpace(p.ImageUrl) != ""
+	hasText := strings.TrimSpace(p.Description) != ""
+	if !hasImage && !hasText {
+		return c.Status(400).JSON(fiber.Map{"error": "post must include an image or a caption"})
 	}
 
 	p.UserId = userId

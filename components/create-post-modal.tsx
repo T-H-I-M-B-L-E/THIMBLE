@@ -33,7 +33,7 @@ export function CreatePostModal({ isOpen, onClose, onSuccess, user }: CreatePost
       try {
         const url = await uploadFile(file, (progress) => {
           setUploadProgress(progress)
-        })
+        }, "posts")
         setImageUrl(url)
       } catch (err) {
         console.error("Upload failed:", err)
@@ -57,6 +57,10 @@ export function CreatePostModal({ isOpen, onClose, onSuccess, user }: CreatePost
         taggedUsers: taggedUsers
       }
 
+      if (!user?.id) {
+        throw new Error("You must be signed in to publish a post.")
+      }
+
       const res = await fetch("/api/posts", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -67,6 +71,8 @@ export function CreatePostModal({ isOpen, onClose, onSuccess, user }: CreatePost
       if (!res.ok) {
         throw new Error("Failed to publish post.")
       }
+
+      window.dispatchEvent(new Event("thimble:post-created"))
 
         onSuccess()
         onClose()

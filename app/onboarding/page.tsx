@@ -251,7 +251,7 @@ export default function OnboardingPage() {
                       const file = e.target.files?.[0]
                       if (file) {
                         try {
-                          const url = await uploadFile(file, (p) => setUploadProgress(p))
+                          const url = await uploadFile(file, (p) => setUploadProgress(p), "avatars")
                           setProfilePreview(url)
                         } catch (err) {
                           console.error(err)

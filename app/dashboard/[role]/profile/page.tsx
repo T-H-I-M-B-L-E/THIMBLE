@@ -17,7 +17,6 @@ export default function ProfilePage() {
   const params = useParams()
   const role = params.role as string
   const { user, isLoading } = useAuth()
-  const { designPosts } = useStore()
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
   const [userPosts, setUserPosts] = useState<any[]>([])
   const [isLoadingPosts, setIsLoadingPosts] = useState(true)
@@ -31,36 +30,22 @@ export default function ProfilePage() {
   }, [isLoading, user])
 
   const fetchUserPosts = async () => {
-    const postsUrl = getApiUrl("/api/posts")
-
-    if (!postsUrl) {
-      const fallbackPosts = designPosts.filter((post) => post.userId === user?.id)
-      setUserPosts(
-        fallbackPosts.map((post) => ({
-          id: post.id,
-          imageUrl: post.image,
-          description: post.description,
-        }))
-      )
-      setIsLoadingPosts(false)
-      return
-    }
-
     try {
-      const res = await fetch(postsUrl)
+      const res = await fetch("/api/posts", {
+        cache: "no-store",
+        credentials: "include",
+      })
+
+      if (!res.ok) {
+        throw new Error(`Failed to fetch posts: ${res.status}`)
+      }
+
       const allPosts = await res.json()
       const filtered = allPosts.filter((p: any) => p.userId === user?.id)
       setUserPosts(filtered)
     } catch (err) {
       console.error("Failed to fetch user posts:", err)
-      const fallbackPosts = designPosts.filter((post) => post.userId === user?.id)
-      setUserPosts(
-        fallbackPosts.map((post) => ({
-          id: post.id,
-          imageUrl: post.image,
-          description: post.description,
-        }))
-      )
+      setUserPosts([])
     } finally {
       setIsLoadingPosts(false)
     }
@@ -69,16 +54,10 @@ export default function ProfilePage() {
   const handleDeletePost = async (postId: number | string) => {
     if (!confirm("Remove this piece from your portfolio?")) return
 
-    const deleteUrl = getApiUrl(`/api/posts/${postId}`)
-
-    if (!deleteUrl) {
-      setUserPosts(userPosts.filter(p => String(p.id) !== String(postId)))
-      return
-    }
-
     try {
-      const res = await fetch(deleteUrl, {
-        method: "DELETE"
+      const res = await fetch(`/api/posts/${postId}`, {
+        method: "DELETE",
+        credentials: "include",
       })
       if (res.ok) {
         setUserPosts(userPosts.filter(p => String(p.id) !== String(postId)))

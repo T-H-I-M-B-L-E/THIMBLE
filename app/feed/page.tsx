@@ -40,7 +40,7 @@ export default function FeedPage() {
       </header>
 
       {/* Feed */}
-      <main className="max-w-2xl mx-auto py-8">
+      <main className="max-w-2xl mx-auto py-8 px-3 sm:px-4 pb-24 lg:pb-8">
         <FeedView />
       </main>
 

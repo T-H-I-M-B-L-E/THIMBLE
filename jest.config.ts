@@ -5,6 +5,9 @@ const createJestConfig = nextJest({ dir: './' })
 
 const config: Config = {
   coverageProvider: 'v8',
+  modulePathIgnorePatterns: [
+    '<rootDir>/.claude/worktrees/',
+  ],
   projects: [
     // Server-side: API routes, lib utilities, middleware
     {

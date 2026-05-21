@@ -1,13 +1,17 @@
+export type UploadFolder = 'avatars' | 'posts' | 'verification'
+
 export const uploadFile = async (
   file: File,
-  onProgress?: (progress: number) => void
+  onProgress?: (progress: number) => void,
+  folder: UploadFolder = 'posts'
 ): Promise<string> => {
   const formData = new FormData()
-  formData.append("file", file)
+  formData.append('file', file)
+  formData.append('folder', folder)
 
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest()
-    xhr.open("POST", "/api/upload")
+    xhr.open('POST', '/api/upload')
     xhr.withCredentials = true
 
     xhr.upload.onprogress = (event) => {
@@ -22,15 +26,15 @@ export const uploadFile = async (
         try {
           const response = JSON.parse(xhr.responseText)
           if (!response.url) {
-            reject(new Error("Upload response missing URL"))
+            reject(new Error('Upload response missing URL'))
             return
           }
           resolve(response.url as string)
         } catch {
-          reject(new Error("Failed to parse upload response"))
+          reject(new Error('Failed to parse upload response'))
         }
       } else {
-        let message = "Upload failed. Please try again."
+        let message = 'Upload failed. Please try again.'
         try {
           const errorBody = JSON.parse(xhr.responseText)
           if (errorBody?.error) message = errorBody.error
@@ -41,7 +45,7 @@ export const uploadFile = async (
       }
     }
 
-    xhr.onerror = () => reject(new Error("Network error during upload"))
+    xhr.onerror = () => reject(new Error('Network error during upload'))
     xhr.send(formData)
   })
 }
