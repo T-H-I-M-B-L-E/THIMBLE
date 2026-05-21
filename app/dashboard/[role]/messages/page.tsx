@@ -442,7 +442,7 @@ export default function MessagesPage() {
                               padding: "9px 13px",
                               borderRadius: isMe ? "16px 16px 4px 16px" : "16px 16px 16px 4px",
                               background: isMe ? "var(--t-ink)" : "var(--t-surface)",
-                              color: isMe ? "var(--t-bg)" : "var(--t-ink)",
+                              color: isMe ? "#ffffff" : "var(--t-ink)",
                               border: isMe ? "none" : "1px solid var(--t-line)",
                               fontSize: 14, lineHeight: 1.45, wordBreak: "break-word",
                             }}
@@ -500,7 +500,7 @@ export default function MessagesPage() {
                         style={{
                           width: 40, height: 40, borderRadius: "50%", flexShrink: 0,
                           background: input.trim() && isConnected ? "var(--t-ink)" : "var(--t-surface-2)",
-                          color: input.trim() && isConnected ? "var(--t-bg)" : "var(--t-ink-3)",
+                          color: input.trim() && isConnected ? "#ffffff" : "var(--t-ink-3)",
                           border: "none", cursor: input.trim() && isConnected ? "pointer" : "default",
                           display: "flex", alignItems: "center", justifyContent: "center",
                           transition: "background .15s, color .15s",
@@ -532,7 +532,7 @@ export default function MessagesPage() {
                   style={{
                     display: "inline-flex", alignItems: "center", gap: 7,
                     height: 36, padding: "0 14px", borderRadius: 9,
-                    background: "var(--t-ink)", color: "var(--t-bg)",
+                    background: "var(--t-ink)", color: "#ffffff",
                     border: "none", cursor: "pointer", fontFamily: "inherit", fontSize: 13, fontWeight: 500,
                   }}
                 >

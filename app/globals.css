@@ -139,37 +139,57 @@
    THIMBLE DESIGN SYSTEM  (t- prefix)
    ===================================================== */
 
+/* ============================================================
+   APPLE-INSPIRED GLASS DESIGN TOKENS
+   Light-only. Surfaces are translucent so the Grainient
+   background shows softly through. "Gold" tokens are repurposed
+   as the accent (purple) for backwards compatibility with the
+   existing t- class system.
+   ============================================================ */
 :root {
-  --t-bg:       oklch(0.985 0.003 80);
-  --t-surface:  #ffffff;
-  --t-surface-2:oklch(0.97 0.004 80);
-  --t-ink:      oklch(0.18 0.01 60);
-  --t-ink-2:    oklch(0.42 0.008 60);
-  --t-ink-3:    oklch(0.62 0.006 60);
-  --t-line:     oklch(0.92 0.005 60);
-  --t-line-2:   oklch(0.88 0.006 60);
-  --t-gold:     #a98a3e;
-  --t-gold-soft:color-mix(in oklab, var(--t-gold) 12%, transparent);
-  --t-gold-ink: color-mix(in oklab, var(--t-gold) 70%, black);
-  --t-shadow-sm:0 1px 0 rgba(20,16,8,.04), 0 1px 2px rgba(20,16,8,.04);
-  --t-shadow:   0 1px 0 rgba(20,16,8,.04), 0 8px 24px -12px rgba(20,16,8,.10);
-  --t-side-w:   260px;
+  --t-bg:       transparent;                       /* Grainient shows through */
+  --t-surface:  rgba(255, 255, 255, 0.62);         /* primary glass */
+  --t-surface-2:rgba(255, 255, 255, 0.42);         /* secondary glass */
+  --t-ink:      #1d1d1f;                            /* Apple-style text */
+  --t-ink-2:    #424248;
+  --t-ink-3:    #86868b;
+  --t-line:     rgba(255, 255, 255, 0.55);
+  --t-line-2:   rgba(255, 255, 255, 0.75);
+  /* Accent palette — pure monochrome (THIMBLE is black & white) */
+  --t-gold:     #1d1d1f;
+  --t-gold-soft:rgba(29, 29, 31, 0.08);
+  --t-gold-ink: #1d1d1f;
+  --t-shadow-sm:0 1px 0 rgba(255,255,255,.5) inset, 0 2px 8px rgba(20,16,40,.04);
+  --t-shadow:   0 1px 0 rgba(255,255,255,.55) inset, 0 8px 32px rgba(20,16,40,.08);
+  --t-side-w:   0px;       /* sidebar removed */
   --t-rail-w:   320px;
-  --t-row-gap:  56px;
+  --t-row-gap:  40px;
+  /* Glass system */
+  --glass-bg:       rgba(255, 255, 255, 0.60);
+  --glass-bg-strong:rgba(255, 255, 255, 0.78);
+  --glass-bg-soft:  rgba(255, 255, 255, 0.40);
+  --glass-border:   rgba(255, 255, 255, 0.45);
+  --glass-blur:     saturate(180%) blur(20px);
+  --glass-shadow:   0 8px 32px rgba(20,16,40,.08), inset 0 1px rgba(255,255,255,.5);
+  --radius-glass:   20px;
+  --motion-spring:  cubic-bezier(0.32, 0.72, 0, 1);
+  --motion-soft:    cubic-bezier(0.4, 0, 0.2, 1);
 }
+/* Light-only aesthetic — dark mode is intentionally disabled.
+   .dark inherits the same tokens so nothing breaks if class is set. */
 .dark {
-  --t-bg:       oklch(0.13 0.005 60);
-  --t-surface:  oklch(0.16 0.006 60);
-  --t-surface-2:oklch(0.19 0.006 60);
-  --t-ink:      oklch(0.96 0.003 80);
-  --t-ink-2:    oklch(0.78 0.005 60);
-  --t-ink-3:    oklch(0.58 0.006 60);
-  --t-line:     oklch(0.24 0.006 60);
-  --t-line-2:   oklch(0.30 0.006 60);
-  --t-gold:     #c8a558;
-  --t-gold-soft:color-mix(in oklab, var(--t-gold) 16%, transparent);
-  --t-gold-ink: color-mix(in oklab, var(--t-gold) 85%, white);
-  --t-shadow:   0 1px 0 rgba(0,0,0,.4), 0 12px 30px -16px rgba(0,0,0,.6);
+  --t-bg:       transparent;
+  --t-surface:  rgba(255, 255, 255, 0.62);
+  --t-surface-2:rgba(255, 255, 255, 0.42);
+  --t-ink:      #1d1d1f;
+  --t-ink-2:    #424248;
+  --t-ink-3:    #86868b;
+  --t-line:     rgba(255, 255, 255, 0.55);
+  --t-line-2:   rgba(255, 255, 255, 0.75);
+  --t-gold:     #1d1d1f;
+  --t-gold-soft:rgba(29, 29, 31, 0.08);
+  --t-gold-ink: #1d1d1f;
+  --t-shadow:   0 1px 0 rgba(255,255,255,.55) inset, 0 8px 32px rgba(20,16,40,.08);
 }
 
 /* ---- Shell / layout ---- */
@@ -357,29 +377,8 @@
 .t-trending li:hover { color: var(--t-gold); }
 .t-rail-foot { display: flex; gap: 6px; flex-wrap: wrap; font-size: 11px; color: var(--t-ink-3); padding: 0 2px; }
 
-/* ---- Bottom nav (mobile) ---- */
-.t-bottomnav {
-  display: none; position: fixed; bottom: 0; left: 0; right: 0; z-index: 40;
-  background: color-mix(in oklab, var(--t-bg) 92%, transparent);
-  backdrop-filter: blur(12px) saturate(140%);
-  border-top: 1px solid var(--t-line);
-  padding: 8px 0 max(8px, env(safe-area-inset-bottom));
-  justify-content: space-around; align-items: center;
-}
-.t-bn-btn {
-  display: flex; align-items: center; justify-content: center;
-  width: 48px; height: 40px; border-radius: 10px;
-  color: var(--t-ink-3); text-decoration: none; transition: color .15s, background .15s;
-}
-.t-bn-btn:hover, .t-bn-btn.active { color: var(--t-gold); }
-.t-bn-btn.active { background: var(--t-gold-soft); }
-.t-bn-post {
-  display: flex; align-items: center; justify-content: center;
-  width: 44px; height: 44px; border-radius: 12px;
-  background: var(--t-ink); color: var(--t-bg); border: 0; cursor: pointer;
-  transition: background .15s; flex-shrink: 0;
-}
-.t-bn-post:hover { background: color-mix(in oklab, var(--t-ink) 88%, var(--t-gold)); }
+/* ---- Bottom nav: legacy rules removed; see the
+   "PREMIUM BOTTOM PILL NAV" section near the end of this file. ---- */
 
 /* ---- Responsive overrides (must come after all base rules above) ---- */
 @media (max-width: 1180px) {
@@ -389,7 +388,6 @@
 @media (max-width: 880px) {
   .t-shell, .t-shell.has-rail { grid-template-columns: minmax(0, 1fr); padding: 0 12px; }
   .t-sidenav { display: none; }
-  .t-bottomnav { display: flex; }
   .t-main { padding: 16px 0 calc(72px + max(8px, env(safe-area-inset-bottom))); }
 }
 @media (max-width: 480px) {
@@ -892,12 +890,12 @@
   align-self: flex-start; border-bottom-left-radius: 3px;
 }
 .t-bubble.me {
-  background: var(--t-ink); color: var(--t-bg);
+  background: var(--t-ink); color: #ffffff;
   align-self: flex-end; border-bottom-right-radius: 3px;
 }
 .t-bubble p { margin: 0; }
 .t-bubble-time { font-size: 11px; color: var(--t-ink-3); display: block; margin-top: 3px; }
-.t-bubble.me .t-bubble-time { color: color-mix(in oklab, var(--t-bg) 60%, transparent); }
+.t-bubble.me .t-bubble-time { color: rgba(255, 255, 255, 0.65); }
 .t-msg-input {
   display: flex; gap: 7px; align-items: center;
   padding: 11px 13px; border-top: 1px solid var(--t-line); background: var(--t-surface);
@@ -991,3 +989,515 @@
 .t-onb-role.selected { border-color: var(--t-gold); background: var(--t-gold-soft); }
 .t-onb-role-name { font-weight: 600; font-size: 15px; display: block; margin-bottom: 3px; }
 .t-onb-role-desc { font-size: 12px; color: var(--t-ink-3); display: block; }
+
+/* ============================================================
+   GLASS / APPLE OVERRIDES — applied on top of the t- system.
+   Order matters: keep these at the END of the file so they win
+   the cascade against earlier solid-surface rules.
+   ============================================================ */
+
+/* Base: typography, body, scrollbars */
+html {
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text',
+               system-ui, 'Inter', 'Segoe UI', sans-serif;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+body {
+  color: var(--t-ink);
+  background: transparent !important;
+  font-feature-settings: 'cv11', 'ss01';
+  letter-spacing: -0.01em;
+}
+
+/* Grainient layer host */
+.grainient-bg {
+  position: fixed;
+  inset: 0;
+  z-index: -10;
+  pointer-events: none;
+  opacity: 0.85;
+  /* Static monochrome fallback — visible if WebGL is unavailable
+     or while the canvas is initializing. */
+  background:
+    radial-gradient(60% 80% at 18% 28%, rgba(229,229,234,0.85), transparent 65%),
+    radial-gradient(55% 75% at 82% 72%, rgba(180,180,185,0.55), transparent 60%),
+    linear-gradient(180deg, #FFFFFF 0%, #F5F5F7 100%);
+}
+.grainient-bg::after {
+  /* soft white veil — keeps surfaces readable on top of the canvas */
+  content: '';
+  position: absolute; inset: 0;
+  background: linear-gradient(180deg,
+    rgba(255,255,255,.30) 0%,
+    rgba(245,245,247,.40) 50%,
+    rgba(255,255,255,.30) 100%);
+  pointer-events: none;
+}
+
+/* ---------- Glass utility classes ---------- */
+.glass {
+  background: var(--glass-bg);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-glass);
+  box-shadow: var(--glass-shadow);
+}
+.glass-soft {
+  background: var(--glass-bg-soft);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-glass);
+}
+.glass-strong {
+  background: var(--glass-bg-strong);
+  -webkit-backdrop-filter: saturate(200%) blur(28px);
+  backdrop-filter: saturate(200%) blur(28px);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-glass);
+  box-shadow: var(--glass-shadow);
+}
+
+/* ---------- Top bar: floating glass island ---------- */
+.t-topbar {
+  position: sticky; top: 12px; z-index: 40;
+  background: transparent;
+  border: 0;
+  backdrop-filter: none;
+  margin: 12px 16px 0;
+}
+.t-topbar-inner {
+  background: var(--glass-bg);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-border);
+  border-radius: 999px;
+  padding: 8px 14px;
+  box-shadow: var(--glass-shadow);
+  max-width: 1280px;
+}
+@media (min-width: 640px) {
+  .t-topbar-inner { padding: 10px 18px; gap: 16px; }
+}
+@media (max-width: 639px) {
+  .t-topbar { margin: 8px 10px 0; }
+  .t-topbar-inner { padding: 7px 12px; border-radius: 24px; }
+}
+.t-brand { min-width: auto !important; }
+.t-brand-mark {
+  background: linear-gradient(135deg, #1d1d1f 0%, #424248 100%);
+}
+.t-brand-name { font-weight: 600; letter-spacing: -0.02em; }
+
+.t-search {
+  background: rgba(255,255,255,0.5);
+  border: 1px solid rgba(255,255,255,0.5);
+  border-radius: 999px;
+}
+.t-search:focus-within {
+  border-color: var(--t-gold);
+  box-shadow: 0 0 0 4px var(--t-gold-soft);
+}
+
+.t-icon-btn { border-radius: 999px; transition: background .2s var(--motion-soft), transform .15s var(--motion-spring); }
+.t-icon-btn:hover { background: rgba(255,255,255,.5); }
+.t-icon-btn:active { transform: scale(0.94); }
+
+.t-btn-post {
+  background: #1d1d1f;
+  color: #fff;
+  border-radius: 999px;
+  height: 36px;
+  box-shadow: 0 4px 14px rgba(0,0,0,.18);
+  transition: transform .15s var(--motion-spring), box-shadow .2s var(--motion-soft), background .2s;
+}
+.t-btn-post:hover { background: #000; box-shadow: 0 6px 18px rgba(0,0,0,.25); }
+.t-btn-post:active { transform: scale(0.97); }
+
+.t-topbar-avatar, .t-topbar-right .t-avatar-ph {
+  border: 2px solid rgba(255,255,255,.6);
+  box-shadow: 0 2px 8px rgba(20,16,40,.08);
+}
+
+/* ---------- Shell: single column, no sidebar ---------- */
+.t-shell, .t-shell.has-rail {
+  grid-template-columns: minmax(0, 1fr) !important;
+  padding: 0 16px !important;
+  gap: 0 !important;
+}
+@media (min-width: 1100px) {
+  .t-shell.has-rail {
+    grid-template-columns: minmax(0, 1fr) var(--t-rail-w) !important;
+    gap: 28px !important;
+    max-width: 1180px;
+  }
+}
+.t-sidenav { display: none !important; }
+.t-main {
+  max-width: 720px;
+  width: 100%;
+  margin: 0 auto;
+  padding: 24px 0 160px !important;
+}
+@media (max-width: 639px) {
+  .t-main { padding: 16px 0 150px !important; }
+}
+
+/* ============================================================
+   PREMIUM BOTTOM PILL NAV  (control hub, not nav bar)
+   - Glass pill, fully rounded
+   - Elevated FAB anchored to the pill (small visible gap +
+     a connecting shadow so the FAB reads as part of the unit)
+   - Page label centered in the pill, animates on route change
+   - Icon hierarchy via opacity + active glass chip
+   ============================================================ */
+.t-bottomnav {
+  position: fixed;
+  left: 50%;
+  bottom: max(20px, env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  display: block !important;
+  z-index: 50;
+  /* headroom for the elevated FAB so the wrapper never clips */
+  padding-top: 46px;
+  pointer-events: none;
+  /* Constrained width — fits iPhone SE (375px), capped on desktop */
+  width: calc(100vw - 28px);
+  max-width: 440px;
+}
+.t-bottomnav > * { pointer-events: auto; }
+
+/* The pill — 1fr | auto | 1fr grid so:
+   - left + right side columns are equal width (icons spread to edges)
+   - center column is the natural label width
+   - FAB at left: 50% of pill = true geometric center */
+.t-bn-pill {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  column-gap: 4px;
+  width: 100%;
+  padding: 8px 12px;
+  min-height: 64px;
+  background: rgba(255, 255, 255, 0.72);
+  -webkit-backdrop-filter: saturate(200%) blur(28px);
+  backdrop-filter: saturate(200%) blur(28px);
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  border-radius: 999px;
+  box-shadow:
+    0 18px 48px rgba(20, 16, 40, 0.16),
+    0 4px 14px rgba(20, 16, 40, 0.08),
+    inset 0 1px rgba(255, 255, 255, 0.7),
+    inset 0 -1px rgba(255, 255, 255, 0.3);
+}
+
+/* Icon clusters — left hugs the left edge, right hugs the right edge */
+.t-bn-side {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+.t-bn-pill > .t-bn-side:first-of-type { justify-content: flex-start; }
+.t-bn-pill > .t-bn-side:last-of-type  { justify-content: flex-end; }
+
+/* Icon buttons — calm idle, punchy active. No harsh feedback. */
+.t-bn-btn {
+  width: 46px; height: 46px;
+  border-radius: 999px;
+  display: flex; align-items: center; justify-content: center;
+  color: #1d1d1f;
+  opacity: 0.42;
+  background: transparent;
+  text-decoration: none;
+  transition:
+    opacity .25s var(--motion-soft),
+    background .25s var(--motion-soft),
+    transform .15s var(--motion-spring),
+    box-shadow .25s var(--motion-soft);
+}
+.t-bn-btn:hover { opacity: 0.78; background: rgba(255, 255, 255, 0.4); }
+.t-bn-btn:active { transform: scale(0.92); }
+.t-bn-btn.active {
+  opacity: 1;
+  background: rgba(255, 255, 255, 0.85);
+  box-shadow:
+    inset 0 0 0 1px rgba(29, 29, 31, 0.06),
+    0 1px 3px rgba(20, 16, 40, 0.05),
+    0 4px 16px rgba(255, 255, 255, 0.65);
+}
+
+/* Center column — holds the animated page label.
+   Stretches via grid 1fr so the FAB above it always sits at pill center. */
+.t-bn-center {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 92px;
+  height: 46px;
+}
+
+/* Page label — strong typographic presence */
+.t-bn-label {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  height: 14px;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.20em;
+  text-transform: uppercase;
+  color: #1d1d1f;
+  white-space: nowrap;
+  user-select: none;
+}
+.t-bn-label > span {
+  display: inline-block;
+  will-change: opacity, transform;
+}
+
+/* Elevated FAB — sits 8px above the pill with a connecting shadow.
+   Anchored to the center column so it tracks the label exactly. */
+.t-bn-fab {
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 8px);
+  transform: translateX(-50%);
+  width: 60px;
+  height: 60px;
+  border-radius: 999px;
+  background:
+    radial-gradient(120% 90% at 50% 0%, rgba(255,255,255,0.18), transparent 55%),
+    linear-gradient(180deg, #2a2a2e 0%, #0a0a0a 100%);
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow:
+    0 18px 36px rgba(0, 0, 0, 0.32),
+    0 6px 14px rgba(0, 0, 0, 0.20),
+    0 2px 4px rgba(0, 0, 0, 0.14),
+    inset 0 1px rgba(255, 255, 255, 0.22),
+    inset 0 -2px rgba(0, 0, 0, 0.35);
+  transition:
+    transform .2s var(--motion-spring),
+    box-shadow .25s var(--motion-soft),
+    filter .2s;
+}
+.t-bn-fab::after {
+  /* Subtle glossy highlight — premium "wet" feel */
+  content: '';
+  position: absolute;
+  inset: 4px 4px auto 4px;
+  height: 44%;
+  border-radius: 999px;
+  background: linear-gradient(180deg, rgba(255,255,255,0.18) 0%, transparent 100%);
+  pointer-events: none;
+}
+.t-bn-fab:hover {
+  transform: translateX(-50%) translateY(-2px);
+  box-shadow:
+    0 24px 44px rgba(0, 0, 0, 0.36),
+    0 8px 18px rgba(0, 0, 0, 0.22),
+    inset 0 1px rgba(255, 255, 255, 0.24),
+    inset 0 -2px rgba(0, 0, 0, 0.35);
+}
+.t-bn-fab:active {
+  transform: translateX(-50%) scale(0.95);
+  transition-duration: 0.08s;
+}
+.t-bn-fab:focus-visible {
+  outline: none;
+  box-shadow:
+    0 0 0 3px rgba(255, 255, 255, 0.85),
+    0 0 0 5px rgba(29, 29, 31, 0.4),
+    0 18px 36px rgba(0, 0, 0, 0.32);
+}
+
+/* Mobile tightening */
+@media (max-width: 400px) {
+  .t-bn-pill { padding: 6px 10px; min-height: 58px; column-gap: 2px; }
+  .t-bn-btn { width: 40px; height: 40px; }
+  .t-bn-center { min-width: 78px; height: 40px; }
+  .t-bn-fab { width: 54px; height: 54px; bottom: calc(100% + 7px); }
+  .t-bn-label { font-size: 10px; letter-spacing: 0.16em; }
+}
+
+/* ---------- Re-skin all card surfaces as glass ---------- */
+.t-post,
+.t-composer-bar,
+.t-gig-card,
+.t-rail-section,
+.t-sidenav-card,
+.t-role-section-card,
+.t-onb-card,
+.t-empty-state,
+.t-comment-body,
+.t-auth-panel {
+  background: var(--glass-bg);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-glass);
+  box-shadow: var(--glass-shadow);
+}
+
+.t-post { overflow: hidden; transition: transform .3s var(--motion-soft), box-shadow .3s var(--motion-soft); }
+.t-post:hover { box-shadow: 0 16px 48px rgba(20,16,40,.10), inset 0 1px rgba(255,255,255,.6); transform: translateY(-2px); }
+
+.t-gig-card { transition: transform .25s var(--motion-soft), box-shadow .25s var(--motion-soft), border-color .15s; }
+.t-gig-card:hover { transform: translateY(-2px); box-shadow: 0 12px 36px rgba(20,16,40,.10), inset 0 1px rgba(255,255,255,.6); }
+
+/* Inputs inside glass surfaces — softer secondary */
+.t-composer-input,
+.t-field input,
+.t-msg-input input,
+.t-comment-form textarea,
+.t-comment-form input {
+  background: rgba(255,255,255,.55);
+  border: 1px solid rgba(255,255,255,.6);
+  color: var(--t-ink);
+  transition: background .2s, border-color .2s, box-shadow .2s;
+}
+.t-composer-input:hover,
+.t-field input:focus,
+.t-msg-input input:focus,
+.t-comment-form textarea:focus,
+.t-comment-form input:focus {
+  background: rgba(255,255,255,.75);
+  border-color: var(--t-gold);
+  box-shadow: 0 0 0 4px var(--t-gold-soft);
+  outline: none;
+}
+
+/* ---------- Filter pills ---------- */
+.t-pill {
+  background: rgba(255,255,255,.45);
+  border: 1px solid rgba(255,255,255,.55);
+  color: var(--t-ink-2);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  transition: all .2s var(--motion-soft);
+}
+.t-pill:hover { background: rgba(255,255,255,.7); color: var(--t-ink); transform: translateY(-1px); }
+.t-pill.on {
+  background: #1d1d1f;
+  color: #fff;
+  border-color: transparent;
+  box-shadow: 0 4px 14px rgba(0,0,0,.18);
+}
+
+/* ---------- Chips (composer) ---------- */
+.t-chip {
+  background: rgba(255,255,255,.45);
+  border-radius: 999px;
+  transition: all .2s var(--motion-soft);
+}
+.t-chip:hover { background: rgba(255,255,255,.7); transform: translateY(-1px); }
+
+/* ---------- Buttons ---------- */
+.t-btn-primary {
+  background: #1d1d1f;
+  color: #fff;
+  border-radius: 999px;
+  box-shadow: 0 4px 14px rgba(0,0,0,.18);
+  transition: transform .15s var(--motion-spring), box-shadow .2s, background .2s;
+}
+.t-btn-primary:hover { background: #000; box-shadow: 0 6px 18px rgba(0,0,0,.25); }
+.t-btn-primary:active { transform: scale(0.97); }
+.t-btn-quiet {
+  background: rgba(255,255,255,.5);
+  border: 1px solid rgba(255,255,255,.6);
+  border-radius: 999px;
+  transition: background .2s, transform .15s var(--motion-spring);
+}
+.t-btn-quiet:hover { background: rgba(255,255,255,.75); }
+.t-btn-quiet:active { transform: scale(0.97); }
+
+/* ---------- Tags ---------- */
+.t-tag {
+  background: rgba(29,29,31,.06);
+  color: var(--t-ink);
+  border: 1px solid rgba(29,29,31,.10);
+}
+
+/* ---------- Side rail (desktop only) ---------- */
+.t-rail { padding: 24px 0 80px; }
+.t-rail-section { padding: 18px; }
+
+/* ---------- Page titles ---------- */
+.t-page-title {
+  letter-spacing: -0.03em;
+  font-weight: 700;
+}
+
+/* ---------- Action buttons (post like / comment / share) ---------- */
+.t-action {
+  transition: background .2s, color .2s, transform .12s var(--motion-spring);
+}
+.t-action:hover { background: rgba(255,255,255,.55); color: var(--t-ink); }
+.t-action:active { transform: scale(0.92); }
+.t-action.on { color: var(--t-gold); }
+
+/* ---------- Verification banner: glass + accent ---------- */
+.t-verify-banner {
+  background: var(--glass-bg);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-glass);
+  box-shadow: var(--glass-shadow);
+}
+
+/* ---------- Masonry / explore items ---------- */
+.t-masonry-item {
+  border-radius: 18px;
+  box-shadow: 0 4px 16px rgba(20,16,40,.06);
+  transition: transform .3s var(--motion-soft), box-shadow .3s var(--motion-soft);
+}
+.t-masonry-item:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 12px 32px rgba(20,16,40,.12);
+}
+
+/* ---------- Auth ---------- */
+.t-auth-visual {
+  background:
+    radial-gradient(60% 100% at 0% 100%, rgba(29,29,31,.18), transparent 60%),
+    radial-gradient(50% 100% at 100% 0%, rgba(134,134,139,.22), transparent 60%),
+    rgba(255,255,255,.4);
+}
+.t-auth-panel {
+  background: var(--glass-bg-strong);
+  -webkit-backdrop-filter: saturate(180%) blur(28px);
+  backdrop-filter: saturate(180%) blur(28px);
+  border-left: 1px solid var(--glass-border);
+}
+
+/* ---------- Misc: shadcn surfaces that exist in modals ---------- */
+[role="dialog"] {
+  background: var(--glass-bg-strong) !important;
+  -webkit-backdrop-filter: saturate(200%) blur(28px) !important;
+  backdrop-filter: saturate(200%) blur(28px) !important;
+  border: 1px solid var(--glass-border) !important;
+  border-radius: 24px !important;
+  box-shadow: 0 24px 60px rgba(20,16,40,.18), inset 0 1px rgba(255,255,255,.55) !important;
+}
+
+/* ---------- Motion: reduce-motion respect ---------- */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.05ms !important;
+  }
+}
+
+/* ---------- Hide built-in sidebars (legacy) ---------- */
+aside.fixed.right-0 { display: none !important; }
+

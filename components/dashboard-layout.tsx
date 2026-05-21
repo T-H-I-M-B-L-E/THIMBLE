@@ -2,15 +2,14 @@
 
 import Link from "next/link"
 import Image from "next/image"
-import { usePathname, useRouter } from "next/navigation"
-import { useAuth } from "@/lib/useAuth"
+import { useRouter } from "next/navigation"
 import { useStore } from "@/lib/store"
-import { VerificationModal } from "./verification-modal"
 import { VerificationBanner } from "./verification-banner"
 import { BanWall } from "./ban-wall"
 import { CreatePostModal } from "./create-post-modal"
+import { BottomNav } from "./bottom-nav"
 import { useState } from "react"
-import { Home, Grid3X3, Briefcase, MessageSquare, User, Bell, Plus, Search, LogOut, Shield } from "lucide-react"
+import { Home, Briefcase, MessageSquare, User, Bell, Plus, Search } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { RightRail } from "./right-rail"
 
@@ -22,63 +21,54 @@ interface DashboardLayoutProps {
 
 export function DashboardLayout({ children, role, showRail = false }: DashboardLayoutProps) {
   const router = useRouter()
-  const pathname = usePathname()
-  const { logout: authLogout } = useAuth()
-  const { user, logout } = useStore()
-  const [showVerification, setShowVerification] = useState(false)
+  const { user } = useStore()
   const [createPostOpen, setCreatePostOpen] = useState(false)
 
-  const handleLogout = async () => {
-    logout()
-    await authLogout()
-    router.push("/auth")
-  }
-
+  // Pill nav holds 4 destinations max for a symmetric premium layout.
+  // The dashboard root ("Explore") is still reachable via the brand logo.
   const navItems = [
     { href: `/dashboard/${role}/feed`, icon: Home, label: "Home" },
-    { href: `/dashboard/${role}`, icon: Grid3X3, label: "Explore", exact: true },
     { href: `/dashboard/${role}/gigs`, icon: Briefcase, label: "Gigs" },
     { href: `/dashboard/${role}/messages`, icon: MessageSquare, label: "Messages" },
     { href: `/dashboard/${role}/profile`, icon: User, label: "Profile" },
   ]
-
-  const isActive = (href: string, exact?: boolean) => {
-    if (exact) return pathname === href
-    return pathname === href || pathname.startsWith(href + "/")
-  }
 
   if (user?.isBanned) {
     return <BanWall bannedUntil={user.bannedUntil} banMessage={user.banMessage} />
   }
 
   return (
-    <div className="flex flex-col min-h-screen" style={{ background: "var(--t-bg)" }}>
-
-      {/* Top bar */}
+    <div className="flex flex-col min-h-screen">
+      {/* Floating glass top bar */}
       <header className="t-topbar">
         <div className="t-topbar-inner">
-          <Link href="/" className="t-brand">
-            <span className="t-brand-mark" aria-hidden="true">◐</span>
+          <Link href="/" className="t-brand" aria-label="Thimble home">
+            <span className="t-brand-mark" aria-hidden="true" />
             <span className="t-brand-name">thimble</span>
           </Link>
-          <div className="t-search">
+          <div className="t-search" role="search">
             <Search className="t-search-ico" size={16} />
-            <input placeholder="Search people, gigs, tags…" />
+            <input placeholder="Search people, gigs, tags…" aria-label="Search" />
             <span className="t-search-kbd">⌘K</span>
           </div>
           <div className="t-topbar-right">
-            <button className="t-icon-btn" aria-label="Notifications">
+            <button className="t-icon-btn" aria-label="Notifications" type="button">
               <Bell size={18} />
               <span className="t-dot" />
             </button>
             <button
               className="t-icon-btn"
               aria-label="Messages"
+              type="button"
               onClick={() => router.push(`/dashboard/${role}/messages`)}
             >
               <MessageSquare size={18} />
             </button>
-            <button className="t-btn-post" onClick={() => setCreatePostOpen(true)}>
+            <button
+              className="t-btn-post"
+              type="button"
+              onClick={() => setCreatePostOpen(true)}
+            >
               <Plus size={16} />
               <span>Post</span>
             </button>
@@ -103,102 +93,22 @@ export function DashboardLayout({ children, role, showRail = false }: DashboardL
         </div>
       </header>
 
-      {/* Shell: sidenav | main | rail */}
+      {/* Shell — single column on mobile, +rail on wide desktop */}
       <div className={cn("t-shell", showRail && "has-rail")}>
-        {/* Side nav */}
-        <nav className="t-sidenav">
-          <ul>
-            {navItems.map((item) => (
-              <li key={item.href}>
-                <Link
-                  href={item.href}
-                  className={cn("t-navlink", isActive(item.href, item.exact) && "active")}
-                >
-                  <span className="t-navlink-ic">
-                    <item.icon size={18} />
-                  </span>
-                  <span>{item.label}</span>
-                </Link>
-              </li>
-            ))}
-          </ul>
-
-          <div className="t-sidenav-card">
-            <div className="t-sidenav-card-row">
-              {user?.avatar ? (
-                <Image
-                  src={user.avatar}
-                  alt={user.fullName || "User"}
-                  width={40}
-                  height={40}
-                  className="t-avatar"
-                />
-              ) : (
-                <div className="t-avatar t-avatar-ph">{user?.fullName?.[0] ?? "U"}</div>
-              )}
-              <div>
-                <div className="t-sidenav-name">{user?.fullName}</div>
-                <div className="t-sidenav-meta">{role}</div>
-              </div>
-            </div>
-            {user?.verificationStatus !== "verified" && (
-              <button
-                className="t-btn-quiet t-block"
-                onClick={() => setShowVerification(true)}
-              >
-                <Shield size={13} style={{ display: "inline", marginRight: 4 }} />
-                Get verified
-              </button>
-            )}
-            <button className="t-btn-quiet t-block" onClick={handleLogout}>
-              <LogOut size={13} style={{ display: "inline", marginRight: 4 }} />
-              Sign out
-            </button>
-          </div>
-        </nav>
-
-        {/* Main content */}
         <main className="t-main">
           <VerificationBanner />
           {children}
         </main>
-
-        {/* Right rail (conditionally shown) */}
         {showRail && <RightRail />}
       </div>
 
-      {/* Bottom nav (mobile) */}
-      <nav className="t-bottomnav">
-        {navItems.slice(0, 2).map((item) => (
-          <Link
-            key={item.href}
-            href={item.href}
-            className={cn("t-bn-btn", isActive(item.href, item.exact) && "active")}
-            aria-label={item.label}
-          >
-            <item.icon size={20} />
-          </Link>
-        ))}
-        <button
-          className="t-bn-post"
-          aria-label="Create post"
-          onClick={() => setCreatePostOpen(true)}
-        >
-          <Plus size={22} />
-        </button>
-        {navItems.slice(2).map((item) => (
-          <Link
-            key={item.href}
-            href={item.href}
-            className={cn("t-bn-btn", isActive(item.href, item.exact) && "active")}
-            aria-label={item.label}
-          >
-            <item.icon size={20} />
-          </Link>
-        ))}
-      </nav>
+      {/* Floating glass pill nav — always visible */}
+      <BottomNav
+        items={navItems}
+        onCreate={() => setCreatePostOpen(true)}
+        createLabel="Create post"
+      />
 
-      <VerificationModal isOpen={showVerification} onClose={() => setShowVerification(false)} />
       <CreatePostModal
         isOpen={createPostOpen}
         onClose={() => setCreatePostOpen(false)}

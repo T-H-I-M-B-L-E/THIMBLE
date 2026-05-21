@@ -108,16 +108,44 @@ export default function RoleDashboard() {
               <button
                 key={i}
                 disabled={action.disabled}
-                className="t-role-action-btn"
+                className="t-role-action-btn glass"
                 style={{
-                  background: action.disabled ? "var(--t-surface-2)" : "var(--t-ink)",
-                  color: action.disabled ? "var(--t-ink-3)" : "var(--t-bg)",
+                  background: action.disabled
+                    ? "rgba(255,255,255,0.30)"
+                    : "linear-gradient(135deg, rgba(255,255,255,0.85) 0%, rgba(255,255,255,0.60) 100%)",
+                  color: action.disabled ? "var(--t-ink-3)" : "var(--t-ink)",
                   cursor: action.disabled ? "not-allowed" : "pointer",
-                  opacity: action.disabled ? 0.6 : 1,
+                  opacity: action.disabled ? 0.55 : 1,
+                  border: "1px solid rgba(255,255,255,0.6)",
+                  borderRadius: 18,
+                  transition: "transform .2s var(--motion-spring), box-shadow .2s",
+                }}
+                onMouseEnter={e => {
+                  if (action.disabled) return
+                  e.currentTarget.style.transform = "translateY(-2px)"
+                  e.currentTarget.style.boxShadow = "0 12px 32px rgba(20,16,40,.10), inset 0 1px rgba(255,255,255,.6)"
+                }}
+                onMouseLeave={e => {
+                  e.currentTarget.style.transform = "translateY(0)"
+                  e.currentTarget.style.boxShadow = "var(--glass-shadow)"
                 }}
               >
-                <Icon size={18} />
-                <span>{action.label}</span>
+                <span
+                  style={{
+                    width: 44,
+                    height: 44,
+                    borderRadius: 999,
+                    background: action.disabled ? "rgba(29,29,31,0.06)" : "#1d1d1f",
+                    color: action.disabled ? "var(--t-ink-3)" : "#fff",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    boxShadow: action.disabled ? "none" : "0 4px 12px rgba(0,0,0,.18)",
+                  }}
+                >
+                  <Icon size={20} />
+                </span>
+                <span style={{ fontWeight: 500, fontSize: 13 }}>{action.label}</span>
               </button>
             )
           })}
@@ -187,19 +215,24 @@ export default function RoleDashboard() {
                 </div>
                 <button
                   disabled={!isVerified}
-                  style={{
-                    padding: "6px 12px",
-                    fontSize: "12px",
-                    background: isVerified ? "var(--t-ink)" : "var(--t-surface-2)",
-                    color: isVerified ? "var(--t-bg)" : "var(--t-ink-3)",
-                    border: "1px solid var(--t-line)",
-                    borderRadius: "7px",
-                    cursor: isVerified ? "pointer" : "not-allowed",
-                    fontFamily: "inherit",
-                    fontWeight: 500,
-                    opacity: isVerified ? 1 : 0.6,
-                    whiteSpace: "nowrap"
-                  }}
+                  className={isVerified ? "t-btn-primary t-btn-sm" : ""}
+                  style={
+                    isVerified
+                      ? { whiteSpace: "nowrap" }
+                      : {
+                          padding: "6px 14px",
+                          fontSize: 12,
+                          fontWeight: 500,
+                          background: "rgba(255,255,255,0.5)",
+                          color: "var(--t-ink-3)",
+                          border: "1px solid rgba(255,255,255,0.5)",
+                          borderRadius: 999,
+                          cursor: "not-allowed",
+                          fontFamily: "inherit",
+                          whiteSpace: "nowrap",
+                          opacity: 0.7,
+                        }
+                  }
                 >
                   Apply
                 </button>
