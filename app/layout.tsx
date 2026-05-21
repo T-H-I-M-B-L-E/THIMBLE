@@ -3,6 +3,7 @@ import { Analytics } from '@vercel/analytics/next'
 import { ThemeProvider } from '@/lib/theme-context'
 import { UserSync } from '@/components/user-sync'
 import { WelcomeOverlay } from '@/components/welcome-overlay'
+import { GrainientBackground } from '@/components/grainient-background'
 import { headers } from 'next/headers'
 import './globals.css'
 
@@ -46,8 +47,9 @@ export default async function RootLayout({
   const isAdmin = host.startsWith('admin.')
 
   return (
-    <html lang="en" className="bg-background" suppressHydrationWarning>
+    <html lang="en" suppressHydrationWarning>
       <body className="antialiased" suppressHydrationWarning>
+        {!isAdmin && <GrainientBackground />}
         <ThemeProvider>
           {!isAdmin && <UserSync />}
           {!isAdmin && <WelcomeOverlay />}

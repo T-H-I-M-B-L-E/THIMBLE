@@ -5,6 +5,7 @@ import { useState, useRef } from "react"
 import { Heart, MessageSquare, Bookmark, Share2, MoreHorizontal, Trash2, Send, UserPlus, UserCheck } from "lucide-react"
 import { useLike, useComments, useFollow } from "@/hooks/use-social"
 import type { Comment } from "@/hooks/use-social"
+import { useUsers } from "@/hooks/use-users"
 
 export interface PostData {
   id: number | string
@@ -17,6 +18,7 @@ export interface PostData {
   commentCount?: number
   likedByMe?: boolean
   createdAt: string
+  taggedUsers?: string[]
 }
 
 interface PostCardProps {
@@ -86,6 +88,15 @@ export function PostCard({ post, currentUserId, onDelete }: PostCardProps) {
   const [bookmarked, setBookmarked] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
 
+  // Resolve tag IDs → display names from the shared user cache
+  const { lookup } = useUsers()
+  const taggedDisplay = (post.taggedUsers ?? [])
+    .map(id => {
+      const u = lookup(id)
+      return u ? { id, name: u.fullName } : null
+    })
+    .filter(Boolean) as { id: string; name: string }[]
+
   const handleSubmitComment = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!commentInput.trim() || submitting) return
@@ -109,12 +120,17 @@ export function PostCard({ post, currentUserId, onDelete }: PostCardProps) {
                   onClick={toggleFollow}
                   style={{
                     display: "inline-flex", alignItems: "center", gap: 4,
-                    padding: "2px 8px", borderRadius: 999, fontSize: 11, fontWeight: 500,
-                    border: "1px solid var(--t-line)",
-                    background: isFollowing ? "var(--t-surface-2)" : "var(--t-ink)",
-                    color: isFollowing ? "var(--t-ink-2)" : "var(--t-bg)",
-                    cursor: "pointer", fontFamily: "inherit", transition: "all .15s",
+                    padding: "3px 10px", borderRadius: 999, fontSize: 11, fontWeight: 600,
+                    border: isFollowing ? "1px solid rgba(255,255,255,0.6)" : "1px solid transparent",
+                    background: isFollowing ? "rgba(255,255,255,0.55)" : "#1d1d1f",
+                    color: isFollowing ? "var(--t-ink-2)" : "#fff",
+                    cursor: "pointer", fontFamily: "inherit",
+                    boxShadow: isFollowing ? "none" : "0 4px 10px rgba(0,0,0,.18)",
+                    transition: "transform .15s var(--motion-spring), background .2s, box-shadow .2s",
                   }}
+                  onMouseDown={e => (e.currentTarget.style.transform = "scale(0.96)")}
+                  onMouseUp={e => (e.currentTarget.style.transform = "scale(1)")}
+                  onMouseLeave={e => (e.currentTarget.style.transform = "scale(1)")}
                 >
                   {isFollowing
                     ? <><UserCheck size={11} style={{ display: "inline" }} /> Following</>
@@ -142,10 +158,12 @@ export function PostCard({ post, currentUserId, onDelete }: PostCardProps) {
         )}
       </header>
 
-      {/* Image */}
-      <button className="t-post-image" aria-label="View post">
-        <img src={post.imageUrl} alt={post.description || "Post"} loading="lazy" />
-      </button>
+      {/* Image (only when present — text-only posts skip this block) */}
+      {post.imageUrl && (
+        <button className="t-post-image" aria-label="View post">
+          <img src={post.imageUrl} alt={post.description || "Post"} loading="lazy" />
+        </button>
+      )}
 
       {/* Actions + Caption */}
       <div className="t-post-body">
@@ -180,6 +198,27 @@ export function PostCard({ post, currentUserId, onDelete }: PostCardProps) {
             <Bookmark size={16} fill={bookmarked ? "currentColor" : "none"} />
           </button>
         </div>
+
+        {taggedDisplay.length > 0 && (
+          <p
+            style={{
+              fontSize: 12,
+              color: "var(--t-ink-3)",
+              margin: "4px 0 6px",
+              display: "flex",
+              flexWrap: "wrap",
+              alignItems: "center",
+              gap: 4,
+            }}
+          >
+            <span>with</span>
+            {taggedDisplay.map((t, i) => (
+              <span key={t.id} style={{ color: "var(--t-ink)", fontWeight: 500 }}>
+                @{t.name}{i < taggedDisplay.length - 1 ? "," : ""}
+              </span>
+            ))}
+          </p>
+        )}
 
         {post.description && (
           <p className="t-post-caption">
@@ -244,13 +283,17 @@ export function PostCard({ post, currentUserId, onDelete }: PostCardProps) {
               type="submit"
               disabled={!commentInput.trim() || submitting}
               style={{
-                width: 36, height: 36, borderRadius: "50%", flexShrink: 0,
+                width: 38, height: 38, borderRadius: "50%", flexShrink: 0,
                 border: "none", cursor: commentInput.trim() ? "pointer" : "default",
-                background: commentInput.trim() ? "var(--t-ink)" : "var(--t-surface-2)",
-                color: commentInput.trim() ? "var(--t-bg)" : "var(--t-ink-3)",
+                background: commentInput.trim() ? "#1d1d1f" : "rgba(255,255,255,0.5)",
+                color: commentInput.trim() ? "#fff" : "var(--t-ink-3)",
+                boxShadow: commentInput.trim() ? "0 4px 12px rgba(0,0,0,.20)" : "none",
                 display: "flex", alignItems: "center", justifyContent: "center",
-                transition: "background .15s, color .15s",
+                transition: "background .15s, color .15s, transform .15s var(--motion-spring), box-shadow .2s",
               }}
+              onMouseDown={e => commentInput.trim() && (e.currentTarget.style.transform = "scale(0.94)")}
+              onMouseUp={e => (e.currentTarget.style.transform = "scale(1)")}
+              onMouseLeave={e => (e.currentTarget.style.transform = "scale(1)")}
             >
               <Send size={14} />
             </button>

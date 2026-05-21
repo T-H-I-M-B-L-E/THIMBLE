@@ -12,36 +12,17 @@ interface ThemeContextType {
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined)
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [theme, setTheme] = useState<Theme>("dark")
-  const [mounted, setMounted] = useState(false)
+  const [theme] = useState<Theme>("light")
 
-  // Load theme from localStorage on mount
+  // Apple-inspired light-only aesthetic. Strip any prior `.dark` class so
+  // the new glass system always renders against a light Grainient backdrop.
   useEffect(() => {
-    const savedTheme = localStorage.getItem("theme") as Theme | null
-    const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches
-    const initialTheme = savedTheme || (prefersDark ? "dark" : "light")
-    
-    setTheme(initialTheme)
-    applyTheme(initialTheme)
-    setMounted(true)
+    document.documentElement.classList.remove("dark")
+    try { localStorage.setItem("theme", "light") } catch {}
   }, [])
 
-  const applyTheme = (newTheme: Theme) => {
-    const html = document.documentElement
-    
-    if (newTheme === "dark") {
-      html.classList.add("dark")
-    } else {
-      html.classList.remove("dark")
-    }
-    
-    localStorage.setItem("theme", newTheme)
-  }
-
   const toggleTheme = () => {
-    const newTheme = theme === "dark" ? "light" : "dark"
-    setTheme(newTheme)
-    applyTheme(newTheme)
+    /* no-op — theming is locked to light for the new design system */
   }
 
   // Prevent flash of wrong theme - still render children with context
