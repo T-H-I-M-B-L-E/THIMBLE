@@ -93,18 +93,17 @@ export default function AdminChatPage() {
   }
 
   return (
-    <div className="flex flex-col h-full" style={{ background: 'oklch(0.08 0.005 60)', minHeight: 'calc(100vh - 0px)' }}>
+    <div className="flex flex-col h-full bg-neutral-950 pb-32">
 
       {/* Header */}
-      <div className="shrink-0 flex items-center justify-between px-6 py-4 border-b border-neutral-800"
-        style={{ background: 'oklch(0.10 0.005 60)' }}>
+      <div className="shrink-0 flex items-center justify-between px-6 py-4 border-b border-white/10 bg-white/5 backdrop-blur-xl">
         <div>
-          <p className="text-xs uppercase tracking-[0.3em] text-neutral-500 mb-0.5">Admin</p>
+          <p className="text-xs uppercase tracking-[0.2em] text-neutral-500 mb-0.5 font-medium">Admin</p>
           <h1 className="text-lg font-light tracking-wide text-white">Team Chat</h1>
         </div>
         <div className="flex items-center gap-2">
           <div className={`w-2 h-2 rounded-full ${connected ? 'bg-emerald-400' : 'bg-neutral-600'}`} />
-          <span className="text-xs text-neutral-500">{connected ? 'Live' : 'Connecting…'}</span>
+          <span className="text-xs text-neutral-400">{connected ? 'Live' : 'Connecting…'}</span>
         </div>
       </div>
 
@@ -114,10 +113,10 @@ export default function AdminChatPage() {
           <div className="flex-1 flex flex-col items-center justify-center gap-3 text-center py-20">
             <div style={{
               width: 56, height: 56, borderRadius: '50%',
-              background: 'oklch(0.14 0.006 60)',
+              background: 'rgba(255, 255, 255, 0.08)',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
             }}>
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="oklch(0.5 0.05 60)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
               </svg>
             </div>
@@ -144,22 +143,22 @@ export default function AdminChatPage() {
 
               <div className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`} style={{ maxWidth: '64%' }}>
                 {showHeader && !isMe && (
-                  <p className="text-xs text-neutral-500 mb-1.5 px-1">{msg.name}</p>
+                  <p className="text-xs text-neutral-400 mb-1.5 px-1">{msg.name}</p>
                 )}
                 <div style={{
                   padding: '10px 14px',
                   borderRadius: isMe ? '18px 18px 4px 18px' : '18px 18px 18px 4px',
-                  background: isMe ? '#ffffff' : 'oklch(0.17 0.006 60)',
+                  background: isMe ? '#ffffff' : 'rgba(255, 255, 255, 0.12)',
                   color: isMe ? '#0a0a0a' : '#e5e5e5',
                   fontSize: 14,
                   lineHeight: 1.5,
                   wordBreak: 'break-word',
-                  border: isMe ? 'none' : '1px solid oklch(0.24 0.006 60)',
+                  border: isMe ? 'none' : '1px solid rgba(255, 255, 255, 0.1)',
                 }}>
                   {msg.content}
                 </div>
                 {(!grouped || i === messages.length - 1) && (
-                  <p className="text-xs text-neutral-700 mt-1.5 px-1" style={{ textAlign: isMe ? 'right' : 'left' }}>
+                  <p className="text-xs text-neutral-500 mt-1.5 px-1" style={{ textAlign: isMe ? 'right' : 'left' }}>
                     {formatTime(msg.timestamp)}
                   </p>
                 )}
@@ -179,8 +178,7 @@ export default function AdminChatPage() {
       {/* Input bar */}
       <form
         onSubmit={e => { e.preventDefault(); send() }}
-        className="shrink-0 flex items-center gap-3 px-4 py-3 border-t border-neutral-800"
-        style={{ background: 'oklch(0.11 0.005 60)' }}
+        className="shrink-0 flex items-center gap-3 px-4 py-3 border-t border-white/10 bg-white/5 backdrop-blur-xl fixed bottom-20 left-0 right-0"
       >
         <input
           ref={inputRef}
@@ -188,25 +186,16 @@ export default function AdminChatPage() {
           onChange={e => setInput(e.target.value)}
           placeholder={connected ? 'Message the team…' : 'Connecting…'}
           disabled={!connected}
-          className="flex-1 bg-transparent outline-none text-sm text-white placeholder-neutral-600"
-          style={{
-            height: 44,
-            padding: '0 14px',
-            background: 'oklch(0.16 0.006 60)',
-            borderRadius: 999,
-            border: '1px solid oklch(0.24 0.006 60)',
-            fontFamily: 'inherit',
-          }}
-          onFocus={e => (e.target.style.borderColor = 'oklch(0.55 0.10 60)')}
-          onBlur={e => (e.target.style.borderColor = 'oklch(0.24 0.006 60)')}
+          className="flex-1 bg-white/10 outline-none text-sm text-white placeholder-neutral-500 rounded-full px-4 py-3 border border-white/20 focus:border-white/40 transition-colors"
+          style={{ fontFamily: 'inherit' }}
         />
         <button
           type="submit"
           disabled={!connected || !input.trim()}
           style={{
             width: 44, height: 44, borderRadius: '50%', flexShrink: 0,
-            background: input.trim() && connected ? '#ffffff' : 'oklch(0.20 0.006 60)',
-            color: input.trim() && connected ? '#0a0a0a' : 'oklch(0.40 0.006 60)',
+            background: input.trim() && connected ? '#ffffff' : 'rgba(255, 255, 255, 0.1)',
+            color: input.trim() && connected ? '#0a0a0a' : 'rgba(255, 255, 255, 0.4)',
             border: 'none',
             cursor: input.trim() && connected ? 'pointer' : 'default',
             display: 'flex', alignItems: 'center', justifyContent: 'center',

@@ -41,22 +41,8 @@ function timeAgo(iso: string) {
   return `${Math.floor(h / 24)}d ago`
 }
 
-function ChevronIcon({ open }: { open: boolean }) {
-  return (
-    <svg
-      width="12" height="12" viewBox="0 0 12 12" fill="none"
-      stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"
-      style={{ transition: 'transform 0.2s', transform: open ? 'rotate(180deg)' : 'rotate(0deg)' }}
-    >
-      <polyline points="2 4 6 8 10 4" />
-    </svg>
-  )
-}
-
 function AdminLayoutInner({ children }: { children: React.ReactNode }) {
-  const [sidebarOpen, setSidebarOpen] = useState(false)
   const [commits, setCommits] = useState<Commit[]>([])
-  const [commitsOpen, setCommitsOpen] = useState(false) // collapsed by default
   const [commitEmailsEnabled, setCommitEmailsEnabled] = useState(true)
   const [emailStats, setEmailStats] = useState<EmailStats | null>(null)
   const [togglingEmail, setTogglingEmail] = useState(false)
@@ -88,8 +74,6 @@ function AdminLayoutInner({ children }: { children: React.ReactNode }) {
       })
       .catch(() => setAuthChecked(true))
   }, [])
-
-  useEffect(() => { setSidebarOpen(false) }, [pathname])
 
   // Commits
   useEffect(() => {
@@ -131,7 +115,6 @@ function AdminLayoutInner({ children }: { children: React.ReactNode }) {
       sock.onmessage = (e) => {
         try {
           const msg: ChatMsg = JSON.parse(e.data)
-          // Only count/notify if this is from someone else and we're not on the chat page
           if (msg.userId === adminId) return
           if (msg.id <= lastSeenId.current) return
           lastSeenId.current = msg.id
@@ -179,10 +162,10 @@ function AdminLayoutInner({ children }: { children: React.ReactNode }) {
     setTogglingEmail(false)
   }
 
-  const navLinks: { href: string; label: string; icon: string; badge?: number }[] = [
-    { href: '/admin', label: 'Dashboard', icon: '▣' },
-    { href: '/admin/users', label: 'Users', icon: '⊞' },
-    { href: '/admin/chat', label: 'Messages', icon: '◈', badge: unread > 0 ? unread : undefined },
+  const navLinks: { href: string; label: string; badge?: number }[] = [
+    { href: '/admin', label: 'Dashboard' },
+    { href: '/admin/users', label: 'Users' },
+    { href: '/admin/chat', label: 'Messages', badge: unread > 0 ? unread : undefined },
   ]
 
   const isActive = (href: string) =>
@@ -191,145 +174,77 @@ function AdminLayoutInner({ children }: { children: React.ReactNode }) {
   if (!authChecked) return <div className="min-h-screen bg-neutral-950" />
 
   return (
-    <div className="min-h-screen bg-neutral-950 text-white flex">
-      {/* Mobile overlay */}
-      {sidebarOpen && (
-        <div className="fixed inset-0 bg-black/60 z-20 lg:hidden" onClick={() => setSidebarOpen(false)} />
-      )}
-
-      {/* Sidebar */}
-      <aside className={`
-        fixed lg:static inset-y-0 left-0 z-30
-        w-64 border-r border-neutral-800 flex flex-col shrink-0
-        bg-neutral-950 transition-transform duration-300
-        ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
-      `}>
-        {/* Header */}
-        <div className="p-6 border-b border-neutral-800">
-          <p className="text-xs uppercase tracking-[0.3em] text-neutral-500">THIMBLE</p>
-          <p className="text-lg font-light tracking-widest mt-1">Admin</p>
-          {adminName && <p className="text-xs text-neutral-600 mt-1">Welcome back, {adminName}</p>}
-        </div>
-
-        {/* Nav */}
-        <nav className="p-4 space-y-1 shrink-0">
-          {navLinks.map(link => (
-            <a key={link.href} href={link.href}
-              className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors ${
-                isActive(link.href) ? 'bg-neutral-800 text-white' : 'text-neutral-400 hover:bg-neutral-800 hover:text-white'
-              }`}
-            >
-              <span className="text-xs">{link.icon}</span>
-              <span className="flex-1">{link.label}</span>
-              {link.badge != null && link.badge > 0 && (
-                <span className="min-w-5 h-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center font-bold px-1">
-                  {link.badge > 9 ? '9+' : link.badge}
-                </span>
-              )}
-            </a>
-          ))}
-        </nav>
-
-        {/* Collapsible commit feed */}
-        <div className="border-t border-neutral-800 shrink-0">
-          <button
-            onClick={() => setCommitsOpen(o => !o)}
-            className="w-full px-4 py-3 flex items-center justify-between text-left hover:bg-neutral-900 transition-colors"
-          >
-            <p className="text-xs uppercase tracking-widest text-neutral-500">Commits</p>
-            <div className="flex items-center gap-2 text-neutral-600">
-              <span className="text-xs">{commitsOpen ? '' : `${commits.length}`}</span>
-              <ChevronIcon open={commitsOpen} />
-            </div>
-          </button>
-          {commitsOpen && (
-            <div className="max-h-48 overflow-y-auto px-4 pb-3 space-y-3">
-              {commits.length === 0 ? (
-                <p className="text-xs text-neutral-700">Loading...</p>
-              ) : commits.map(c => (
-                <a key={c.sha} href={c.url} target="_blank" rel="noopener noreferrer" className="block group">
-                  <div className="flex items-start gap-2">
-                    <span className="font-mono text-xs text-neutral-600 mt-0.5 shrink-0">{c.sha}</span>
-                    <div className="min-w-0">
-                      <p className="text-xs text-neutral-300 group-hover:text-white transition-colors leading-snug truncate">{c.message}</p>
-                      <p className="text-xs text-neutral-600 mt-0.5">{c.author} · {timeAgo(c.date)}</p>
-                    </div>
-                  </div>
-                </a>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* Email settings */}
-        <div className="border-t border-neutral-800 p-4 space-y-3 shrink-0">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-xs text-neutral-400">Commit emails</p>
-              <p className="text-xs text-neutral-600">{commitEmailsEnabled ? 'Sending' : 'Paused'}</p>
-            </div>
+    <div className="min-h-screen bg-neutral-950 text-white flex flex-col">
+      {/* Header */}
+      <header className="border-b border-white/5 backdrop-blur-xl bg-black/20">
+        <div className="px-6 py-4 flex items-center justify-between">
+          <div>
+            <p className="text-xs uppercase tracking-[0.2em] text-neutral-500 font-medium">THIMBLE</p>
+            <p className="text-sm font-light text-white mt-0.5">Admin</p>
+          </div>
+          <div className="flex items-center gap-4">
+            {adminName && <p className="text-xs text-neutral-400">{adminName}</p>}
             <button
-              onClick={toggleCommitEmails} disabled={togglingEmail}
-              className={`relative w-9 h-5 rounded-full transition-colors duration-200 focus:outline-none ${commitEmailsEnabled ? 'bg-white' : 'bg-neutral-700'}`}
+              onClick={handleLogout}
+              className="text-xs text-neutral-500 hover:text-neutral-300 transition-colors"
+              title="Sign out"
             >
-              <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-black rounded-full shadow transition-transform duration-200 ${commitEmailsEnabled ? 'translate-x-4' : 'translate-x-0'}`} />
+              ⎙
             </button>
           </div>
-          {emailStats && (
-            <div>
-              <div className="flex justify-between mb-1">
-                <span className="text-xs text-neutral-600">Emails this month</span>
-                <span className="text-xs text-neutral-500">{emailStats.thisMonth} / {emailStats.monthlyLimit}</span>
-              </div>
-              <div className="h-1 bg-neutral-800 rounded-full overflow-hidden">
-                <div
-                  className={`h-full rounded-full transition-all ${
-                    emailStats.thisMonth / emailStats.monthlyLimit > 0.8 ? 'bg-red-500' :
-                    emailStats.thisMonth / emailStats.monthlyLimit > 0.5 ? 'bg-yellow-500' : 'bg-green-500'
-                  }`}
-                  style={{ width: `${Math.min((emailStats.thisMonth / emailStats.monthlyLimit) * 100, 100)}%` }}
-                />
-              </div>
-              <p className="text-xs text-neutral-700 mt-1">{emailStats.remaining} remaining</p>
-            </div>
-          )}
         </div>
-
-        {/* Footer */}
-        <div className="p-4 border-t border-neutral-800 shrink-0 space-y-2 mt-auto">
-          <button
-            onClick={handleLogout}
-            className="w-full flex items-center gap-2 text-xs text-red-500/70 hover:text-red-400 transition-colors py-1"
-          >
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
-              <polyline points="16 17 21 12 16 7"/>
-              <line x1="21" y1="12" x2="9" y2="12"/>
-            </svg>
-            Sign out
-          </button>
-          <a href="/" className="text-xs text-neutral-700 hover:text-neutral-500 transition-colors block">← Back to site</a>
-        </div>
-      </aside>
+      </header>
 
       {/* Main content */}
-      <div className="flex-1 flex flex-col min-w-0">
-        {/* Mobile top bar */}
-        <div className="lg:hidden flex items-center gap-3 px-4 py-3 border-b border-neutral-800 shrink-0">
-          <button onClick={() => setSidebarOpen(true)} className="text-neutral-400 hover:text-white transition-colors p-1" aria-label="Open menu">
-            <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
-              <rect y="3" width="20" height="2" rx="1"/>
-              <rect y="9" width="20" height="2" rx="1"/>
-              <rect y="15" width="20" height="2" rx="1"/>
-            </svg>
-          </button>
-          <p className="text-sm tracking-widest text-neutral-400">THIMBLE Admin</p>
-        </div>
+      <main className="flex-1 overflow-auto">
+        {children}
+      </main>
 
-        <main className="flex-1 overflow-auto">
-          {children}
-        </main>
+      {/* Bottom Navigation Pills */}
+      <div className="border-t border-white/5 backdrop-blur-xl bg-black/20 sticky bottom-0">
+        <div className="px-6 py-4 flex items-center justify-center gap-3">
+          {navLinks.map(link => (
+            <a
+              key={link.href}
+              href={link.href}
+              className={`relative px-4 py-2.5 rounded-full text-sm font-medium transition-all duration-300 ${
+                isActive(link.href)
+                  ? 'bg-white/15 backdrop-blur-sm text-white shadow-lg'
+                  : 'text-neutral-400 hover:text-white hover:bg-white/8'
+              }`}
+            >
+              <span className="flex items-center gap-2">
+                {link.label}
+                {link.badge != null && link.badge > 0 && (
+                  <span className="ml-1 min-w-5 h-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center font-bold px-1">
+                    {link.badge > 9 ? '9+' : link.badge}
+                  </span>
+                )}
+              </span>
+            </a>
+          ))}
+        </div>
       </div>
+
+      {/* Quick Settings Panel */}
+      {emailStats && (
+        <div className="px-6 pb-4 text-xs text-neutral-500 space-y-2">
+          <div className="flex items-center justify-between">
+            <span>Commit emails: {commitEmailsEnabled ? 'Sending' : 'Paused'}</span>
+            <button
+              onClick={toggleCommitEmails}
+              disabled={togglingEmail}
+              className={`relative w-8 h-4 rounded-full transition-colors ${commitEmailsEnabled ? 'bg-white/30' : 'bg-white/10'}`}
+            >
+              <span className={`absolute top-0.5 left-0.5 w-3 h-3 bg-white rounded-full shadow transition-transform ${commitEmailsEnabled ? 'translate-x-3.5' : ''}`} />
+            </button>
+          </div>
+          <div className="flex justify-between text-xs">
+            <span>Emails: {emailStats.thisMonth} / {emailStats.monthlyLimit}</span>
+            <span>{emailStats.remaining} remaining</span>
+          </div>
+        </div>
+      )}
 
       {/* ── New message splash notification ── */}
       <div

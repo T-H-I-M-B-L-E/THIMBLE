@@ -68,22 +68,22 @@ function BanModalUI({ modal, onClose, onSave }: {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm px-4"
       onClick={e => { if (e.target === e.currentTarget) onClose() }}>
-      <div className="w-full max-w-md bg-neutral-900 border border-neutral-700 rounded-2xl overflow-hidden shadow-2xl">
+      <div className="w-full max-w-md bg-white/10 backdrop-blur-xl border border-white/20 rounded-3xl overflow-hidden shadow-2xl">
         {/* Header */}
-        <div className="px-6 py-5 border-b border-neutral-800">
+        <div className="px-6 py-5 border-b border-white/10">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-xs uppercase tracking-[0.25em] text-red-500/80 mb-1">Ban User</p>
+              <p className="text-xs uppercase tracking-[0.25em] text-red-400 mb-1">Ban User</p>
               <p className="text-white font-medium">{modal.userName}</p>
             </div>
-            <button onClick={onClose} className="text-neutral-600 hover:text-white transition-colors text-xl leading-none">×</button>
+            <button onClick={onClose} className="text-neutral-400 hover:text-white transition-colors text-xl leading-none">×</button>
           </div>
         </div>
 
         <div className="px-6 py-5 space-y-5">
           {/* Duration */}
           <div>
-            <label className="text-xs uppercase tracking-widest text-neutral-500 block mb-3">Duration</label>
+            <label className="text-xs uppercase tracking-widest text-neutral-300 block mb-3 font-medium">Duration</label>
             <div className="grid grid-cols-4 gap-2">
               {DURATION_OPTIONS.map(opt => (
                 <button
@@ -91,8 +91,8 @@ function BanModalUI({ modal, onClose, onSave }: {
                   onClick={() => setDurationHours(opt.hours)}
                   className={`py-2 px-1 rounded-lg text-xs transition-colors text-center ${
                     durationHours === opt.hours
-                      ? 'bg-red-500/20 border border-red-500/50 text-red-300'
-                      : 'bg-neutral-800 border border-neutral-700 text-neutral-400 hover:bg-neutral-700'
+                      ? 'bg-red-500/30 border border-red-400/50 text-red-200'
+                      : 'bg-white/10 border border-white/20 text-neutral-300 hover:bg-white/20'
                   }`}
                 >
                   {opt.label}
@@ -103,7 +103,7 @@ function BanModalUI({ modal, onClose, onSave }: {
 
           {/* Custom message */}
           <div>
-            <label className="text-xs uppercase tracking-widest text-neutral-500 block mb-2">
+            <label className="text-xs uppercase tracking-widest text-neutral-300 block mb-2 font-medium">
               Message to user
             </label>
             <textarea
@@ -111,15 +111,15 @@ function BanModalUI({ modal, onClose, onSave }: {
               onChange={e => setMessage(e.target.value)}
               placeholder="Tell them why they've been banned…"
               rows={4}
-              className="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-3 text-sm text-white placeholder-neutral-600 focus:outline-none focus:border-red-500/50 transition-colors resize-none"
+              className="w-full bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-sm text-white placeholder-neutral-500 focus:outline-none focus:border-white/40 transition-colors resize-none"
             />
-            <p className="text-xs text-neutral-600 mt-1">This message will be shown on the ban screen.</p>
+            <p className="text-xs text-neutral-400 mt-1">This message will be shown on the ban screen.</p>
           </div>
 
           {durationHours === 0 && (
-            <div className="flex items-center gap-2 bg-red-500/10 border border-red-500/20 rounded-lg px-4 py-3">
-              <span className="text-red-400 text-xs">⚠</span>
-              <p className="text-xs text-red-400">Permanent ban — account will be locked indefinitely.</p>
+            <div className="flex items-center gap-2 bg-red-500/20 border border-red-500/30 rounded-lg px-4 py-3">
+              <span className="text-red-300 text-xs">⚠</span>
+              <p className="text-xs text-red-300">Permanent ban — account will be locked indefinitely.</p>
             </div>
           )}
         </div>
@@ -127,7 +127,7 @@ function BanModalUI({ modal, onClose, onSave }: {
         <div className="px-6 pb-6 flex gap-3">
           <button
             onClick={onClose}
-            className="flex-1 py-3 rounded-xl text-sm text-neutral-400 border border-neutral-700 hover:bg-neutral-800 transition-colors"
+            className="flex-1 py-3 rounded-xl text-sm text-neutral-300 border border-white/20 hover:bg-white/10 transition-colors"
           >
             Cancel
           </button>
@@ -222,7 +222,7 @@ function UsersTable() {
   }
 
   return (
-    <div className="p-4 sm:p-8">
+    <div className="p-6 sm:p-8 pb-32">
       {banModal && (
         <BanModalUI
           modal={banModal}
@@ -231,10 +231,10 @@ function UsersTable() {
         />
       )}
 
-      <div className="mb-6 flex items-center justify-between">
+      <div className="mb-8 flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-light tracking-widest uppercase">Users</h1>
-          <p className="text-neutral-500 text-sm mt-1">{users.length} total</p>
+          <h1 className="text-3xl font-light tracking-tight">Users</h1>
+          <p className="text-neutral-400 text-sm mt-2">{users.length} total</p>
         </div>
       </div>
 
@@ -245,12 +245,12 @@ function UsersTable() {
           placeholder="Search name or email..."
           value={search}
           onChange={e => setSearch(e.target.value)}
-          className="flex-1 max-w-sm bg-neutral-900 border border-neutral-700 rounded-lg px-4 py-2 text-sm text-white placeholder-neutral-500 focus:outline-none focus:border-white transition-colors"
+          className="flex-1 max-w-sm bg-white/10 border border-white/20 rounded-lg px-4 py-2 text-sm text-white placeholder-neutral-500 focus:outline-none focus:border-white/40 transition-colors backdrop-blur-xl"
         />
         <select
           value={roleFilter}
           onChange={e => setRoleFilter(e.target.value)}
-          className="bg-neutral-900 border border-neutral-700 rounded-lg px-4 py-2 text-sm text-white focus:outline-none focus:border-white transition-colors"
+          className="bg-white/10 border border-white/20 rounded-lg px-4 py-2 text-sm text-white focus:outline-none focus:border-white/40 transition-colors backdrop-blur-xl"
         >
           <option value="">All Roles</option>
           {ROLES.map(r => <option key={r} value={r}>{r.charAt(0).toUpperCase() + r.slice(1)}</option>)}
@@ -258,7 +258,7 @@ function UsersTable() {
       </div>
 
       {/* Table */}
-      <div className="bg-neutral-900 border border-neutral-800 rounded-xl overflow-hidden">
+      <div className="bg-white/8 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden">
         {loading ? (
           <div className="flex items-center justify-center h-40">
             <div className="h-5 w-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
@@ -269,26 +269,26 @@ function UsersTable() {
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-neutral-800 text-left">
-                  <th className="px-4 py-3 text-xs uppercase tracking-widest text-neutral-500 font-normal">User</th>
-                  <th className="px-4 py-3 text-xs uppercase tracking-widest text-neutral-500 font-normal">Role</th>
-                  <th className="px-4 py-3 text-xs uppercase tracking-widest text-neutral-500 font-normal">Status</th>
-                  <th className="px-4 py-3 text-xs uppercase tracking-widest text-neutral-500 font-normal whitespace-nowrap">Last Login</th>
-                  <th className="px-4 py-3 text-xs uppercase tracking-widest text-neutral-500 font-normal whitespace-nowrap">Logins</th>
-                  <th className="px-4 py-3 text-xs uppercase tracking-widest text-neutral-500 font-normal whitespace-nowrap">Joined</th>
-                  <th className="px-4 py-3 text-xs uppercase tracking-widest text-neutral-500 font-normal">Actions</th>
+                <tr className="border-b border-white/10 text-left">
+                  <th className="px-4 py-3 text-xs uppercase tracking-widest text-neutral-400 font-normal">User</th>
+                  <th className="px-4 py-3 text-xs uppercase tracking-widest text-neutral-400 font-normal">Role</th>
+                  <th className="px-4 py-3 text-xs uppercase tracking-widest text-neutral-400 font-normal">Status</th>
+                  <th className="px-4 py-3 text-xs uppercase tracking-widest text-neutral-400 font-normal whitespace-nowrap">Last Login</th>
+                  <th className="px-4 py-3 text-xs uppercase tracking-widest text-neutral-400 font-normal whitespace-nowrap">Logins</th>
+                  <th className="px-4 py-3 text-xs uppercase tracking-widest text-neutral-400 font-normal whitespace-nowrap">Joined</th>
+                  <th className="px-4 py-3 text-xs uppercase tracking-widest text-neutral-400 font-normal">Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {users.map(u => (
-                  <tr key={u.id} className={`border-b border-neutral-800/50 transition-colors ${u.isBanned ? 'bg-red-950/20 hover:bg-red-950/30' : 'hover:bg-neutral-800/30'}`}>
+                  <tr key={u.id} className={`border-b border-white/5 transition-colors ${u.isBanned ? 'bg-red-500/10 hover:bg-red-500/20' : 'hover:bg-white/5'}`}>
                     <td className="px-4 py-3 min-w-40">
                       <p className="font-medium text-white">{u.fullName}</p>
-                      <p className="text-neutral-500 text-xs mt-0.5">{u.email}</p>
+                      <p className="text-neutral-400 text-xs mt-0.5">{u.email}</p>
                       <div className="flex gap-1.5 mt-0.5 flex-wrap">
-                        {u.isAdmin && <span className="text-xs text-purple-400">admin</span>}
+                        {u.isAdmin && <span className="text-xs text-purple-300">admin</span>}
                         {u.isBanned && (
-                          <span className="text-xs text-red-400 font-medium">
+                          <span className="text-xs text-red-300 font-medium">
                             banned{u.bannedUntil ? ` · until ${new Date(u.bannedUntil).toLocaleDateString()}` : ' · permanent'}
                           </span>
                         )}
@@ -299,7 +299,7 @@ function UsersTable() {
                         value={u.role}
                         disabled={actionLoading === u.id}
                         onChange={e => updateUser(u.id, { role: e.target.value })}
-                        className="bg-neutral-800 border border-neutral-700 rounded px-2 py-1 text-xs text-white focus:outline-none"
+                        className="bg-white/10 border border-white/20 rounded px-2 py-1 text-xs text-white focus:outline-none"
                       >
                         {ROLES.map(r => <option key={r} value={r}>{r}</option>)}
                       </select>
@@ -317,12 +317,12 @@ function UsersTable() {
                     <td className="px-4 py-3 text-neutral-400 text-xs whitespace-nowrap">
                       {u.lastLoginAt
                         ? new Date(u.lastLoginAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-                        : <span className="text-neutral-600">Never</span>}
+                        : <span className="text-neutral-500">Never</span>}
                     </td>
-                    <td className="px-4 py-3 text-purple-400 text-sm font-medium">
+                    <td className="px-4 py-3 text-purple-300 text-sm font-medium">
                       {u.totalLogins}
                     </td>
-                    <td className="px-4 py-3 text-neutral-500 text-xs whitespace-nowrap">
+                    <td className="px-4 py-3 text-neutral-400 text-xs whitespace-nowrap">
                       {new Date(u.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                     </td>
                     <td className="px-4 py-3">
@@ -330,7 +330,7 @@ function UsersTable() {
                         <button
                           onClick={() => updateUser(u.id, { isAdmin: !u.isAdmin })}
                           disabled={actionLoading === u.id}
-                          className="text-xs px-2 py-1 rounded bg-neutral-800 hover:bg-purple-900 text-neutral-300 hover:text-purple-300 transition-colors whitespace-nowrap"
+                          className="text-xs px-2 py-1 rounded bg-white/10 hover:bg-purple-500/30 text-neutral-300 hover:text-purple-200 transition-colors whitespace-nowrap"
                         >
                           {u.isAdmin ? 'Revoke Admin' : 'Make Admin'}
                         </button>
@@ -338,7 +338,7 @@ function UsersTable() {
                           <button
                             onClick={() => unbanUser(u.id)}
                             disabled={actionLoading === u.id}
-                            className="text-xs px-2 py-1 rounded bg-neutral-800 hover:bg-emerald-900 text-neutral-300 hover:text-emerald-400 transition-colors whitespace-nowrap"
+                            className="text-xs px-2 py-1 rounded bg-white/10 hover:bg-emerald-500/30 text-neutral-300 hover:text-emerald-300 transition-colors whitespace-nowrap"
                           >
                             Unban
                           </button>
@@ -346,7 +346,7 @@ function UsersTable() {
                           <button
                             onClick={() => setBanModal({ userId: u.id, userName: u.fullName, currentlyBanned: false, bannedUntil: null })}
                             disabled={actionLoading === u.id}
-                            className="text-xs px-2 py-1 rounded bg-neutral-800 hover:bg-red-900 text-neutral-300 hover:text-red-400 transition-colors"
+                            className="text-xs px-2 py-1 rounded bg-white/10 hover:bg-red-500/30 text-neutral-300 hover:text-red-300 transition-colors"
                           >
                             Ban
                           </button>
@@ -354,7 +354,7 @@ function UsersTable() {
                         <button
                           onClick={() => deleteUser(u.id, u.fullName)}
                           disabled={actionLoading === u.id}
-                          className="text-xs px-2 py-1 rounded bg-neutral-800 hover:bg-red-900 text-neutral-300 hover:text-red-400 transition-colors"
+                          className="text-xs px-2 py-1 rounded bg-white/10 hover:bg-red-500/30 text-neutral-300 hover:text-red-300 transition-colors"
                         >
                           Delete
                         </button>

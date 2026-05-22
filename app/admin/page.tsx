@@ -35,10 +35,10 @@ function StatCard({ label, value, color = 'text-white', sub }: {
   label: string; value: number | string; color?: string; sub?: string
 }) {
   return (
-    <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-5">
-      <p className="text-xs text-neutral-500 uppercase tracking-widest mb-2 leading-tight">{label}</p>
+    <div className="bg-white/8 backdrop-blur-xl border border-white/10 rounded-2xl p-5 hover:bg-white/10 transition-colors">
+      <p className="text-xs text-neutral-400 uppercase tracking-widest mb-3 font-medium">{label}</p>
       <p className={`text-3xl font-light ${color}`}>{value}</p>
-      {sub && <p className="text-xs text-neutral-600 mt-1">{sub}</p>}
+      {sub && <p className="text-xs text-neutral-500 mt-2">{sub}</p>}
     </div>
   )
 }
@@ -119,14 +119,14 @@ export default function AdminDashboard() {
     ? Math.round((stats.returnedUsers / stats.totalUsers) * 100) : 0
 
   return (
-    <div className="p-4 sm:p-8 space-y-8">
+    <div className="p-6 sm:p-8 space-y-8 pb-32">
 
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-light tracking-widest uppercase">
-          {adminName ? `Hey, ${adminName}.` : 'Dashboard'}
+        <h1 className="text-3xl font-light tracking-tight">
+          {adminName ? `Hey, ${adminName}` : 'Dashboard'}
         </h1>
-        <p className="text-neutral-500 text-sm mt-1">Platform overview · {new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })}</p>
+        <p className="text-neutral-500 text-sm mt-2">Platform overview</p>
       </div>
 
       {/* Primary stats */}
@@ -140,8 +140,8 @@ export default function AdminDashboard() {
       </div>
 
       {/* Verification funnel + Retention */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
-        <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-5">
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+        <div className="bg-white/8 backdrop-blur-xl border border-white/10 rounded-2xl p-5">
           <p className="text-xs text-neutral-500 uppercase tracking-widest mb-4">Verification Funnel</p>
           <div className="space-y-2">
             {[
@@ -161,7 +161,7 @@ export default function AdminDashboard() {
           <p className="text-xs text-neutral-600 mt-3">{verifiedPct}% verification rate</p>
         </div>
 
-        <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-5">
+        <div className="bg-white/8 backdrop-blur-xl border border-white/10 rounded-2xl p-5">
           <p className="text-xs text-neutral-500 uppercase tracking-widest mb-4">Retention</p>
           <div className="space-y-3">
             <div>
@@ -187,7 +187,7 @@ export default function AdminDashboard() {
           <p className="text-xs text-neutral-600 mt-3">{retentionPct}% return rate</p>
         </div>
 
-        <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-5">
+        <div className="bg-white/8 backdrop-blur-xl border border-white/10 rounded-2xl p-5">
           <p className="text-xs text-neutral-500 uppercase tracking-widest mb-4">Role Breakdown</p>
           <div className="space-y-2">
             {(stats?.roleBreakdown ?? []).slice(0, 6).map(r => (
@@ -205,7 +205,7 @@ export default function AdminDashboard() {
           </div>
         </div>
 
-        <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-5">
+        <div className="bg-white/8 backdrop-blur-xl border border-white/10 rounded-2xl p-5">
           <p className="text-xs text-neutral-500 uppercase tracking-widest mb-4">Signups — 7 Days</p>
           {stats?.dailySignups && stats.dailySignups.length > 0
             ? <BarChart data={stats.dailySignups} />
@@ -217,28 +217,28 @@ export default function AdminDashboard() {
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
 
         {/* Admin accounts */}
-        <div className="bg-neutral-900 border border-neutral-800 rounded-xl overflow-hidden">
-          <div className="px-5 py-4 border-b border-neutral-800">
-            <p className="text-xs uppercase tracking-widest text-neutral-500">Admin Accounts</p>
+        <div className="bg-white/8 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden">
+          <div className="px-5 py-4 border-b border-white/10">
+            <p className="text-xs uppercase tracking-widest text-neutral-400 font-medium">Admin Accounts</p>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-neutral-800">
-                  <th className="px-4 py-3 text-xs uppercase tracking-widest text-neutral-500 font-normal text-left">Admin</th>
-                  <th className="px-4 py-3 text-xs uppercase tracking-widest text-neutral-500 font-normal text-left whitespace-nowrap">Last Login</th>
-                  <th className="px-4 py-3 text-xs uppercase tracking-widest text-neutral-500 font-normal text-left">Logins</th>
+                <tr className="border-b border-white/10">
+                  <th className="px-4 py-3 text-xs uppercase tracking-widest text-neutral-400 font-normal text-left">Admin</th>
+                  <th className="px-4 py-3 text-xs uppercase tracking-widest text-neutral-400 font-normal text-left whitespace-nowrap">Last Login</th>
+                  <th className="px-4 py-3 text-xs uppercase tracking-widest text-neutral-400 font-normal text-left">Logins</th>
                 </tr>
               </thead>
               <tbody>
                 {admins.map(a => (
-                  <tr key={a.id} className="border-b border-neutral-800/50">
+                  <tr key={a.id} className="border-b border-white/5">
                     <td className="px-4 py-3">
                       <p className="text-white text-sm">{a.fullName}</p>
-                      <p className="text-neutral-500 text-xs">{a.email}</p>
+                      <p className="text-neutral-400 text-xs">{a.email}</p>
                     </td>
                     <td className="px-4 py-3 text-neutral-400 text-xs whitespace-nowrap">
-                      {a.lastLoginAt ? timeAgo(a.lastLoginAt) : <span className="text-neutral-700">Never</span>}
+                      {a.lastLoginAt ? timeAgo(a.lastLoginAt) : <span className="text-neutral-500">Never</span>}
                     </td>
                     <td className="px-4 py-3 text-purple-400 font-medium">{a.totalLogins}</td>
                   </tr>
@@ -249,13 +249,13 @@ export default function AdminDashboard() {
         </div>
 
         {/* Audit log */}
-        <div className="bg-neutral-900 border border-neutral-800 rounded-xl overflow-hidden">
-          <div className="px-5 py-4 border-b border-neutral-800">
-            <p className="text-xs uppercase tracking-widest text-neutral-500">Audit Log</p>
+        <div className="bg-white/8 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden">
+          <div className="px-5 py-4 border-b border-white/10">
+            <p className="text-xs uppercase tracking-widest text-neutral-400 font-medium">Audit Log</p>
           </div>
-          <div className="divide-y divide-neutral-800/50 max-h-64 overflow-y-auto">
+          <div className="divide-y divide-white/5 max-h-64 overflow-y-auto">
             {auditLogs.length === 0 ? (
-              <p className="px-5 py-8 text-xs text-neutral-700 text-center">No actions yet</p>
+              <p className="px-5 py-8 text-xs text-neutral-500 text-center">No actions yet</p>
             ) : auditLogs.map(log => (
               <div key={log.id} className="px-5 py-3 flex items-start justify-between gap-4">
                 <div className="min-w-0">
@@ -265,10 +265,10 @@ export default function AdminDashboard() {
                     {log.targetName && <>{' '}<span className="text-neutral-300">{log.targetName}</span></>}
                   </p>
                   {log.details && log.details !== 'user deleted' && (
-                    <p className="text-xs text-neutral-600 mt-0.5 truncate max-w-xs">{log.details}</p>
+                    <p className="text-xs text-neutral-500 mt-0.5 truncate max-w-xs">{log.details}</p>
                   )}
                 </div>
-                <span className="text-xs text-neutral-700 shrink-0">{timeAgo(log.createdAt)}</span>
+                <span className="text-xs text-neutral-500 shrink-0">{timeAgo(log.createdAt)}</span>
               </div>
             ))}
           </div>
@@ -276,13 +276,13 @@ export default function AdminDashboard() {
       </div>
 
       {/* Quick actions */}
-      <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-5">
-        <p className="text-xs uppercase tracking-widest text-neutral-500 mb-4">Quick Actions</p>
+      <div className="bg-white/8 backdrop-blur-xl border border-white/10 rounded-2xl p-5">
+        <p className="text-xs uppercase tracking-widest text-neutral-400 font-medium mb-4">Quick Actions</p>
         <div className="flex flex-wrap gap-3">
-          <a href="/admin/users" className="px-4 py-2 bg-white text-black text-sm rounded-lg hover:bg-neutral-200 transition-colors">All Users</a>
-          <a href="/admin/users?role=model" className="px-4 py-2 bg-neutral-800 text-white text-sm rounded-lg hover:bg-neutral-700 transition-colors">Models</a>
-          <a href="/admin/users?role=designer" className="px-4 py-2 bg-neutral-800 text-white text-sm rounded-lg hover:bg-neutral-700 transition-colors">Designers</a>
-          <a href="/admin/users?verification=unverified" className="px-4 py-2 bg-neutral-800 text-yellow-400 text-sm rounded-lg hover:bg-neutral-700 transition-colors">Unverified</a>
+          <a href="/admin/users" className="px-4 py-2 bg-white/20 hover:bg-white/30 text-white text-sm rounded-full transition-colors">All Users</a>
+          <a href="/admin/users?role=model" className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white text-sm rounded-full transition-colors">Models</a>
+          <a href="/admin/users?role=designer" className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white text-sm rounded-full transition-colors">Designers</a>
+          <a href="/admin/users?verification=unverified" className="px-4 py-2 bg-white/10 hover:bg-white/20 text-yellow-300 text-sm rounded-full transition-colors">Unverified</a>
         </div>
       </div>
 
