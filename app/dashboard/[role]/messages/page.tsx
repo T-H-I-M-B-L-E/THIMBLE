@@ -45,8 +45,6 @@ function formatFullTime(ts: number) {
   return new Date(ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
 }
 
-// ── New Message Modal ────────────────────────────────────────────────────────
-
 function NewMessageModal({
   currentUser,
   isVerified,
@@ -80,7 +78,6 @@ function NewMessageModal({
       onCreate(conv)
       onClose()
     } catch {
-      // conversation may already exist — still close modal
       onClose()
     } finally {
       setCreating(null)
@@ -104,8 +101,7 @@ function NewMessageModal({
         }}
         onClick={e => e.stopPropagation()}
       >
-        {/* Header */}
-        <div style={{ padding: "14px 16px", borderBottom: "1px solid var(--t-line)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <div style={{ padding: "14px 16px", borderBottom: "1px solid var(--t-line)", display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
           <p style={{ fontSize: 15, fontWeight: 700, color: "var(--t-ink)" }}>New message</p>
           <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--t-ink-3)", display: "flex" }}>
             <X size={18} />
@@ -120,8 +116,7 @@ function NewMessageModal({
           </div>
         ) : (
           <>
-            {/* Search */}
-            <div style={{ padding: "10px 16px", borderBottom: "1px solid var(--t-line)" }}>
+            <div style={{ padding: "10px 16px", borderBottom: "1px solid var(--t-line)", flexShrink: 0 }}>
               <div style={{ position: "relative" }}>
                 <Search size={14} style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "var(--t-ink-3)" }} />
                 <input
@@ -138,17 +133,14 @@ function NewMessageModal({
               </div>
             </div>
 
-            {/* List */}
-            <div style={{ flex: 1, overflowY: "auto" }}>
+            <div style={{ flex: 1, overflowY: "auto", minHeight: 0 }}>
               {isLoading ? (
                 <div style={{ padding: 24, textAlign: "center", color: "var(--t-ink-3)", fontSize: 13 }}>Loading…</div>
               ) : filtered.length === 0 ? (
                 <div style={{ padding: 24, textAlign: "center", color: "var(--t-ink-3)" }}>
                   <UserPlus size={28} style={{ margin: "0 auto 10px" }} />
                   <p style={{ fontSize: 13, lineHeight: 1.5 }}>
-                    {following.length === 0
-                      ? "Follow people to message them."
-                      : "No one matches your search."}
+                    {following.length === 0 ? "Follow people to message them." : "No one matches your search."}
                   </p>
                 </div>
               ) : (
@@ -184,8 +176,6 @@ function NewMessageModal({
     </div>
   )
 }
-
-// ── Main page ────────────────────────────────────────────────────────────────
 
 export default function MessagesPage() {
   const params = useParams()
@@ -240,7 +230,6 @@ export default function MessagesPage() {
 
   return (
     <DashboardLayout role={role}>
-      {/* Verification gate banner */}
       {!isVerified && (
         <div
           style={{
@@ -259,11 +248,9 @@ export default function MessagesPage() {
 
       <div className="t-messages" style={{ background: "var(--t-bg)" }}>
 
-        {/* ── Conversation list ────────────────────────────────────────── */}
-        <div className={cn("t-msg-list flex flex-col", selectedId ? "hidden md:flex" : "flex")} style={{ background: "var(--t-surface)" }}>
+        <div className={cn("t-msg-list", selectedId ? "hidden md:flex" : "flex")}>
 
-          {/* Header */}
-          <div style={{ padding: "14px 16px 10px", borderBottom: "1px solid var(--t-line)" }}>
+          <div style={{ padding: "14px 16px 10px", borderBottom: "1px solid var(--t-line)", flexShrink: 0 }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
               <h2 style={{ fontSize: 16, fontWeight: 700, letterSpacing: "-0.01em" }}>Messages</h2>
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -288,7 +275,6 @@ export default function MessagesPage() {
               </div>
             </div>
 
-            {/* Search */}
             <div style={{ position: "relative" }}>
               <Search size={14} style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "var(--t-ink-3)" }} />
               <input
@@ -304,8 +290,7 @@ export default function MessagesPage() {
             </div>
           </div>
 
-          {/* List */}
-          <div style={{ flex: 1, overflowY: "auto" }}>
+          <div style={{ flex: 1, overflowY: "auto", minHeight: 0 }}>
             {loadingConvs ? (
               <div style={{ display: "flex", flexDirection: "column", gap: 12, padding: 16 }}>
                 {[1, 2, 3].map(i => (
@@ -368,18 +353,20 @@ export default function MessagesPage() {
           </div>
         </div>
 
-        {/* ── Chat pane ────────────────────────────────────────────────── */}
         <div
           className={cn("flex-1 flex flex-col min-w-0", !selectedId ? "hidden md:flex" : "flex")}
           style={{ background: "var(--t-bg)" }}
         >
           {selectedConv ? (
             <>
-              {/* Chat header */}
               <div
+                className="t-msg-pane-head"
                 style={{
-                  height: 60, display: "flex", alignItems: "center", gap: 12, padding: "0 16px",
-                  borderBottom: "1px solid var(--t-line)", background: "var(--t-surface)", flexShrink: 0,
+                  height: 60,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 12,
+                  padding: "0 16px",
                 }}
               >
                 <button
@@ -400,10 +387,19 @@ export default function MessagesPage() {
                 </div>
               </div>
 
-              {/* Messages */}
               <div
                 ref={scrollRef}
-                style={{ flex: 1, overflowY: "auto", padding: "20px 16px", display: "flex", flexDirection: "column", gap: 4, background: "var(--t-bg)" }}
+                className="t-msg-stream"
+                style={{
+                  flex: 1,
+                  overflowY: "auto",
+                  padding: "20px 16px",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 4,
+                  background: "var(--t-bg)",
+                  minHeight: 0,
+                }}
               >
                 {loadingMsgs ? (
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "center", flex: 1, color: "var(--t-ink-3)", fontSize: 13 }}>
@@ -438,13 +434,16 @@ export default function MessagesPage() {
                             <span style={{ fontSize: 11, color: "var(--t-ink-3)", marginBottom: 3, paddingLeft: 2 }}>{msg.name}</span>
                           )}
                           <div
+                            className="t-bubble"
                             style={{
                               padding: "9px 13px",
                               borderRadius: isMe ? "16px 16px 4px 16px" : "16px 16px 16px 4px",
                               background: isMe ? "var(--t-ink)" : "var(--t-surface)",
                               color: isMe ? "#ffffff" : "var(--t-ink)",
                               border: isMe ? "none" : "1px solid var(--t-line)",
-                              fontSize: 14, lineHeight: 1.45, wordBreak: "break-word",
+                              fontSize: 14,
+                              lineHeight: 1.45,
+                              wordBreak: "break-word",
                             }}
                           >
                             {msg.content}
@@ -461,24 +460,34 @@ export default function MessagesPage() {
                 )}
               </div>
 
-              {/* Input bar */}
               <div
-                style={{ flexShrink: 0, padding: "11px 16px", display: "flex", alignItems: "center", gap: 8, borderTop: "1px solid var(--t-line)", background: "var(--t-surface)" }}
+                className="t-msg-input"
+                style={{
+                  flexShrink: 0,
+                  display: "flex",
+                  gap: 7,
+                  alignItems: "center",
+                  padding: "11px 13px",
+                  borderTop: "1px solid var(--t-line)",
+                  background: "var(--t-surface)",
+                  width: "100%",
+                  minWidth: 0,
+                }}
               >
                 {!isVerified ? (
-                  <div style={{ flex: 1, display: "flex", alignItems: "center", gap: 8, color: "var(--t-ink-3)", fontSize: 13 }}>
+                  <div style={{ flex: 1, display: "flex", alignItems: "center", gap: 8, minWidth: 0, color: "var(--t-ink-3)", fontSize: 13 }}>
                     <Lock size={14} style={{ flexShrink: 0 }} />
                     Verify your account to send messages
                   </div>
                 ) : (
                   <>
-                    <button style={{ color: "var(--t-ink-3)", background: "none", border: "none", cursor: "pointer", padding: 4, display: "flex" }}>
+                    <button style={{ color: "var(--t-ink-3)", background: "none", border: "none", cursor: "pointer", padding: 4, display: "flex", flexShrink: 0 }}>
                       <Paperclip size={18} />
                     </button>
-                    <button style={{ color: "var(--t-ink-3)", background: "none", border: "none", cursor: "pointer", padding: 4, display: "flex" }}>
+                    <button style={{ color: "var(--t-ink-3)", background: "none", border: "none", cursor: "pointer", padding: 4, display: "flex", flexShrink: 0 }}>
                       <ImageIcon size={18} />
                     </button>
-                    <form onSubmit={e => { e.preventDefault(); handleSend() }} style={{ flex: 1, display: "flex", alignItems: "center", gap: 8 }}>
+                    <form onSubmit={e => { e.preventDefault(); handleSend() }} style={{ flex: 1, display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
                       <input
                         ref={inputRef}
                         value={input}
@@ -486,7 +495,7 @@ export default function MessagesPage() {
                         placeholder={isConnected ? "Type a message…" : "Connecting…"}
                         disabled={!isConnected}
                         style={{
-                          flex: 1, height: 40, padding: "0 14px",
+                          flex: 1, height: 40, padding: "0 14px", minWidth: 0,
                           background: "var(--t-surface-2)", border: "1px solid var(--t-line)",
                           borderRadius: 999, fontSize: 14, color: "var(--t-ink)",
                           outline: "none", fontFamily: "inherit", transition: "border-color .15s",
@@ -545,7 +554,6 @@ export default function MessagesPage() {
         </div>
       </div>
 
-      {/* New message modal */}
       {showNewMsg && (
         <NewMessageModal
           currentUser={user ? { id: user.id, fullName: user.fullName, avatar: user.avatar } : null}
