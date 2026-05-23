@@ -209,6 +209,24 @@ func main() {
 		)
 	`)
 
+	dbPool.Exec(context.Background(), `
+		CREATE TABLE IF NOT EXISTS notifications (
+			id         BIGSERIAL PRIMARY KEY,
+			user_id    TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+			sender_id  TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+			type       TEXT NOT NULL CHECK (type IN ('LIKE', 'TAG', 'FOLLOW')),
+			post_id    BIGINT REFERENCES posts(id) ON DELETE CASCADE,
+			read       BOOLEAN NOT NULL DEFAULT FALSE,
+			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+		)
+	`)
+	dbPool.Exec(context.Background(), `
+		CREATE INDEX IF NOT EXISTS idx_notifications_user_id ON notifications(user_id)
+	`)
+	dbPool.Exec(context.Background(), `
+		CREATE INDEX IF NOT EXISTS idx_notifications_user_created ON notifications(user_id, created_at DESC)
+	`)
+
 	go sweepExpiredTickets()
 
 	app := fiber.New()
@@ -270,6 +288,10 @@ func main() {
 	app.Get("/api/follows", jwtAuth, handleGetFollows)
 	app.Post("/api/follows", jwtAuth, handleFollow)
 	app.Delete("/api/follows", jwtAuth, handleUnfollow)
+
+	// ── Notifications ─────────────────────────────────────────────────────────
+	app.Get("/api/notifications", jwtAuth, handleListNotifications)
+	app.Patch("/api/notifications/:id/read", jwtAuth, handleMarkNotificationAsRead)
 
 	// ── Gigs ──────────────────────────────────────────────────────────────────
 	app.Get("/api/gigs", handleListGigs)

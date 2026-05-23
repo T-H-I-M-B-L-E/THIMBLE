@@ -650,7 +650,22 @@
   margin: 0;
   font-size: 12px; color: var(--t-ink-3);
 }
-.t-post-tagged-name { color: var(--t-ink); font-weight: 500; }
+.t-post-tagged-name {
+  color: var(--t-ink);
+  font-weight: 500;
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+  cursor: pointer;
+  transition: color .15s;
+  text-decoration: none;
+  font-family: inherit;
+  font-size: inherit;
+}
+.t-post-tagged-name:hover {
+  color: var(--t-gold);
+}
 
 .t-post-image {
   margin-top: 8px;

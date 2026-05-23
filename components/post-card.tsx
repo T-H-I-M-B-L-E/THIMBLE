@@ -2,10 +2,12 @@
 
 import Image from "next/image"
 import { useState, useRef } from "react"
+import { useRouter } from "next/navigation"
 import { Heart, MessageCircle, Bookmark, Share2, MoreHorizontal, Trash2, Send, UserPlus, UserCheck } from "lucide-react"
 import { useLike, useComments, useFollow, prefetchComments } from "@/hooks/use-social"
 import type { Comment } from "@/hooks/use-social"
 import { useUsers } from "@/hooks/use-users"
+import { Avatar } from "@/components/avatar"
 
 export interface PostData {
   id: number | string
@@ -62,7 +64,7 @@ function formatDate(dateStr: string) {
 function CommentItem({ comment }: { comment: Comment }) {
   return (
     <div className="t-comment">
-      <SmallAvatar src={comment.userAvatar} name={comment.userName} size={28} />
+      <Avatar name={comment.userName} image={comment.userAvatar} size={28} />
       <div className="t-comment-body">
         <div className="t-comment-head">
           <span className="t-strong">{comment.userName}</span>
@@ -75,6 +77,7 @@ function CommentItem({ comment }: { comment: Comment }) {
 }
 
 export function PostCard({ post, currentUserId, onDelete }: PostCardProps) {
+  const router = useRouter()
   const isOwn = !!currentUserId && currentUserId === post.userId
   const { count: likeCount, liked, toggle: toggleLike } = useLike(post.id, post.likes, post.likedByMe)
   const {
@@ -92,9 +95,14 @@ export function PostCard({ post, currentUserId, onDelete }: PostCardProps) {
   const taggedDisplay = (post.taggedUsers ?? [])
     .map(id => {
       const u = lookup(id)
-      return u ? { id, name: u.fullName } : null
+      return u ? { id, name: u.fullName, role: u.role } : null
     })
-    .filter(Boolean) as { id: string; name: string }[]
+    .filter(Boolean) as { id: string; name: string; role?: string }[]
+
+  const handleTaggedUserClick = (userId: string, userRole?: string) => {
+    const role = userRole?.toLowerCase() || "designer"
+    router.push(`/dashboard/${role}/profile/${userId}`)
+  }
 
   const handleSubmitComment = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -107,7 +115,7 @@ export function PostCard({ post, currentUserId, onDelete }: PostCardProps) {
 
   return (
     <article className="t-post">
-      <SmallAvatar src={post.authorAvatar} name={post.authorName} size={40} />
+      <Avatar name={post.authorName} image={post.authorAvatar} size={40} />
 
       <div className="t-post-main">
         <header className="t-post-head">
@@ -151,9 +159,14 @@ export function PostCard({ post, currentUserId, onDelete }: PostCardProps) {
           <p className="t-post-tagged">
             <span>with </span>
             {taggedDisplay.map((t, i) => (
-              <span key={t.id} className="t-post-tagged-name">
+              <button
+                key={t.id}
+                className="t-post-tagged-name"
+                onClick={() => handleTaggedUserClick(t.id, t.role)}
+                type="button"
+              >
                 @{t.name}{i < taggedDisplay.length - 1 ? ", " : ""}
-              </span>
+              </button>
             ))}
           </p>
         )}

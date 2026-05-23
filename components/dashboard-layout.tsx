@@ -8,8 +8,9 @@ import { VerificationBanner } from "./verification-banner"
 import { BanWall } from "./ban-wall"
 import { CreatePostModal } from "./create-post-modal"
 import { BottomNav } from "./bottom-nav"
+import { NotificationCenter } from "./notification-center"
 import { useState } from "react"
-import { Home, Briefcase, MessageSquare, User, Bell, Plus, Search } from "lucide-react"
+import { Home, Briefcase, MessageSquare, User, Plus, Search } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { RightRail } from "./right-rail"
 
@@ -58,10 +59,7 @@ export function DashboardLayout({ children, role, showRail = false }: DashboardL
             <span className="t-search-kbd">⌘K</span>
           </div>
           <div className="t-topbar-right">
-            <button className="t-icon-btn" aria-label="Notifications" type="button">
-              <Bell size={18} />
-              <span className="t-dot" />
-            </button>
+            <NotificationCenter userId={user?.id} />
             <button
               className="t-icon-btn"
               aria-label="Messages"

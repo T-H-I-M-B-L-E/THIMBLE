@@ -1,13 +1,19 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useRef, useState, useMemo } from "react"
 import Image from "next/image"
-import { ImageIcon, Loader2, X } from "lucide-react"
+import { ImageIcon, Loader2, X, Users } from "lucide-react"
 import { uploadFile } from "@/lib/upload"
 import type { PostData } from "@/components/post-card"
 
 const MAX_CHARS = 280
 const COUNTER_VISIBLE_AT = 240
+
+interface UserSummary {
+  id: string
+  fullName: string
+  avatarUrl?: string
+}
 
 interface InlineComposerProps {
   user: { id?: string; fullName?: string; avatar?: string } | null
@@ -22,6 +28,12 @@ export function InlineComposer({ user, onOptimistic, onCommit, onRevert }: Inlin
   const [uploading, setUploading] = useState(false)
   const [posting, setPosting] = useState(false)
   const [focused, setFocused] = useState(false)
+  const [taggedIds, setTaggedIds] = useState<string[]>([])
+  const [users, setUsers] = useState<UserSummary[]>([])
+  const [search, setSearch] = useState("")
+  const [showMatches, setShowMatches] = useState(false)
+  const [isLoadingUsers, setIsLoadingUsers] = useState(false)
+  const tagSearchRef = useRef<HTMLInputElement>(null)
 
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -46,6 +58,36 @@ export function InlineComposer({ user, onOptimistic, onCommit, onRevert }: Inlin
     window.addEventListener("thimble:request-compose", handler)
     return () => window.removeEventListener("thimble:request-compose", handler)
   }, [])
+
+  // Fetch users when tag search changes
+  useEffect(() => {
+    if (!search.trim()) {
+      setUsers([])
+      return
+    }
+    setIsLoadingUsers(true)
+    fetch(`/api/users?search=${encodeURIComponent(search)}`, { credentials: "include" })
+      .then(r => r.json())
+      .then(data => {
+        setUsers(Array.isArray(data) ? data : [])
+      })
+      .catch(() => setUsers([]))
+      .finally(() => setIsLoadingUsers(false))
+  }, [search])
+
+  const taggedUsers = useMemo<UserSummary[]>(
+    () => taggedIds.map(id => users.find(u => u.id === id) || ({ id, fullName: "Unknown" })).filter(Boolean) as UserSummary[],
+    [taggedIds, users]
+  )
+
+  const matches = useMemo<UserSummary[]>(
+    () => users.filter(u => !taggedIds.includes(u.id)),
+    [users, taggedIds]
+  )
+
+  const toggleTag = (id: string) => {
+    setTaggedIds(prev => prev.includes(id) ? prev.filter(uid => uid !== id) : [...prev, id])
+  }
 
   const remaining = MAX_CHARS - text.length
   const showCounter = text.length >= COUNTER_VISIBLE_AT
@@ -83,7 +125,7 @@ export function InlineComposer({ user, onOptimistic, onCommit, onRevert }: Inlin
       authorAvatar: user.avatar || "",
       imageUrl: imageUrl ?? "",
       description: text.trim(),
-      taggedUsers: [] as string[],
+      taggedUsers: taggedIds,
     }
 
     const tempId = `tmp_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
@@ -98,12 +140,14 @@ export function InlineComposer({ user, onOptimistic, onCommit, onRevert }: Inlin
       commentCount: 0,
       likedByMe: false,
       createdAt: new Date().toISOString(),
-      taggedUsers: [],
+      taggedUsers: taggedIds,
     }
 
     onOptimistic(optimistic)
     setText("")
     setImageUrl(null)
+    setTaggedIds([])
+    setSearch("")
     setFocused(false)
     textareaRef.current?.blur()
     setPosting(true)
@@ -183,46 +227,156 @@ export function InlineComposer({ user, onOptimistic, onCommit, onRevert }: Inlin
           )}
 
           {expanded && (
-            <div className="t-icomp-foot">
-              <div className="t-icomp-foot-left">
-                <button
-                  type="button"
-                  className="t-icomp-iconbtn"
-                  onClick={handlePickImage}
-                  disabled={uploading || posting}
-                  aria-label="Attach image"
-                >
-                  {uploading ? <Loader2 size={18} className="animate-spin" /> : <ImageIcon size={18} />}
-                </button>
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept="image/*"
-                  onChange={handleFile}
-                  style={{ display: "none" }}
-                />
+            <>
+              {/* Tag picker */}
+              <div style={{ paddingTop: 12, paddingBottom: 8 }}>
+                {taggedUsers.length > 0 && (
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 8 }}>
+                    {taggedUsers.map(u => (
+                      <span
+                        key={u.id}
+                        style={{
+                          display: "inline-flex", alignItems: "center", gap: 4,
+                          padding: "4px 6px 4px 4px", borderRadius: 999,
+                          background: "rgba(29,29,31,0.06)",
+                          border: "1px solid rgba(29,29,31,0.10)",
+                          fontSize: 12, color: "var(--t-ink)",
+                        }}
+                      >
+                        {u.avatarUrl ? (
+                          <Image
+                            src={u.avatarUrl} alt={u.fullName}
+                            width={16} height={16}
+                            style={{ borderRadius: "50%", objectFit: "cover" }}
+                          />
+                        ) : (
+                          <span style={{
+                            width: 16, height: 16, borderRadius: "50%",
+                            background: "rgba(29,29,31,0.10)",
+                            display: "inline-flex", alignItems: "center", justifyContent: "center",
+                            fontSize: 9, fontWeight: 600,
+                          }}>
+                            {u.fullName?.[0]?.toUpperCase()}
+                          </span>
+                        )}
+                        <span style={{ fontWeight: 500 }}>{u.fullName}</span>
+                        <button
+                          type="button"
+                          onClick={() => toggleTag(u.id)}
+                          aria-label={`Remove ${u.fullName}`}
+                          style={{
+                            background: "none", border: "none", cursor: "pointer",
+                            color: "var(--t-ink-3)", display: "flex", alignItems: "center",
+                            padding: 2,
+                          }}
+                        >
+                          <X size={10} />
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                )}
+                <div style={{ position: "relative" }}>
+                  <Users
+                    size={12}
+                    style={{
+                      position: "absolute", left: 8, top: "50%", transform: "translateY(-50%)",
+                      color: "var(--t-ink-3)", pointerEvents: "none",
+                    }}
+                  />
+                  <input
+                    ref={tagSearchRef}
+                    type="text"
+                    placeholder={isLoadingUsers ? "Loading…" : "Tag people (optional)"}
+                    value={search}
+                    onChange={e => setSearch(e.target.value)}
+                    onFocus={() => setShowMatches(true)}
+                    onBlur={() => setTimeout(() => setShowMatches(false), 100)}
+                    disabled={isLoadingUsers}
+                    style={{
+                      width: "100%", padding: "6px 8px 6px 28px", fontSize: 13,
+                      borderRadius: 6, border: "1px solid var(--t-line)",
+                      background: "var(--t-surface)", color: "var(--t-ink)",
+                      boxSizing: "border-box",
+                    }}
+                  />
+                  {showMatches && matches.length > 0 && (
+                    <div style={{
+                      position: "absolute", top: "100%", left: 0, right: 0, marginTop: 4,
+                      borderRadius: 6, border: "1px solid var(--t-line)",
+                      background: "var(--t-surface)", zIndex: 10, maxHeight: 200, overflowY: "auto",
+                    }}>
+                      {matches.slice(0, 5).map(u => (
+                        <button
+                          key={u.id}
+                          type="button"
+                          onClick={() => { toggleTag(u.id); setSearch(""); setShowMatches(false) }}
+                          style={{
+                            width: "100%", padding: "8px", textAlign: "left",
+                            border: "none", background: "transparent",
+                            borderBottom: "1px solid var(--t-line)",
+                            cursor: "pointer", display: "flex", alignItems: "center", gap: 8,
+                            color: "var(--t-ink)", fontSize: 13,
+                          }}
+                          onMouseEnter={e => e.currentTarget.style.background = "rgba(255,255,255,0.16)"}
+                          onMouseLeave={e => e.currentTarget.style.background = "transparent"}
+                        >
+                          {u.avatarUrl ? (
+                            <Image src={u.avatarUrl} alt={u.fullName} width={24} height={24} style={{ borderRadius: "50%", objectFit: "cover" }} />
+                          ) : (
+                            <span style={{ width: 24, height: 24, borderRadius: "50%", background: "var(--t-surface-2)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 600 }}>
+                              {u.fullName?.[0]?.toUpperCase()}
+                            </span>
+                          )}
+                          <span>{u.fullName}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
 
-              <div className="t-icomp-foot-right">
-                {showCounter && (
-                  <span
-                    className="t-icomp-counter"
-                    data-warn={remaining <= 20 && !overLimit ? "" : undefined}
-                    data-over={overLimit ? "" : undefined}
+              <div className="t-icomp-foot">
+                <div className="t-icomp-foot-left">
+                  <button
+                    type="button"
+                    className="t-icomp-iconbtn"
+                    onClick={handlePickImage}
+                    disabled={uploading || posting}
+                    aria-label="Attach image"
                   >
-                    {remaining}
-                  </span>
-                )}
-                <button
-                  type="button"
-                  className="t-icomp-post"
-                  disabled={!canPost}
-                  onClick={handleSubmit}
-                >
-                  {posting ? <Loader2 size={14} className="animate-spin" /> : "Post"}
-                </button>
+                    {uploading ? <Loader2 size={18} className="animate-spin" /> : <ImageIcon size={18} />}
+                  </button>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    onChange={handleFile}
+                    style={{ display: "none" }}
+                  />
+                </div>
+
+                <div className="t-icomp-foot-right">
+                  {showCounter && (
+                    <span
+                      className="t-icomp-counter"
+                      data-warn={remaining <= 20 && !overLimit ? "" : undefined}
+                      data-over={overLimit ? "" : undefined}
+                    >
+                      {remaining}
+                    </span>
+                  )}
+                  <button
+                    type="button"
+                    className="t-icomp-post"
+                    disabled={!canPost}
+                    onClick={handleSubmit}
+                  >
+                    {posting ? <Loader2 size={14} className="animate-spin" /> : "Post"}
+                  </button>
+                </div>
               </div>
-            </div>
+            </>
           )}
         </div>
       </div>

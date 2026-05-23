@@ -41,11 +41,10 @@ export default function FeedPage() {
                 style={{ position: "relative", display: "block", overflow: "hidden" }}
                 aria-label="Open dashboard"
               >
-                <Image
-                  src={storeUser.avatar || "/placeholder-avatar.png"}
+                <img
+                  src={storeUser.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(storeUser.fullName || "User")}&background=0D8ABC&color=fff&size=40&rounded=true&bold=true`}
                   alt={storeUser.fullName || "User"}
-                  fill
-                  style={{ objectFit: "cover" }}
+                  style={{ width: "100%", height: "100%", objectFit: "cover" }}
                 />
               </Link>
             ) : (

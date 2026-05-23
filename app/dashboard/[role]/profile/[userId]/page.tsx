@@ -6,92 +6,162 @@ import Image from "next/image"
 import { useRouter } from "next/navigation"
 import { useState, useEffect } from "react"
 import { useParams } from "next/navigation"
-import { EditProfileModal } from "@/components/edit-profile-modal"
-import { useStore } from "@/lib/store"
-import { getApiUrl, getSafeHostname, normalizeWebsiteUrl } from "@/lib/platform"
-import { Globe, Instagram, Trash2, Settings, Shield, User } from "lucide-react"
+import { Globe, Instagram, User, ArrowLeft } from "lucide-react"
 import { useFollowing } from "@/hooks/use-social"
+import { useUsers } from "@/hooks/use-users"
+import { getSafeHostname, normalizeWebsiteUrl } from "@/lib/platform"
 import { PostLightbox } from "@/components/post-lightbox"
 import { RoleBadge } from "@/components/role-badge"
 import type { PostData } from "@/components/post-card"
 
-export default function ProfilePage() {
+export default function UserProfilePage() {
   const router = useRouter()
   const params = useParams()
   const role = params.role as string
-  const { user, isLoading } = useAuth()
-  const [isEditModalOpen, setIsEditModalOpen] = useState(false)
+  const userId = params.userId as string
+  const { user: currentUser, isLoading: currentUserLoading } = useAuth()
+  const [viewedUser, setViewedUser] = useState<any>(null)
   const [userPosts, setUserPosts] = useState<any[]>([])
+  const [isLoadingUser, setIsLoadingUser] = useState(true)
   const [isLoadingPosts, setIsLoadingPosts] = useState(true)
   const [activeTab, setActiveTab] = useState("posts")
   const [selectedPost, setSelectedPost] = useState<PostData | null>(null)
-  const { following, isLoading: loadingFollowing } = useFollowing(user?.id)
+  const { following: userFollowing } = useFollowing(userId)
+  const { lookup } = useUsers()
+
+  // If viewing own profile, redirect to the regular profile page
+  useEffect(() => {
+    if (!currentUserLoading && currentUser && currentUser.id === userId) {
+      router.replace(`/dashboard/${role}/profile`)
+    }
+  }, [currentUserLoading, currentUser, userId, role, router])
 
   useEffect(() => {
-    if (!isLoading && user) {
-      fetchUserPosts()
-    }
-  }, [isLoading, user])
+    const fetchUserData = async () => {
+      try {
+        // Try to get user from the users hook first
+        const user = lookup(userId)
+        if (user) {
+          setViewedUser(user)
+          setIsLoadingUser(false)
+          return
+        }
 
-  const fetchUserPosts = async () => {
-    try {
-      const res = await fetch("/api/posts", {
-        cache: "no-store",
-        credentials: "include",
-      })
-
-      if (!res.ok) {
-        throw new Error(`Failed to fetch posts: ${res.status}`)
+        // Fallback: Try to fetch from API
+        const res = await fetch(`/api/users/${userId}`, {
+          credentials: "include",
+        })
+        if (res.ok) {
+          const data = await res.json()
+          setViewedUser(data)
+        } else {
+          setViewedUser(null)
+        }
+      } catch (err) {
+        console.error("Failed to fetch user:", err)
+        setViewedUser(null)
+      } finally {
+        setIsLoadingUser(false)
       }
-
-      const allPosts = await res.json()
-      const filtered = allPosts.filter((p: any) => p.userId === user?.id)
-      setUserPosts(filtered)
-    } catch (err) {
-      console.error("Failed to fetch user posts:", err)
-      setUserPosts([])
-    } finally {
-      setIsLoadingPosts(false)
     }
+    fetchUserData()
+  }, [userId, lookup])
+
+  useEffect(() => {
+    if (!viewedUser) return
+
+    const fetchUserPosts = async () => {
+      try {
+        const res = await fetch("/api/posts", {
+          cache: "no-store",
+          credentials: "include",
+        })
+
+        if (!res.ok) {
+          throw new Error(`Failed to fetch posts: ${res.status}`)
+        }
+
+        const allPosts = await res.json()
+        const filtered = allPosts.filter((p: any) => p.userId === userId)
+        setUserPosts(filtered)
+      } catch (err) {
+        console.error("Failed to fetch user posts:", err)
+        setUserPosts([])
+      } finally {
+        setIsLoadingPosts(false)
+      }
+    }
+
+    fetchUserPosts()
+  }, [viewedUser, userId])
+
+  if (isLoadingUser) {
+    return (
+      <DashboardLayout role={role} showRail={true}>
+        <div style={{ display: "flex", justifyContent: "center", padding: "80px 0" }}>
+          <div className="animate-spin rounded-full h-12 w-12 border-t-2" style={{ borderColor: "var(--t-gold)" }}></div>
+        </div>
+      </DashboardLayout>
+    )
   }
 
-  const handleDeletePost = async (postId: number | string) => {
-    if (!confirm("Remove this piece from your portfolio?")) return
-
-    try {
-      const res = await fetch(`/api/posts/${postId}`, {
-        method: "DELETE",
-        credentials: "include",
-      })
-      if (res.ok) {
-        setUserPosts(userPosts.filter(p => String(p.id) !== String(postId)))
-      } else {
-        alert("Could not delete from server.")
-      }
-    } catch (err) {
-      console.error("Failed to delete post:", err)
-      alert("Network error. Is the backend server running?")
-    }
+  if (!viewedUser) {
+    return (
+      <DashboardLayout role={role} showRail={true}>
+        <div style={{ maxWidth: "900px", width: "100%", margin: "0 auto", paddingBottom: "40px" }}>
+          <button
+            onClick={() => router.back()}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
+              color: "var(--t-ink-2)",
+              background: "none",
+              border: "none",
+              cursor: "pointer",
+              marginBottom: "20px",
+              fontSize: "14px",
+            }}
+          >
+            <ArrowLeft size={16} />
+            Back
+          </button>
+          <div style={{ textAlign: "center", padding: "60px 16px" }}>
+            <p style={{ color: "var(--t-ink-2)" }}>User not found</p>
+          </div>
+        </div>
+      </DashboardLayout>
+    )
   }
 
-  if (isLoading || !user) return null
-
-  const bio = user.bio || "The vision is yet to be written."
-  const website = user.website || ""
-  const instagram: string = "" // TODO: Add instagram to user model if needed
-  const userRole = user.role || role
+  const bio = viewedUser.bio || "The vision is yet to be written."
+  const website = viewedUser.website || ""
+  const instagram: string = ""
+  const userRole = viewedUser.role || role
   const websiteHref = normalizeWebsiteUrl(website)
   const websiteHostname = getSafeHostname(website)
 
   return (
     <DashboardLayout role={role} showRail={true}>
-      <EditProfileModal
-        isOpen={isEditModalOpen}
-        onClose={() => setIsEditModalOpen(false)}
-        user={user}
-      />
-
       <div style={{ maxWidth: "900px", width: "100%", margin: "0 auto", paddingBottom: "40px" }}>
+        <button
+          onClick={() => router.back()}
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "8px",
+            color: "var(--t-ink-2)",
+            background: "none",
+            border: "none",
+            cursor: "pointer",
+            marginBottom: "20px",
+            fontSize: "14px",
+          }}
+        >
+          <ArrowLeft size={16} />
+          Back
+        </button>
+
         {/* Profile Header */}
         <div style={{ marginBottom: "32px", display: "flex", gap: "24px", alignItems: "flex-start" }}>
           {/* Avatar */}
@@ -106,11 +176,11 @@ export default function ProfilePage() {
             }}
           >
             <img
-              src={user?.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(user?.fullName || "User")}&background=0D8ABC&color=fff&size=120&rounded=true&bold=true`}
-              alt={user?.fullName || "User"}
+              src={viewedUser?.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(viewedUser?.fullName || "User")}&background=0D8ABC&color=fff&size=120&rounded=true&bold=true`}
+              alt={viewedUser?.fullName || "User"}
               style={{ width: "100%", height: "100%", objectFit: "cover" }}
               onError={(e) => {
-                e.currentTarget.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(user?.fullName || "User")}&background=0D8ABC&color=fff&size=120&rounded=true&bold=true`
+                e.currentTarget.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(viewedUser?.fullName || "User")}&background=0D8ABC&color=fff&size=120&rounded=true&bold=true`
               }}
             />
           </div>
@@ -119,10 +189,10 @@ export default function ProfilePage() {
           <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: "16px" }}>
             <div>
               <h1 style={{ fontSize: "28px", fontWeight: 700, color: "var(--t-ink)", margin: "0 0 8px 0" }}>
-                {user?.fullName}
+                {viewedUser?.fullName}
               </h1>
               <p style={{ fontSize: "14px", color: "var(--t-ink-2)", margin: "0 0 8px 0" }}>
-                @{user?.email?.split("@")[0]}
+                @{viewedUser?.email?.split("@")[0]}
               </p>
               <RoleBadge role={userRole} size="sm" />
             </div>
@@ -150,23 +220,6 @@ export default function ProfilePage() {
                 )}
               </div>
             )}
-
-            {/* Actions */}
-            <div style={{ display: "flex", gap: "8px" }}>
-              <button
-                onClick={() => setIsEditModalOpen(true)}
-                style={{ background: "var(--t-surface-2)", border: "1px solid var(--t-line)", color: "var(--t-ink)", padding: "8px 14px", borderRadius: "9px", fontSize: "13px", fontWeight: 500, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: "6px", fontFamily: "inherit" }}
-              >
-                <Settings size={13} />
-                Edit
-              </button>
-              <button
-                style={{ background: "var(--t-gold-soft)", border: "1px solid var(--t-gold)", color: "var(--t-gold-ink)", padding: "8px 14px", borderRadius: "9px", fontSize: "13px", fontWeight: 500, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: "6px", fontFamily: "inherit" }}
-              >
-                <Shield size={13} />
-                Verify
-              </button>
-            </div>
           </div>
         </div>
 
@@ -177,7 +230,7 @@ export default function ProfilePage() {
             <div className="t-stat-lbl">Works</div>
           </div>
           <div style={{ cursor: "pointer" }} onClick={() => setActiveTab("following")}>
-            <div className="t-stat-big">{following.length}</div>
+            <div className="t-stat-big">{userFollowing.length}</div>
             <div className="t-stat-lbl">Following</div>
           </div>
         </div>
@@ -204,13 +257,7 @@ export default function ProfilePage() {
               </div>
             ) : userPosts.length === 0 ? (
               <div style={{ textAlign: "center", padding: "60px 16px", border: "2px dashed var(--t-line)", borderRadius: "12px" }}>
-                <p style={{ color: "var(--t-ink-2)", marginBottom: "16px" }}>No works published yet</p>
-                <button
-                  onClick={() => router.push(`/dashboard/${role}/feed`)}
-                  style={{ color: "var(--t-gold-ink)", background: "none", border: 0, cursor: "pointer", fontWeight: 500 }}
-                >
-                  Publish your first piece
-                </button>
+                <p style={{ color: "var(--t-ink-2)" }}>No works published yet</p>
               </div>
             ) : (
               <div className="t-profile-grid">
@@ -229,28 +276,16 @@ export default function ProfilePage() {
           </div>
         )}
 
-        {/* Lightbox Modal */}
-        {selectedPost && (
-          <PostLightbox
-            post={selectedPost}
-            isOpen={!!selectedPost}
-            onClose={() => setSelectedPost(null)}
-          />
-        )}
         {/* Following Tab */}
         {activeTab === "following" && (
           <div style={{ marginTop: "20px" }}>
-            {loadingFollowing ? (
-              <div style={{ display: "flex", justifyContent: "center", padding: "60px 0" }}>
-                <div className="animate-spin rounded-full h-10 w-10 border-t-2" style={{ borderColor: "var(--t-gold)" }} />
-              </div>
-            ) : following.length === 0 ? (
+            {userFollowing.length === 0 ? (
               <div style={{ textAlign: "center", padding: "60px 16px", border: "2px dashed var(--t-line)", borderRadius: "12px" }}>
-                <p style={{ color: "var(--t-ink-2)" }}>You're not following anyone yet</p>
+                <p style={{ color: "var(--t-ink-2)" }}>Not following anyone</p>
               </div>
             ) : (
               <div style={{ display: "flex", flexDirection: "column", gap: "1px" }}>
-                {following.map(u => (
+                {userFollowing.map(u => (
                   <div key={u.userId} style={{ display: "flex", alignItems: "center", gap: "14px", padding: "12px 4px", borderBottom: "1px solid var(--t-line)" }}>
                     <div style={{
                       width: 44, height: 44, borderRadius: "50%", overflow: "hidden", flexShrink: 0,
@@ -271,6 +306,15 @@ export default function ProfilePage() {
               </div>
             )}
           </div>
+        )}
+
+        {/* Lightbox Modal */}
+        {selectedPost && (
+          <PostLightbox
+            post={selectedPost}
+            isOpen={!!selectedPost}
+            onClose={() => setSelectedPost(null)}
+          />
         )}
       </div>
     </DashboardLayout>
