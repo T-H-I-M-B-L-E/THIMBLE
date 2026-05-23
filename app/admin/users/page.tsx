@@ -10,6 +10,7 @@ interface AdminUser {
   fullName: string
   role: string
   verificationStatus: string
+  isVerified: boolean
   isAdmin: boolean
   isBanned: boolean
   bannedUntil: string | null
@@ -23,7 +24,6 @@ interface AdminUser {
 }
 
 const ROLES = ['model', 'designer', 'manufacturer', 'photographer', 'brand']
-const VERIFICATION = ['unverified', 'pending', 'verified']
 
 const DURATION_OPTIONS = [
   { label: '1 hour', hours: 1 },
@@ -35,12 +35,6 @@ const DURATION_OPTIONS = [
   { label: '30 days', hours: 720 },
   { label: 'Permanent', hours: 0 },
 ]
-
-const statusColor: Record<string, string> = {
-  verified: 'text-emerald-400 bg-emerald-400/10',
-  pending: 'text-yellow-400 bg-yellow-400/10',
-  unverified: 'text-neutral-400 bg-neutral-800',
-}
 
 interface BanModal {
   userId: string
@@ -272,7 +266,7 @@ function UsersTable() {
                 <tr className="border-b border-white/10 text-left">
                   <th className="px-4 py-3 text-xs uppercase tracking-widest text-neutral-400 font-normal">User</th>
                   <th className="px-4 py-3 text-xs uppercase tracking-widest text-neutral-400 font-normal">Role</th>
-                  <th className="px-4 py-3 text-xs uppercase tracking-widest text-neutral-400 font-normal">Status</th>
+                  <th className="px-4 py-3 text-xs uppercase tracking-widest text-neutral-400 font-normal">Badge</th>
                   <th className="px-4 py-3 text-xs uppercase tracking-widest text-neutral-400 font-normal whitespace-nowrap">Last Login</th>
                   <th className="px-4 py-3 text-xs uppercase tracking-widest text-neutral-400 font-normal whitespace-nowrap">Logins</th>
                   <th className="px-4 py-3 text-xs uppercase tracking-widest text-neutral-400 font-normal whitespace-nowrap">Joined</th>
@@ -305,14 +299,16 @@ function UsersTable() {
                       </select>
                     </td>
                     <td className="px-4 py-3">
-                      <select
-                        value={u.verificationStatus}
-                        disabled={actionLoading === u.id}
-                        onChange={e => updateUser(u.id, { verificationStatus: e.target.value })}
-                        className={`rounded px-2 py-1 text-xs border-0 focus:outline-none cursor-pointer ${statusColor[u.verificationStatus] || 'text-neutral-400 bg-neutral-800'}`}
-                      >
-                        {VERIFICATION.map(v => <option key={v} value={v}>{v}</option>)}
-                      </select>
+                      {u.isVerified ? (
+                        <span className="inline-flex items-center gap-1.5 text-xs px-2 py-1 rounded-full text-yellow-300 bg-yellow-500/10 border border-yellow-500/20">
+                          <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                            <path d="M12 1.2l2.35 2.05 3.05-.55 1.05 2.95 2.85 1.4-.55 3.05L23 12l-2.25 1.9.55 3.05-2.85 1.4-1.05 2.95-3.05-.55L12 22.8l-2.35-2.05-3.05.55-1.05-2.95-2.85-1.4.55-3.05L1 12l2.25-1.9-.55-3.05 2.85-1.4 1.05-2.95 3.05.55L12 1.2z" />
+                          </svg>
+                          verified
+                        </span>
+                      ) : (
+                        <span className="text-xs text-neutral-500">—</span>
+                      )}
                     </td>
                     <td className="px-4 py-3 text-neutral-400 text-xs whitespace-nowrap">
                       {u.lastLoginAt
@@ -327,6 +323,20 @@ function UsersTable() {
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex gap-2 flex-wrap">
+                        <button
+                          onClick={() => {
+                            if (u.isVerified && !confirm(`Revoke ${u.fullName}'s verification badge?`)) return
+                            updateUser(u.id, { isVerified: !u.isVerified })
+                          }}
+                          disabled={actionLoading === u.id}
+                          className={`text-xs px-2 py-1 rounded bg-white/10 transition-colors whitespace-nowrap ${
+                            u.isVerified
+                              ? 'hover:bg-red-500/30 text-neutral-300 hover:text-red-200'
+                              : 'hover:bg-yellow-500/30 text-neutral-300 hover:text-yellow-200'
+                          }`}
+                        >
+                          {u.isVerified ? 'Revoke Badge' : 'Grant Badge'}
+                        </button>
                         <button
                           onClick={() => updateUser(u.id, { isAdmin: !u.isAdmin })}
                           disabled={actionLoading === u.id}
