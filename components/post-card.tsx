@@ -107,7 +107,23 @@ export function PostCard({ post, currentUserId, onDelete }: PostCardProps) {
   const [commentInput, setCommentInput] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [bookmarked, setBookmarked] = useState(false);
+  const [shareCopied, setShareCopied] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  const handleShare = async () => {
+    const url = `${window.location.origin}/post/${post.id}`;
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: post.description || "THIMBLE", url });
+      } catch {
+        /* user cancelled */
+      }
+    } else {
+      await navigator.clipboard.writeText(url).catch(() => {});
+      setShareCopied(true);
+      setTimeout(() => setShareCopied(false), 2000);
+    }
+  };
 
   const { lookup } = useUsers();
   const taggedDisplay = (post.taggedUsers ?? [])
@@ -264,8 +280,13 @@ export function PostCard({ post, currentUserId, onDelete }: PostCardProps) {
             {commentCount > 0 && <span>{commentCount}</span>}
           </button>
 
-          <button className="t-action" aria-label="Share">
+          <button
+            className={`t-action ${shareCopied ? "on" : ""}`}
+            onClick={handleShare}
+            aria-label="Share"
+          >
             <Share2 size={16} strokeWidth={1.75} />
+            {shareCopied && <span style={{ fontSize: 12 }}>Copied!</span>}
           </button>
 
           <button

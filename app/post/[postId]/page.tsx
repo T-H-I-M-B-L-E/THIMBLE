@@ -30,6 +30,35 @@ export default function PostDetailPage() {
   const [commentInput, setCommentInput] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [bookmarked, setBookmarked] = useState(false);
+  const [shareCopied, setShareCopied] = useState(false);
+
+  // Hooks must be called unconditionally — use safe defaults when post is null
+  const {
+    count: likeCount,
+    liked,
+    toggle: toggleLike,
+  } = useLike(post?.id ?? 0, post?.likes ?? 0, post?.likedByMe);
+  const {
+    comments,
+    isLoading: commentsLoading,
+    count: commentCount,
+    addComment,
+  } = useComments(post?.id ?? 0, post?.commentCount ?? 0);
+
+  const handleShare = async () => {
+    const url = `${window.location.origin}/post/${postId}`;
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: post?.description || "THIMBLE", url });
+      } catch {
+        /* user cancelled */
+      }
+    } else {
+      await navigator.clipboard.writeText(url).catch(() => {});
+      setShareCopied(true);
+      setTimeout(() => setShareCopied(false), 2000);
+    }
+  };
 
   useEffect(() => {
     const fetchPost = async () => {
@@ -101,20 +130,6 @@ export default function PostDetailPage() {
       </div>
     );
   }
-
-  // eslint-disable-next-line react-hooks/rules-of-hooks
-  const {
-    count: likeCount,
-    liked,
-    toggle: toggleLike,
-  } = useLike(post.id, post.likes, post.likedByMe);
-  // eslint-disable-next-line react-hooks/rules-of-hooks
-  const {
-    comments,
-    isLoading: commentsLoading,
-    count: commentCount,
-    addComment,
-  } = useComments(post.id, post.commentCount ?? 0);
 
   const handleSubmitComment = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -509,22 +524,26 @@ export default function PostDetailPage() {
               </button>
 
               <button
+                onClick={handleShare}
                 style={{
                   display: "flex",
                   alignItems: "center",
                   gap: 8,
                   padding: "10px 12px",
-                  background: "var(--t-surface-2)",
-                  color: "var(--t-ink)",
+                  background: shareCopied
+                    ? "var(--t-gold-soft)"
+                    : "var(--t-surface-2)",
+                  color: shareCopied ? "var(--t-gold-ink)" : "var(--t-ink)",
                   border: "1px solid var(--t-line)",
                   borderRadius: 8,
                   cursor: "pointer",
                   fontSize: 13,
                   fontWeight: 500,
+                  transition: "background .15s",
                 }}
               >
                 <Share2 size={16} strokeWidth={1.75} />
-                Share
+                {shareCopied ? "Link copied!" : "Share"}
               </button>
 
               <button
