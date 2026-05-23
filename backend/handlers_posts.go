@@ -32,7 +32,7 @@ func handleListPosts(c *fiber.Ctx) error {
 		SELECT p.id, p.user_id,
 		       COALESCE(u.full_name, p.author_name) AS author_name,
 		       COALESCE(u.avatar_url, p.author_avatar) AS author_avatar,
-		       COALESCE(u.verification_status = 'verified', FALSE) AS author_verified,
+		       COALESCE(u.is_verified, FALSE) AS author_verified,
 		       p.image_url, p.description, p.likes, p.tagged_users, p.created_at,
 		       (SELECT COUNT(*) FROM post_comments pc WHERE pc.post_id = p.id) AS comment_count,
 		       CASE WHEN $1 <> '' THEN EXISTS(SELECT 1 FROM post_likes pl WHERE pl.post_id = p.id AND pl.user_id = $1) ELSE FALSE END AS liked_by_me
@@ -194,7 +194,7 @@ func handleGetPostComments(c *fiber.Ctx) error {
 	postId := c.Params("id")
 	rows, err := dbPool.Query(context.Background(),
 		`SELECT pc.id, pc.user_id, pc.user_name, pc.user_avatar,
-		        COALESCE(u.verification_status = 'verified', FALSE) AS user_verified,
+		        COALESCE(u.is_verified, FALSE) AS user_verified,
 		        pc.content, pc.created_at
 		 FROM post_comments pc
 		 LEFT JOIN users u ON u.id = pc.user_id
@@ -230,7 +230,7 @@ func handleCreatePostComment(c *fiber.Ctx) error {
 	dbPool.QueryRow(context.Background(), `SELECT full_name, COALESCE(avatar_url,'') FROM users WHERE id = $1`, userId).Scan(&userName, &userAvatar)
 
 	var verified bool
-	dbPool.QueryRow(context.Background(), `SELECT verification_status = 'verified' FROM users WHERE id = $1`, userId).Scan(&verified)
+	dbPool.QueryRow(context.Background(), `SELECT is_verified FROM users WHERE id = $1`, userId).Scan(&verified)
 
 	var cm CommentOut
 	err := dbPool.QueryRow(context.Background(),

@@ -68,11 +68,11 @@ func handleGetUserProfile(c *fiber.Ctx) error {
 	var avatarUrl, bio, location, website, verificationStatus *string
 	var bannedUntil *time.Time
 	err := dbPool.QueryRow(context.Background(),
-		`SELECT id, email, full_name, role, avatar_url, bio, location, website, verification_status,
+		`SELECT id, email, full_name, role, avatar_url, bio, location, website, verification_status, is_verified,
 		        followers, following, posts, is_banned, banned_until, ban_message
 		 FROM users WHERE id = $1`, id).
 		Scan(&user.ID, &user.Email, &user.FullName, &user.Role, &avatarUrl, &bio, &location, &website,
-			&verificationStatus, &user.Followers, &user.Following, &user.Posts,
+			&verificationStatus, &user.IsVerified, &user.Followers, &user.Following, &user.Posts,
 			&user.IsBanned, &bannedUntil, &user.BanMessage)
 	if err != nil {
 		return c.Status(404).JSON(fiber.Map{"error": "user not found"})
@@ -106,7 +106,7 @@ func handleGetUserProfile(c *fiber.Ctx) error {
 
 func handleListAllUsers(c *fiber.Ctx) error {
 	rows, err := dbPool.Query(context.Background(),
-		`SELECT id, full_name, COALESCE(avatar_url,''), COALESCE(role,''), verification_status
+		`SELECT id, full_name, COALESCE(avatar_url,''), COALESCE(role,''), verification_status, is_verified
 		 FROM users ORDER BY full_name ASC LIMIT 200`)
 	if err != nil {
 		return c.Status(500).JSON(fiber.Map{"error": "failed to fetch users"})
@@ -118,11 +118,12 @@ func handleListAllUsers(c *fiber.Ctx) error {
 		AvatarUrl          string `json:"avatarUrl"`
 		Role               string `json:"role"`
 		VerificationStatus string `json:"verificationStatus"`
+		IsVerified         bool   `json:"isVerified"`
 	}
 	var users []UserSummary
 	for rows.Next() {
 		var u UserSummary
-		rows.Scan(&u.ID, &u.FullName, &u.AvatarUrl, &u.Role, &u.VerificationStatus)
+		rows.Scan(&u.ID, &u.FullName, &u.AvatarUrl, &u.Role, &u.VerificationStatus, &u.IsVerified)
 		users = append(users, u)
 	}
 	if users == nil {

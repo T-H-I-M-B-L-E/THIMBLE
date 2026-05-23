@@ -16,6 +16,7 @@ export interface User {
   location?: string
   website?: string
   verificationStatus: VerificationStatus
+  isVerified?: boolean
   verificationDocuments?: {
     idDocument?: string
     selfie?: string

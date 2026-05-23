@@ -128,7 +128,7 @@ export default function ProfilePage() {
             <div>
               <h1 style={{ fontSize: "28px", fontWeight: 700, color: "var(--t-ink)", margin: "0 0 8px 0", display: "inline-flex", alignItems: "center", gap: 8 }}>
                 {user?.fullName}
-                {user?.verificationStatus === "verified" && <VerifiedBadge size={20} />}
+                {user?.isVerified && <VerifiedBadge size={20} />}
               </h1>
               <p style={{ fontSize: "14px", color: "var(--t-ink-2)", margin: "0 0 8px 0" }}>
                 @{user?.email?.split("@")[0]}
@@ -169,13 +169,13 @@ export default function ProfilePage() {
                 <Settings size={13} />
                 Edit
               </button>
-              {user?.verificationStatus !== "verified" && (
+              {!user?.isVerified && (
                 <button
                   onClick={() => setIsVerifyModalOpen(true)}
                   style={{ background: "var(--t-gold-soft)", border: "1px solid var(--t-gold)", color: "var(--t-gold-ink)", padding: "8px 14px", borderRadius: "9px", fontSize: "13px", fontWeight: 500, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: "6px", fontFamily: "inherit" }}
                 >
                   <Shield size={13} />
-                  {user?.verificationStatus === "pending" ? "In review" : "Verify"}
+                  Get verified
                 </button>
               )}
             </div>

@@ -134,11 +134,11 @@ func handleLogin(c *fiber.Ctx) error {
 	var bannedUntil *time.Time
 	err := dbPool.QueryRow(context.Background(),
 		`SELECT id, email, password_hash, full_name, role, avatar_url, bio, location, website,
-		        verification_status, followers, following, posts, is_admin,
+		        verification_status, is_verified, followers, following, posts, is_admin,
 		        is_banned, banned_until, ban_message
 		 FROM users WHERE email = $1`,
 		req.Email).Scan(&user.ID, &user.Email, &hashedPassword, &user.FullName, &user.Role,
-		&avatarUrl, &bio, &location, &website, &verificationStatus,
+		&avatarUrl, &bio, &location, &website, &verificationStatus, &user.IsVerified,
 		&user.Followers, &user.Following, &user.Posts, &isAdmin,
 		&user.IsBanned, &bannedUntil, &user.BanMessage)
 	if err != nil {

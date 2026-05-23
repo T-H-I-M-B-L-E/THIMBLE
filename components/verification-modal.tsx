@@ -24,7 +24,7 @@ interface VerificationRequest {
 interface VerificationModalProps {
   isOpen: boolean
   onClose: () => void
-  user: { id?: string; fullName?: string; email?: string; verificationStatus?: string } | null
+  user: { id?: string; fullName?: string; email?: string; isVerified?: boolean } | null
   onSubmitted?: () => void
 }
 
@@ -122,7 +122,7 @@ export function VerificationModal({ isOpen, onClose, user, onSubmitted }: Verifi
     }
   }
 
-  const isVerified = user?.verificationStatus === "verified"
+  const isVerified = user?.isVerified === true
   const hasPending = !!existing && existing.status === "pending"
   const wasRejected = !!existing && existing.status === "rejected"
 

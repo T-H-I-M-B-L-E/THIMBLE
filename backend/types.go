@@ -12,6 +12,7 @@ type User struct {
 	Location           string  `json:"location,omitempty"`
 	Website            string  `json:"website,omitempty"`
 	VerificationStatus string  `json:"verificationStatus"`
+	IsVerified         bool    `json:"isVerified"`
 	Followers          int     `json:"followers"`
 	Following          int     `json:"following"`
 	Posts              int     `json:"posts"`
@@ -26,6 +27,7 @@ type AdminUserView struct {
 	FullName           string     `json:"fullName"`
 	Role               string     `json:"role"`
 	VerificationStatus string     `json:"verificationStatus"`
+	IsVerified         bool       `json:"isVerified"`
 	IsAdmin            bool       `json:"isAdmin"`
 	IsBanned           bool       `json:"isBanned"`
 	BannedUntil        *string    `json:"bannedUntil,omitempty"`

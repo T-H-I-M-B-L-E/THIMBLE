@@ -97,11 +97,11 @@ func handleSubmitVerification(c *fiber.Ctx) error {
 		return c.Status(409).JSON(fiber.Map{"error": "you already have a pending verification request"})
 	}
 
-	// Block if already verified
-	var status string
-	dbPool.QueryRow(ctx, `SELECT verification_status FROM users WHERE id = $1`, userID).Scan(&status)
-	if status == "verified" {
-		return c.Status(409).JSON(fiber.Map{"error": "your account is already verified"})
+	// Block if already badge-verified
+	var alreadyVerified bool
+	dbPool.QueryRow(ctx, `SELECT is_verified FROM users WHERE id = $1`, userID).Scan(&alreadyVerified)
+	if alreadyVerified {
+		return c.Status(409).JSON(fiber.Map{"error": "you already have a verified badge"})
 	}
 
 	var id int64
@@ -114,9 +114,9 @@ func handleSubmitVerification(c *fiber.Ctx) error {
 		return c.Status(500).JSON(fiber.Map{"error": "failed to submit request"})
 	}
 
-	// Reflect pending status on the user record
-	dbPool.Exec(ctx, `UPDATE users SET verification_status = 'pending', updated_at = CURRENT_TIMESTAMP WHERE id = $1`, userID)
-
+	// Note: do NOT touch users.verification_status — that's account/email
+	// verification. Badge state lives in users.is_verified, which is only
+	// set on admin approval.
 	return c.JSON(fiber.Map{"id": id, "status": "pending"})
 }
 
@@ -210,14 +210,13 @@ func handleAdminReviewVerification(c *fiber.Ctx) error {
 		return c.Status(500).JSON(fiber.Map{"error": "failed to update request"})
 	}
 
-	userVerification := "unverified"
+	// Only flip the badge on approval. Rejection leaves users.is_verified
+	// untouched (still FALSE).
 	if newStatus == "approved" {
-		userVerification = "verified"
-	}
-	_, err = tx.Exec(ctx, `UPDATE users SET verification_status = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2`,
-		userVerification, userID)
-	if err != nil {
-		return c.Status(500).JSON(fiber.Map{"error": "failed to update user"})
+		_, err = tx.Exec(ctx, `UPDATE users SET is_verified = TRUE, updated_at = CURRENT_TIMESTAMP WHERE id = $1`, userID)
+		if err != nil {
+			return c.Status(500).JSON(fiber.Map{"error": "failed to update user"})
+		}
 	}
 
 	if err := tx.Commit(ctx); err != nil {

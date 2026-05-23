@@ -191,7 +191,7 @@ export default function UserProfilePage() {
             <div>
               <h1 style={{ fontSize: "28px", fontWeight: 700, color: "var(--t-ink)", margin: "0 0 8px 0", display: "inline-flex", alignItems: "center", gap: 8 }}>
                 {viewedUser?.fullName}
-                {viewedUser?.verificationStatus === "verified" && <VerifiedBadge size={20} />}
+                {viewedUser?.isVerified && <VerifiedBadge size={20} />}
               </h1>
               <p style={{ fontSize: "14px", color: "var(--t-ink-2)", margin: "0 0 8px 0" }}>
                 @{viewedUser?.email?.split("@")[0]}

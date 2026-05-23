@@ -16,9 +16,10 @@ func handleAdminStats(c *fiber.Ctx) error {
 	dbPool.QueryRow(ctx, "SELECT COUNT(*) FROM users").Scan(&stats.TotalUsers)
 	dbPool.QueryRow(ctx, "SELECT COUNT(*) FROM users WHERE created_at >= CURRENT_DATE").Scan(&stats.TodaySignups)
 	dbPool.QueryRow(ctx, "SELECT COUNT(*) FROM users WHERE created_at >= NOW() - INTERVAL '7 days'").Scan(&stats.WeekSignups)
-	dbPool.QueryRow(ctx, "SELECT COUNT(*) FROM users WHERE verification_status = 'pending'").Scan(&stats.PendingVerifications)
-	dbPool.QueryRow(ctx, "SELECT COUNT(*) FROM users WHERE verification_status = 'verified'").Scan(&stats.VerifiedUsers)
-	dbPool.QueryRow(ctx, "SELECT COUNT(*) FROM users WHERE verification_status = 'unverified'").Scan(&stats.UnverifiedUsers)
+	// Profile/badge verification (admin-granted, gold badge)
+	dbPool.QueryRow(ctx, "SELECT COUNT(*) FROM verification_requests WHERE status = 'pending'").Scan(&stats.PendingVerifications)
+	dbPool.QueryRow(ctx, "SELECT COUNT(*) FROM users WHERE is_verified = TRUE").Scan(&stats.VerifiedUsers)
+	dbPool.QueryRow(ctx, "SELECT COUNT(*) FROM users WHERE is_verified = FALSE").Scan(&stats.UnverifiedUsers)
 	dbPool.QueryRow(ctx, "SELECT COALESCE(SUM(total_logins), 0) FROM users").Scan(&stats.TotalLogins)
 	dbPool.QueryRow(ctx, "SELECT COUNT(*) FROM users WHERE is_admin = true").Scan(&stats.AdminCount)
 	dbPool.QueryRow(ctx, "SELECT COUNT(*) FROM users WHERE total_logins > 1").Scan(&stats.ReturnedUsers)
@@ -94,7 +95,7 @@ func handleAdminListUsers(c *fiber.Ctx) error {
 	role := c.Query("role", "")
 	adminOnly := c.Query("admin", "")
 
-	query := `SELECT id, email, full_name, role, verification_status, is_admin, is_banned, banned_until, ban_message, created_at, last_login_at, total_logins, followers, following, posts FROM users WHERE 1=1`
+	query := `SELECT id, email, full_name, role, verification_status, is_verified, is_admin, is_banned, banned_until, ban_message, created_at, last_login_at, total_logins, followers, following, posts FROM users WHERE 1=1`
 	args := []interface{}{}
 	argIdx := 1
 
@@ -123,7 +124,7 @@ func handleAdminListUsers(c *fiber.Ctx) error {
 	for rows.Next() {
 		var u AdminUserView
 		var bannedUntil *time.Time
-		if err := rows.Scan(&u.ID, &u.Email, &u.FullName, &u.Role, &u.VerificationStatus, &u.IsAdmin,
+		if err := rows.Scan(&u.ID, &u.Email, &u.FullName, &u.Role, &u.VerificationStatus, &u.IsVerified, &u.IsAdmin,
 			&u.IsBanned, &bannedUntil, &u.BanMessage,
 			&u.CreatedAt, &u.LastLoginAt, &u.TotalLogins, &u.Followers, &u.Following, &u.Posts); err == nil {
 			if bannedUntil != nil {
@@ -145,8 +146,8 @@ func handleAdminGetUser(c *fiber.Ctx) error {
 
 	var u AdminUserView
 	err := dbPool.QueryRow(ctx,
-		`SELECT id, email, full_name, role, verification_status, is_admin, created_at, last_login_at, total_logins, followers, following, posts FROM users WHERE id = $1`, id).Scan(
-		&u.ID, &u.Email, &u.FullName, &u.Role, &u.VerificationStatus, &u.IsAdmin, &u.CreatedAt, &u.LastLoginAt, &u.TotalLogins, &u.Followers, &u.Following, &u.Posts)
+		`SELECT id, email, full_name, role, verification_status, is_verified, is_admin, created_at, last_login_at, total_logins, followers, following, posts FROM users WHERE id = $1`, id).Scan(
+		&u.ID, &u.Email, &u.FullName, &u.Role, &u.VerificationStatus, &u.IsVerified, &u.IsAdmin, &u.CreatedAt, &u.LastLoginAt, &u.TotalLogins, &u.Followers, &u.Following, &u.Posts)
 	if err != nil {
 		return c.Status(404).JSON(fiber.Map{"error": "user not found"})
 	}
@@ -160,6 +161,7 @@ func handleAdminUpdateUser(c *fiber.Ctx) error {
 	var body struct {
 		Role               *string `json:"role"`
 		VerificationStatus *string `json:"verificationStatus"`
+		IsVerified         *bool   `json:"isVerified"`
 		IsAdmin            *bool   `json:"isAdmin"`
 	}
 	if err := c.BodyParser(&body); err != nil {
@@ -178,6 +180,11 @@ func handleAdminUpdateUser(c *fiber.Ctx) error {
 	if body.VerificationStatus != nil {
 		setClauses = append(setClauses, fmt.Sprintf("verification_status = $%d", argIdx))
 		args = append(args, *body.VerificationStatus)
+		argIdx++
+	}
+	if body.IsVerified != nil {
+		setClauses = append(setClauses, fmt.Sprintf("is_verified = $%d", argIdx))
+		args = append(args, *body.IsVerified)
 		argIdx++
 	}
 	if body.IsAdmin != nil {

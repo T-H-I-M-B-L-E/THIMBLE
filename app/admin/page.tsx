@@ -142,13 +142,13 @@ export default function AdminDashboard() {
       {/* Verification funnel + Retention */}
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
         <div className="bg-white/8 backdrop-blur-xl border border-white/10 rounded-2xl p-5">
-          <p className="text-xs text-neutral-500 uppercase tracking-widest mb-4">Verification Funnel</p>
+          <p className="text-xs text-neutral-500 uppercase tracking-widest mb-4">Badge Verification</p>
           <div className="space-y-2">
             {[
-              { label: 'Signed Up', value: stats?.totalUsers ?? 0, color: 'bg-white/10' },
-              { label: 'Verified', value: stats?.verifiedUsers ?? 0, color: 'bg-emerald-500/30' },
-              { label: 'Pending', value: stats?.pendingVerifications ?? 0, color: 'bg-yellow-500/30' },
-              { label: 'Unverified', value: stats?.unverifiedUsers ?? 0, color: 'bg-red-500/20' },
+              { label: 'Total users', value: stats?.totalUsers ?? 0, color: 'bg-white/10' },
+              { label: 'Badge verified', value: stats?.verifiedUsers ?? 0, color: 'bg-yellow-500/30' },
+              { label: 'Pending review', value: stats?.pendingVerifications ?? 0, color: 'bg-blue-500/30' },
+              { label: 'No badge', value: stats?.unverifiedUsers ?? 0, color: 'bg-white/5' },
             ].map(row => (
               <div key={row.label} className="flex items-center gap-3">
                 <div className={`h-2 rounded-full ${row.color}`}
@@ -158,7 +158,7 @@ export default function AdminDashboard() {
               </div>
             ))}
           </div>
-          <p className="text-xs text-neutral-600 mt-3">{verifiedPct}% verification rate</p>
+          <p className="text-xs text-neutral-600 mt-3">{verifiedPct}% of users have the gold badge</p>
         </div>
 
         <div className="bg-white/8 backdrop-blur-xl border border-white/10 rounded-2xl p-5">
