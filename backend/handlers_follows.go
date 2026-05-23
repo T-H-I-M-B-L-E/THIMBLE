@@ -50,7 +50,10 @@ func handleGetFollows(c *fiber.Ctx) error {
 }
 
 func handleFollow(c *fiber.Ctx) error {
-	followerID, _ := c.Locals("userId").(string)
+	followerID, ok := c.Locals("userId").(string)
+	if !ok || followerID == "" {
+		return c.Status(401).JSON(fiber.Map{"error": "unauthorized"})
+	}
 	var body struct {
 		FollowingID string `json:"followingId"`
 	}
@@ -75,7 +78,10 @@ func handleFollow(c *fiber.Ctx) error {
 }
 
 func handleUnfollow(c *fiber.Ctx) error {
-	followerID, _ := c.Locals("userId").(string)
+	followerID, ok := c.Locals("userId").(string)
+	if !ok || followerID == "" {
+		return c.Status(401).JSON(fiber.Map{"error": "unauthorized"})
+	}
 	var body struct {
 		FollowingID string `json:"followingId"`
 	}

@@ -9,11 +9,12 @@ interface JWTPayload {
   exp: number
 }
 
-// Read secret lazily so tests can set process.env.JWT_SECRET before calling verifyJWT
 function getJWTSecret(): Uint8Array {
-  return new TextEncoder().encode(
-    process.env.JWT_SECRET || 'fallback-secret-key-change-in-production'
-  )
+  const secret = process.env.JWT_SECRET
+  if (!secret) {
+    throw new Error('JWT_SECRET environment variable is required but not set')
+  }
+  return new TextEncoder().encode(secret)
 }
 
 export async function verifyJWT(token: string): Promise<JWTPayload | null> {

@@ -211,7 +211,9 @@ func handleAdminUpdateUser(c *fiber.Ctx) error {
 
 	adminID, _ := c.Locals("userId").(string)
 	var targetName string
-	dbPool.QueryRow(ctx, "SELECT full_name FROM users WHERE id = $1", id).Scan(&targetName)
+	if err := dbPool.QueryRow(ctx, "SELECT full_name FROM users WHERE id = $1", id).Scan(&targetName); err != nil {
+		targetName = "[unknown]"
+	}
 	writeAuditLog(ctx, adminID, "update_user", id, targetName, fmt.Sprintf("%v", body))
 
 	return c.JSON(fiber.Map{"success": true})
@@ -255,7 +257,9 @@ func handleAdminBanUser(c *fiber.Ctx) error {
 
 	adminID, _ := c.Locals("userId").(string)
 	var targetName string
-	dbPool.QueryRow(ctx, "SELECT full_name FROM users WHERE id = $1", id).Scan(&targetName)
+	if err := dbPool.QueryRow(ctx, "SELECT full_name FROM users WHERE id = $1", id).Scan(&targetName); err != nil {
+		targetName = "[unknown]"
+	}
 	dur := "permanent"
 	if body.DurationHours > 0 {
 		dur = fmt.Sprintf("%dh", body.DurationHours)
@@ -280,7 +284,9 @@ func handleAdminUnbanUser(c *fiber.Ctx) error {
 
 	adminID, _ := c.Locals("userId").(string)
 	var targetName string
-	dbPool.QueryRow(ctx, "SELECT full_name FROM users WHERE id = $1", id).Scan(&targetName)
+	if err := dbPool.QueryRow(ctx, "SELECT full_name FROM users WHERE id = $1", id).Scan(&targetName); err != nil {
+		targetName = "[unknown]"
+	}
 	writeAuditLog(ctx, adminID, "unban_user", id, targetName, "ban lifted")
 
 	return c.JSON(fiber.Map{"success": true})
@@ -291,7 +297,9 @@ func handleAdminDeleteUser(c *fiber.Ctx) error {
 	id := c.Params("id")
 
 	var targetName string
-	dbPool.QueryRow(ctx, "SELECT full_name FROM users WHERE id = $1", id).Scan(&targetName)
+	if err := dbPool.QueryRow(ctx, "SELECT full_name FROM users WHERE id = $1", id).Scan(&targetName); err != nil {
+		targetName = "[unknown]"
+	}
 
 	result, err := dbPool.Exec(ctx, "DELETE FROM users WHERE id = $1", id)
 	if err != nil {
