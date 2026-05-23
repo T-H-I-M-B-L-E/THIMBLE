@@ -131,7 +131,7 @@ export default function ProfilePage() {
                 {user?.isVerified && <VerifiedBadge size={20} />}
               </h1>
               <p style={{ fontSize: "14px", color: "var(--t-ink-2)", margin: "0 0 8px 0" }}>
-                @{user?.email?.split("@")[0]}
+                @{user?.username || user?.email?.split("@")[0]}
               </p>
               <RoleBadge role={userRole} size="sm" />
             </div>

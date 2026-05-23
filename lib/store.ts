@@ -8,6 +8,8 @@ export type VerificationStatus = 'unverified' | 'pending' | 'verified'
 export interface User {
   id: string
   fullName: string
+  username?: string
+  usernameChangedAt?: string | null
   email: string
   phone: string
   role: UserRole

@@ -6,6 +6,8 @@ type User struct {
 	ID                 string  `json:"id"`
 	Email              string  `json:"email"`
 	FullName           string  `json:"fullName"`
+	Username           string  `json:"username"`
+	UsernameChangedAt  *string `json:"usernameChangedAt,omitempty"`
 	Role               string  `json:"role"`
 	AvatarUrl          string  `json:"avatarUrl,omitempty"`
 	Bio                string  `json:"bio,omitempty"`

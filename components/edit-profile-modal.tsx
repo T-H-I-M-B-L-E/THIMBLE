@@ -16,22 +16,41 @@ interface EditProfileModalProps {
   user: any
 }
 
+const USERNAME_COOLDOWN_DAYS = 30
+const USERNAME_RE = /^[a-z0-9](?:[a-z0-9_.]{1,28}[a-z0-9])?$/
+
+function nextUsernameChangeAt(changedAtIso?: string | null): Date | null {
+  if (!changedAtIso) return null
+  const t = new Date(changedAtIso).getTime()
+  if (Number.isNaN(t)) return null
+  const next = new Date(t + USERNAME_COOLDOWN_DAYS * 24 * 60 * 60 * 1000)
+  return next > new Date() ? next : null
+}
+
 export function EditProfileModal({ isOpen, onClose, user }: EditProfileModalProps) {
   const [fullName, setFullName] = useState("")
+  const [username, setUsername] = useState("")
   const [bio, setBio] = useState("")
   const [website, setWebsite] = useState("")
   const [instagram, setInstagram] = useState("")
   const [avatarUrl, setAvatarUrl] = useState("")
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [uploadProgress, setUploadProgress] = useState(0)
+  const [usernameError, setUsernameError] = useState<string | null>(null)
+
+  const initialUsername = (user?.username || "").toLowerCase()
+  const nextAllowed = nextUsernameChangeAt(user?.usernameChangedAt)
+  const usernameLocked = nextAllowed !== null
 
   useEffect(() => {
     if (user) {
       setFullName(user.fullName || "")
+      setUsername((user.username || "").toLowerCase())
       setBio(user.bio || "")
       setWebsite(user.website || "")
       setInstagram(user.instagram || "")
       setAvatarUrl(user.avatar || user.avatarUrl || "")
+      setUsernameError(null)
     }
   }, [user, isOpen])
 
@@ -53,24 +72,45 @@ export function EditProfileModal({ isOpen, onClose, user }: EditProfileModalProp
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!user?.id) return
-    setIsSubmitting(true)
+    setUsernameError(null)
 
+    const trimmedUsername = username.trim().toLowerCase()
+    const usernameChanged = trimmedUsername !== initialUsername
+
+    if (usernameChanged) {
+      if (usernameLocked) {
+        setUsernameError(`You can change your username again on ${nextAllowed!.toLocaleDateString()}.`)
+        return
+      }
+      if (!USERNAME_RE.test(trimmedUsername)) {
+        setUsernameError("3–30 chars. Lowercase letters, numbers, underscore or dot. Must start and end with a letter or number.")
+        return
+      }
+    }
+
+    setIsSubmitting(true)
     try {
+      const body: Record<string, unknown> = {
+        bio,
+        avatar: avatarUrl,
+        website: normalizeWebsiteUrl(website),
+      }
+      if (usernameChanged) body.username = trimmedUsername
+
       const res = await fetch(`/api/users/${user.id}`, {
         method: "PATCH",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          bio,
-          avatar: avatarUrl,
-          website: normalizeWebsiteUrl(website),
-        }),
+        body: JSON.stringify(body),
       })
       if (!res.ok) {
         const data = await res.json().catch(() => ({}))
+        if (data?.error === "username_taken" || data?.error === "username_cooldown" || data?.error === "invalid_username") {
+          setUsernameError(data?.message || "Couldn't update username.")
+          return
+        }
         throw new Error(data?.error || "Failed to update profile")
       }
-      // Trigger a refresh so useAuth picks up the new fields
       window.dispatchEvent(new Event("focus"))
       onClose()
     } catch (err) {
@@ -115,12 +155,49 @@ export function EditProfileModal({ isOpen, onClose, user }: EditProfileModalProp
           <div className="space-y-4">
             <div className="space-y-2">
               <Label className="text-[10px] uppercase tracking-widest text-neutral-500">Full Name</Label>
-              <Input 
+              <Input
                 value={fullName}
                 onChange={(e) => setFullName(e.target.value)}
                 className="rounded-none border-neutral-200 dark:border-neutral-800 focus:ring-0"
                 placeholder="Jane Doe"
               />
+            </div>
+
+            <div className="space-y-2">
+              <Label className="text-[10px] uppercase tracking-widest text-neutral-500 flex items-center gap-2">
+                Username
+                {usernameLocked && (
+                  <span className="text-[10px] normal-case tracking-normal text-neutral-400">
+                    locked until {nextAllowed!.toLocaleDateString()}
+                  </span>
+                )}
+              </Label>
+              <div className="flex items-center border border-neutral-200 dark:border-neutral-800">
+                <span className="px-3 text-sm text-neutral-400 select-none">@</span>
+                <Input
+                  value={username}
+                  onChange={(e) => {
+                    setUsername(e.target.value.toLowerCase())
+                    if (usernameError) setUsernameError(null)
+                  }}
+                  disabled={usernameLocked}
+                  maxLength={30}
+                  className="rounded-none border-0 focus:ring-0 pl-0"
+                  placeholder="jane.doe"
+                  spellCheck={false}
+                  autoCapitalize="off"
+                  autoComplete="off"
+                />
+              </div>
+              <p className="text-[11px] text-neutral-500">
+                {usernameError ? (
+                  <span className="text-red-500">{usernameError}</span>
+                ) : usernameLocked ? (
+                  `You can change your username once every ${USERNAME_COOLDOWN_DAYS} days.`
+                ) : (
+                  `3–30 characters. Lowercase letters, numbers, _ or .  Heads up: you can only change this once every ${USERNAME_COOLDOWN_DAYS} days.`
+                )}
+              </p>
             </div>
 
             <div className="space-y-2">
