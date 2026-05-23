@@ -345,6 +345,7 @@ export function InlineComposer({ user, onOptimistic, onCommit, onRevert }: Inlin
                     type="button"
                     className="t-icomp-iconbtn"
                     onClick={handlePickImage}
+                    onMouseDown={e => e.preventDefault()}
                     disabled={uploading || posting}
                     aria-label="Attach image"
                   >
