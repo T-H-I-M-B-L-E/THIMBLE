@@ -102,7 +102,20 @@ export async function middleware(req: NextRequest) {
   if (!token) return NextResponse.redirect(new URL('/auth', req.url))
 
   const payload = await verifyJWT(token)
-  if (!payload) return NextResponse.redirect(new URL('/auth', req.url))
+  if (!payload) {
+    // Token is present but invalid or expired — send to login with a reason
+    // and clear the stale cookie so it stops being sent on every request.
+    const url = req.nextUrl.clone()
+    url.pathname = '/auth'
+    url.search = 'reason=expired'
+    const res = NextResponse.redirect(url)
+    res.cookies.set('auth_token', '', {
+      maxAge: 0,
+      path: '/',
+      domain: process.env.NODE_ENV === 'production' ? '.tvimble.tech' : undefined,
+    })
+    return res
+  }
 
   return NextResponse.next()
 }

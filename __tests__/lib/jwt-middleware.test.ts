@@ -85,6 +85,25 @@ describe('verifyJWT', () => {
     const payload = await verifyJWT(token)
     expect(payload?.role).toBe('designer')
   })
+
+  it('rejects tokens signed with the old hardcoded fallback secret', async () => {
+    // Regression guard: the module must never fall back to a known public secret.
+    const token = await makeToken({ userId: 'usr_7' }, 'fallback-secret-key-change-in-production')
+    const payload = await verifyJWT(token)
+    expect(payload).toBeNull()
+  })
+
+  it('returns null instead of throwing when JWT_SECRET is unset', async () => {
+    const token = await makeToken({ userId: 'usr_8' })
+    const saved = process.env.JWT_SECRET
+    delete process.env.JWT_SECRET
+    try {
+      const payload = await verifyJWT(token)
+      expect(payload).toBeNull()
+    } finally {
+      process.env.JWT_SECRET = saved
+    }
+  })
 })
 
 // ─────────────────────────────────────────────────────────────────────────────

@@ -19,6 +19,7 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState("")
   const [banInfo, setBanInfo] = useState<{ bannedUntil: string | null; banMessage: string } | null>(null)
+  const [sessionExpired, setSessionExpired] = useState(false)
   const isDark = theme === "dark"
 
   const [formData, setFormData] = useState({
@@ -32,6 +33,12 @@ export default function LoginPage() {
       router.push(getPostAuthPath(user))
     }
   }, [user, isAuthLoading, router])
+
+  // Surface a notice when the user was redirected here by an expired session
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    setSessionExpired(params.get("reason") === "expired")
+  }, [])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -120,6 +127,12 @@ export default function LoginPage() {
             <h2 className="text-lg sm:text-xl lg:text-2xl font-light text-black dark:text-white">Welcome back</h2>
             <p className="text-xs sm:text-sm text-neutral-500 dark:text-neutral-400">Sign in to continue</p>
           </div>
+
+          {sessionExpired && !error && (
+            <div className="rounded-none border border-neutral-400 dark:border-neutral-600 p-3 sm:p-4 text-sm text-neutral-600 dark:text-neutral-300 bg-transparent">
+              Your session has expired. Please sign in again to continue.
+            </div>
+          )}
 
           {error && (
             <div className="space-y-3">

@@ -9,13 +9,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { SignJWT } from 'jose'
 
-// The middleware captures JWT_SECRET at module-load time, so we must use the
-// same value it computed (the fallback, since env may not be set at import).
-// We read it after importing the middleware so both agree on the secret.
+// The middleware reads JWT_SECRET lazily (per request), and there is no
+// fallback secret, so a value must be present in the environment. Set a
+// deterministic one before importing the middleware and sign tokens with it.
+const SECRET = 'test-secret-32-chars-minimum!!'
+process.env.JWT_SECRET = SECRET
+
 import { middleware } from '@/middleware'
 
-// Use the same default the middleware fell back to
-const SECRET = process.env.JWT_SECRET ?? 'fallback-secret-key-change-in-production'
 const encoder = new TextEncoder()
 
 async function makeValidToken(expiresIn = '7d'): Promise<string> {

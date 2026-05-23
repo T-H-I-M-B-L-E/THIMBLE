@@ -227,6 +227,16 @@ func main() {
 		CREATE INDEX IF NOT EXISTS idx_notifications_user_created ON notifications(user_id, created_at DESC)
 	`)
 
+	// Hot-path indexes for foreign-key lookups
+	dbPool.Exec(context.Background(), `CREATE INDEX IF NOT EXISTS idx_post_likes_post_id ON post_likes(post_id)`)
+	dbPool.Exec(context.Background(), `CREATE INDEX IF NOT EXISTS idx_post_likes_user_id ON post_likes(user_id)`)
+	dbPool.Exec(context.Background(), `CREATE INDEX IF NOT EXISTS idx_post_comments_post_id ON post_comments(post_id)`)
+	dbPool.Exec(context.Background(), `CREATE INDEX IF NOT EXISTS idx_posts_user_id ON posts(user_id)`)
+	dbPool.Exec(context.Background(), `CREATE INDEX IF NOT EXISTS idx_follows_follower_id ON follows(follower_id)`)
+	dbPool.Exec(context.Background(), `CREATE INDEX IF NOT EXISTS idx_follows_following_id ON follows(following_id)`)
+	dbPool.Exec(context.Background(), `CREATE INDEX IF NOT EXISTS idx_conv_messages_conversation_id ON conversation_messages(conversation_id)`)
+	dbPool.Exec(context.Background(), `CREATE INDEX IF NOT EXISTS idx_conv_participants_user_id ON conversation_participants(user_id)`)
+
 	go sweepExpiredTickets()
 
 	app := fiber.New()

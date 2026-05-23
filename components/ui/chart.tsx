@@ -69,6 +69,12 @@ function ChartContainer({
   )
 }
 
+// Guard against CSS injection: keys become custom-property names and colors
+// are interpolated directly into a <style> block, so reject anything that
+// could break out of the declaration.
+const SAFE_CSS_KEY = /^[A-Za-z0-9_-]+$/
+const SAFE_CSS_COLOR = /^[#A-Za-z0-9 ,.%()/-]+$/
+
 const ChartStyle = ({ id, config }: { id: string; config: ChartConfig }) => {
   const colorConfig = Object.entries(config).filter(
     ([, config]) => config.theme || config.color,
@@ -90,8 +96,12 @@ ${colorConfig
     const color =
       itemConfig.theme?.[theme as keyof typeof itemConfig.theme] ||
       itemConfig.color
-    return color ? `  --color-${key}: ${color};` : null
+    if (!color || !SAFE_CSS_KEY.test(key) || !SAFE_CSS_COLOR.test(color)) {
+      return null
+    }
+    return `  --color-${key}: ${color};`
   })
+  .filter(Boolean)
   .join('\n')}
 }
 `,

@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"log"
 	"strings"
 	"time"
 
@@ -84,9 +85,11 @@ func handleAdminAuditLog(c *fiber.Ctx) error {
 }
 
 func writeAuditLog(ctx context.Context, adminID, action, targetID, targetName, details string) {
-	dbPool.Exec(ctx,
+	if _, err := dbPool.Exec(ctx,
 		`INSERT INTO admin_audit_log (admin_id, action, target_id, target_name, details) VALUES ($1, $2, $3, $4, $5)`,
-		adminID, action, targetID, targetName, details)
+		adminID, action, targetID, targetName, details); err != nil {
+		log.Printf("failed to write audit log (admin=%s action=%s target=%s): %v", adminID, action, targetID, err)
+	}
 }
 
 func handleAdminListUsers(c *fiber.Ctx) error {
