@@ -177,9 +177,11 @@ func handleAdminReviewVerification(c *fiber.Ctx) error {
 		return c.Status(400).JSON(fiber.Map{"error": "action must be 'approve' or 'reject'"})
 	}
 
-	// Look up target user id + ensure request is pending
-	var userID, status string
-	err := dbPool.QueryRow(ctx, `SELECT user_id, status FROM verification_requests WHERE id = $1`, id).Scan(&userID, &status)
+	// Look up target user id, status, and current ID document URL
+	var userID, status, idDocumentURL string
+	err := dbPool.QueryRow(ctx,
+		`SELECT user_id, status, COALESCE(id_document_url,'') FROM verification_requests WHERE id = $1`, id,
+	).Scan(&userID, &status, &idDocumentURL)
 	if err == pgx.ErrNoRows {
 		return c.Status(404).JSON(fiber.Map{"error": "request not found"})
 	}
@@ -201,9 +203,13 @@ func handleAdminReviewVerification(c *fiber.Ctx) error {
 	}
 	defer tx.Rollback(ctx)
 
+	// Clear id_document_url at the same time we mark the row reviewed —
+	// the document is no longer needed once a decision has been made, and
+	// the public URL stops working as soon as the object is deleted from R2.
 	_, err = tx.Exec(ctx, `
 		UPDATE verification_requests
-		SET status = $1, admin_note = $2, reviewed_by = $3, reviewed_at = NOW(), updated_at = NOW()
+		SET status = $1, admin_note = $2, reviewed_by = $3, reviewed_at = NOW(),
+		    id_document_url = '', updated_at = NOW()
 		WHERE id = $4
 	`, newStatus, body.AdminNote, adminID, id)
 	if err != nil {
@@ -227,5 +233,9 @@ func handleAdminReviewVerification(c *fiber.Ctx) error {
 	dbPool.QueryRow(ctx, "SELECT full_name FROM users WHERE id = $1", userID).Scan(&targetName)
 	writeAuditLog(ctx, adminID, "verification_"+newStatus, userID, targetName, body.AdminNote)
 
-	return c.JSON(fiber.Map{"success": true, "status": newStatus})
+	return c.JSON(fiber.Map{
+		"success":         true,
+		"status":          newStatus,
+		"deletedDocument": idDocumentURL, // caller (Next.js proxy) deletes the object from R2
+	})
 }
