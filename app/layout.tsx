@@ -1,50 +1,51 @@
-import type { Metadata, Viewport } from 'next'
-import { Analytics } from '@vercel/analytics/next'
-import { ThemeProvider } from '@/lib/theme-context'
-import { UserSync } from '@/components/user-sync'
-import { WelcomeOverlay } from '@/components/welcome-overlay'
-import { GrainientBackground } from '@/components/grainient-background'
-import { headers } from 'next/headers'
-import './globals.css'
+import type { Metadata, Viewport } from "next";
+import { Analytics } from "@vercel/analytics/next";
+import { ThemeProvider } from "@/lib/theme-context";
+import { UserSync } from "@/components/user-sync";
+import { WelcomeOverlay } from "@/components/welcome-overlay";
+import { GrainientBackground } from "@/components/grainient-background";
+import { headers } from "next/headers";
+import "./globals.css";
 
 export const metadata: Metadata = {
-  title: 'THIMBLE - Fashion Creative Platform',
-  description: 'Where fashion designers, models, and creatives showcase their work and collaborate',
-  generator: 'v0.app',
+  title: "THIMBLE - Fashion Creative Platform",
+  description:
+    "Where fashion designers, models, and creatives showcase their work and collaborate",
+  generator: "v0.app",
   icons: {
     icon: [
       {
-        url: '/icon-light-32x32.png',
-        media: '(prefers-color-scheme: light)',
+        url: "/icon-light-32x32.png",
+        media: "(prefers-color-scheme: light)",
       },
       {
-        url: '/icon-dark-32x32.png',
-        media: '(prefers-color-scheme: dark)',
+        url: "/icon-dark-32x32.png",
+        media: "(prefers-color-scheme: dark)",
       },
       {
-        url: '/icon.svg',
-        type: 'image/svg+xml',
+        url: "/icon.svg",
+        type: "image/svg+xml",
       },
     ],
-    apple: '/apple-icon.png',
+    apple: "/apple-icon.png",
   },
-}
+};
 
 export const viewport: Viewport = {
-  width: 'device-width',
+  width: "device-width",
   initialScale: 1,
   maximumScale: 5,
   userScalable: true,
-}
+};
 
 export default async function RootLayout({
   children,
 }: Readonly<{
-  children: React.ReactNode
+  children: React.ReactNode;
 }>) {
-  const headersList = await headers()
-  const host = headersList.get('host') || ''
-  const isAdmin = host.startsWith('admin.')
+  const headersList = await headers();
+  const host = headersList.get("host") || "";
+  const isAdmin = host.startsWith("admin.");
 
   return (
     <html lang="en" suppressHydrationWarning>
@@ -53,10 +54,18 @@ export default async function RootLayout({
         <ThemeProvider>
           {!isAdmin && <UserSync />}
           {!isAdmin && <WelcomeOverlay />}
-          {children}
+          {!isAdmin ? (
+            <div className="container">
+              <div id="main-content" className="content-area">
+                {children}
+              </div>
+            </div>
+          ) : (
+            <>{children}</>
+          )}
         </ThemeProvider>
-        {process.env.NODE_ENV === 'production' && <Analytics />}
+        {process.env.NODE_ENV === "production" && <Analytics />}
       </body>
     </html>
-  )
+  );
 }

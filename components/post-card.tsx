@@ -1,65 +1,62 @@
-"use client"
+"use client";
 
-import Image from "next/image"
-import { useState, useRef } from "react"
-import { useRouter } from "next/navigation"
-import { Heart, MessageCircle, Bookmark, Share2, MoreHorizontal, Trash2, Send, UserPlus, UserCheck } from "lucide-react"
-import { useLike, useComments, useFollow, prefetchComments } from "@/hooks/use-social"
-import type { Comment } from "@/hooks/use-social"
-import { useUsers } from "@/hooks/use-users"
-import { Avatar } from "@/components/avatar"
-import { VerifiedBadge } from "@/components/verified-badge"
+import Image from "next/image";
+import { useState, useRef } from "react";
+import { useRouter } from "next/navigation";
+import {
+  Heart,
+  MessageCircle,
+  Bookmark,
+  MoreHorizontal,
+  Trash2,
+  Send,
+  UserPlus,
+  UserCheck,
+} from "lucide-react";
+import { SharePopover } from "@/components/SharePopover";
+import {
+  useLike,
+  useComments,
+  useFollow,
+  prefetchComments,
+} from "@/hooks/use-social";
+import type { Comment } from "@/hooks/use-social";
+import { useUsers } from "@/hooks/use-users";
+import { Avatar } from "@/components/avatar";
+import { VerifiedBadge } from "@/components/verified-badge";
 
 export interface PostData {
-  id: number | string
-  userId?: string
-  authorName: string
-  authorAvatar: string
-  authorVerified?: boolean
-  imageUrl: string
-  description: string
-  likes: number
-  commentCount?: number
-  likedByMe?: boolean
-  createdAt: string
-  taggedUsers?: string[]
+  id: number | string;
+  userId?: string;
+  authorName: string;
+  authorAvatar: string;
+  authorVerified?: boolean;
+  imageUrl: string;
+  description: string;
+  likes: number;
+  commentCount?: number;
+  likedByMe?: boolean;
+  createdAt: string;
+  taggedUsers?: string[];
 }
 
 interface PostCardProps {
-  post: PostData
-  currentUserId?: string
-  onDelete: (id: string | number) => void
-}
-
-function SmallAvatar({ src, name, size = 40 }: { src?: string; name?: string; size?: number }) {
-  if (src) {
-    return (
-      <div style={{ width: size, height: size, position: "relative", borderRadius: "50%", overflow: "hidden", flexShrink: 0 }}>
-        <Image src={src} alt={name || ""} fill style={{ objectFit: "cover" }} />
-      </div>
-    )
-  }
-  return (
-    <div
-      className="t-avatar t-avatar-ph"
-      style={{ width: size, height: size, fontSize: size * 0.38, flexShrink: 0 }}
-    >
-      {name?.[0]?.toUpperCase() ?? "U"}
-    </div>
-  )
+  post: PostData;
+  currentUserId?: string;
+  onDelete: (id: string | number) => void;
 }
 
 function formatDate(dateStr: string) {
   try {
-    const d = new Date(dateStr)
-    const diff = Date.now() - d.getTime()
-    if (diff < 60000) return "now"
-    if (diff < 3600000) return `${Math.floor(diff / 60000)}m`
-    if (diff < 86400000) return `${Math.floor(diff / 3600000)}h`
-    if (diff < 604800000) return `${Math.floor(diff / 86400000)}d`
-    return d.toLocaleDateString([], { month: "short", day: "numeric" })
+    const d = new Date(dateStr);
+    const diff = Date.now() - d.getTime();
+    if (diff < 60000) return "now";
+    if (diff < 3600000) return `${Math.floor(diff / 60000)}m`;
+    if (diff < 86400000) return `${Math.floor(diff / 3600000)}h`;
+    if (diff < 604800000) return `${Math.floor(diff / 86400000)}d`;
+    return d.toLocaleDateString([], { month: "short", day: "numeric" });
   } catch {
-    return ""
+    return "";
   }
 }
 
@@ -69,7 +66,10 @@ function CommentItem({ comment }: { comment: Comment }) {
       <Avatar name={comment.userName} image={comment.userAvatar} size={28} />
       <div className="t-comment-body">
         <div className="t-comment-head">
-          <span className="t-strong" style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+          <span
+            className="t-strong"
+            style={{ display: "inline-flex", alignItems: "center", gap: 4 }}
+          >
             {comment.userName}
             {comment.userVerified && <VerifiedBadge size={12} />}
           </span>
@@ -78,59 +78,81 @@ function CommentItem({ comment }: { comment: Comment }) {
         <p>{comment.content}</p>
       </div>
     </div>
-  )
+  );
 }
 
 export function PostCard({ post, currentUserId, onDelete }: PostCardProps) {
-  const router = useRouter()
-  const isOwn = !!currentUserId && currentUserId === post.userId
-  const { count: likeCount, liked, toggle: toggleLike } = useLike(post.id, post.likes, post.likedByMe)
+  const router = useRouter();
+  const isOwn = !!currentUserId && currentUserId === post.userId;
   const {
-    comments, isLoading: commentsLoading, isOpen: commentsOpen,
-    count: commentCount, toggle: toggleComments, addComment,
-  } = useComments(post.id, post.commentCount ?? 0)
-  const { isFollowing, isChecking, isSelf, toggle: toggleFollow } = useFollow(post.userId, currentUserId)
+    count: likeCount,
+    liked,
+    toggle: toggleLike,
+  } = useLike(post.id, post.likes, post.likedByMe);
+  const {
+    comments,
+    isLoading: commentsLoading,
+    isOpen: commentsOpen,
+    count: commentCount,
+    toggle: toggleComments,
+    addComment,
+  } = useComments(post.id, post.commentCount ?? 0);
+  const {
+    isFollowing,
+    isChecking,
+    isSelf,
+    toggle: toggleFollow,
+  } = useFollow(post.userId, currentUserId);
 
-  const [commentInput, setCommentInput] = useState("")
-  const [submitting, setSubmitting] = useState(false)
-  const [bookmarked, setBookmarked] = useState(false)
-  const inputRef = useRef<HTMLInputElement>(null)
+  const [commentInput, setCommentInput] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [bookmarked, setBookmarked] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
 
-  const { lookup } = useUsers()
+  const { lookup } = useUsers();
   const taggedDisplay = (post.taggedUsers ?? [])
-    .map(id => {
-      const u = lookup(id)
-      return u ? { id, name: u.fullName, role: u.role } : null
+    .map((id) => {
+      const u = lookup(id);
+      return u ? { id, name: u.fullName, role: u.role } : null;
     })
-    .filter(Boolean) as { id: string; name: string; role?: string }[]
+    .filter(Boolean) as { id: string; name: string; role?: string }[];
+
+  const postUrl =
+    typeof window !== "undefined"
+      ? `${window.location.origin}/post/${post.id}`
+      : `/post/${post.id}`;
 
   const handleTaggedUserClick = (userId: string, userRole?: string) => {
-    const role = userRole?.toLowerCase() || "designer"
-    prefetchComments(post.id)
-    router.push(`/dashboard/${role}/profile/${userId}`)
-  }
+    const role = userRole?.toLowerCase() || "designer";
+    prefetchComments(post.id);
+    router.push(`/dashboard/${role}/profile/${userId}`);
+  };
 
   const handleAuthorClick = () => {
-    if (!post.userId) return
-    prefetchComments(post.id)
-    const role = "designer"
-    router.push(`/dashboard/${role}/profile/${post.userId}`)
-  }
+    if (!post.userId) return;
+    prefetchComments(post.id);
+    router.push(`/dashboard/designer/profile/${post.userId}`);
+  };
 
   const handleSubmitComment = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!commentInput.trim() || submitting) return
-    setSubmitting(true)
-    const ok = await addComment(commentInput)
-    if (ok) setCommentInput("")
-    setSubmitting(false)
-  }
+    e.preventDefault();
+    if (!commentInput.trim() || submitting) return;
+    setSubmitting(true);
+    const ok = await addComment(commentInput);
+    if (ok) setCommentInput("");
+    setSubmitting(false);
+  };
 
   return (
     <article className="t-post">
       <button
         onClick={handleAuthorClick}
-        style={{ background: "none", border: "none", padding: 0, cursor: "pointer" }}
+        style={{
+          background: "none",
+          border: "none",
+          padding: 0,
+          cursor: "pointer",
+        }}
       >
         <Avatar name={post.authorName} image={post.authorAvatar} size={40} />
       </button>
@@ -141,7 +163,17 @@ export function PostCard({ post, currentUserId, onDelete }: PostCardProps) {
             <button
               onClick={handleAuthorClick}
               className="t-post-name"
-              style={{ background: "none", border: "none", padding: 0, cursor: "pointer", color: "inherit", font: "inherit", display: "inline-flex", alignItems: "center", gap: 4 }}
+              style={{
+                background: "none",
+                border: "none",
+                padding: 0,
+                cursor: "pointer",
+                color: "inherit",
+                font: "inherit",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 4,
+              }}
             >
               {post.authorName}
               {post.authorVerified && <VerifiedBadge size={13} />}
@@ -154,9 +186,15 @@ export function PostCard({ post, currentUserId, onDelete }: PostCardProps) {
                 className={`t-follow-mini ${isFollowing ? "is-following" : ""}`}
                 type="button"
               >
-                {isFollowing
-                  ? <><UserCheck size={11} /> Following</>
-                  : <><UserPlus size={11} /> Follow</>}
+                {isFollowing ? (
+                  <>
+                    <UserCheck size={11} /> Following
+                  </>
+                ) : (
+                  <>
+                    <UserPlus size={11} /> Follow
+                  </>
+                )}
               </button>
             )}
           </div>
@@ -176,9 +214,7 @@ export function PostCard({ post, currentUserId, onDelete }: PostCardProps) {
           )}
         </header>
 
-        {post.description && (
-          <p className="t-post-text">{post.description}</p>
-        )}
+        {post.description && <p className="t-post-text">{post.description}</p>}
 
         {taggedDisplay.length > 0 && (
           <p className="t-post-tagged">
@@ -190,7 +226,8 @@ export function PostCard({ post, currentUserId, onDelete }: PostCardProps) {
                 onClick={() => handleTaggedUserClick(t.id, t.role)}
                 type="button"
               >
-                @{t.name}{i < taggedDisplay.length - 1 ? ", " : ""}
+                @{t.name}
+                {i < taggedDisplay.length - 1 ? ", " : ""}
               </button>
             ))}
           </p>
@@ -198,7 +235,11 @@ export function PostCard({ post, currentUserId, onDelete }: PostCardProps) {
 
         {post.imageUrl && (
           <button className="t-post-image" aria-label="View post" type="button">
-            <img src={post.imageUrl} alt={post.description || "Post"} loading="lazy" />
+            <img
+              src={post.imageUrl}
+              alt={post.description || "Post"}
+              loading="lazy"
+            />
           </button>
         )}
 
@@ -208,7 +249,11 @@ export function PostCard({ post, currentUserId, onDelete }: PostCardProps) {
             onClick={toggleLike}
             aria-label={liked ? "Unlike" : "Like"}
           >
-            <Heart size={16} fill={liked ? "currentColor" : "none"} strokeWidth={1.75} />
+            <Heart
+              size={16}
+              fill={liked ? "currentColor" : "none"}
+              strokeWidth={1.75}
+            />
             {likeCount > 0 && <span>{likeCount.toLocaleString()}</span>}
           </button>
 
@@ -224,16 +269,22 @@ export function PostCard({ post, currentUserId, onDelete }: PostCardProps) {
             {commentCount > 0 && <span>{commentCount}</span>}
           </button>
 
-          <button className="t-action" aria-label="Share">
-            <Share2 size={16} strokeWidth={1.75} />
-          </button>
+          <SharePopover
+            postId={post.id}
+            postUrl={postUrl}
+            title={post.description || post.authorName}
+          />
 
           <button
             className={`t-action ml-auto ${bookmarked ? "on" : ""}`}
-            onClick={() => setBookmarked(b => !b)}
+            onClick={() => setBookmarked((b) => !b)}
             aria-label="Bookmark"
           >
-            <Bookmark size={16} fill={bookmarked ? "currentColor" : "none"} strokeWidth={1.75} />
+            <Bookmark
+              size={16}
+              fill={bookmarked ? "currentColor" : "none"}
+              strokeWidth={1.75}
+            />
           </button>
         </div>
 
@@ -250,20 +301,38 @@ export function PostCard({ post, currentUserId, onDelete }: PostCardProps) {
         {commentsOpen && (
           <div className="t-comments-panel">
             {commentsLoading ? (
-              <div style={{ display: "flex", justifyContent: "center", padding: 16 }}>
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "center",
+                  padding: 16,
+                }}
+              >
                 <div
                   className="animate-spin"
-                  style={{ width: 20, height: 20, borderRadius: "50%", border: "2px solid var(--t-line)", borderTopColor: "var(--t-gold)" }}
+                  style={{
+                    width: 20,
+                    height: 20,
+                    borderRadius: "50%",
+                    border: "2px solid var(--t-line)",
+                    borderTopColor: "var(--t-gold)",
+                  }}
                 />
               </div>
             ) : (
               <div className="t-comments-list">
                 {comments.length === 0 ? (
-                  <p style={{ fontSize: 13, color: "var(--t-ink-3)", padding: "4px 0" }}>
+                  <p
+                    style={{
+                      fontSize: 13,
+                      color: "var(--t-ink-3)",
+                      padding: "4px 0",
+                    }}
+                  >
                     No replies yet — start the thread.
                   </p>
                 ) : (
-                  comments.map(c => <CommentItem key={c.id} comment={c} />)
+                  comments.map((c) => <CommentItem key={c.id} comment={c} />)
                 )}
               </div>
             )}
@@ -272,7 +341,7 @@ export function PostCard({ post, currentUserId, onDelete }: PostCardProps) {
               <input
                 ref={inputRef}
                 value={commentInput}
-                onChange={e => setCommentInput(e.target.value)}
+                onChange={(e) => setCommentInput(e.target.value)}
                 placeholder="Reply…"
                 maxLength={500}
                 autoFocus
@@ -290,5 +359,5 @@ export function PostCard({ post, currentUserId, onDelete }: PostCardProps) {
         )}
       </div>
     </article>
-  )
+  );
 }
