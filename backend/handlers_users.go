@@ -104,6 +104,41 @@ func handleGetUserProfile(c *fiber.Ctx) error {
 	return c.JSON(user)
 }
 
+func handleUserSuggestions(c *fiber.Ctx) error {
+	userId, ok := c.Locals("userId").(string)
+	if !ok || userId == "" {
+		return c.Status(401).JSON(fiber.Map{"error": "unauthorized"})
+	}
+	type SuggestedUser struct {
+		ID        string `json:"id"`
+		FullName  string `json:"fullName"`
+		AvatarUrl string `json:"avatarUrl"`
+		Role      string `json:"role"`
+		Location  string `json:"location"`
+	}
+	rows, err := dbPool.Query(context.Background(),
+		`SELECT id, full_name, COALESCE(avatar_url,''), COALESCE(role,''), COALESCE(location,'')
+		 FROM users
+		 WHERE id != $1
+		   AND id NOT IN (SELECT following_id FROM follows WHERE follower_id = $1)
+		 ORDER BY followers DESC
+		 LIMIT 5`, userId)
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": "failed to fetch suggestions"})
+	}
+	defer rows.Close()
+	var users []SuggestedUser
+	for rows.Next() {
+		var u SuggestedUser
+		rows.Scan(&u.ID, &u.FullName, &u.AvatarUrl, &u.Role, &u.Location)
+		users = append(users, u)
+	}
+	if users == nil {
+		users = []SuggestedUser{}
+	}
+	return c.JSON(users)
+}
+
 func handleListAllUsers(c *fiber.Ctx) error {
 	rows, err := dbPool.Query(context.Background(),
 		`SELECT id, full_name, COALESCE(avatar_url,''), COALESCE(role,''), verification_status, is_verified

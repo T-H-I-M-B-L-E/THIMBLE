@@ -261,6 +261,8 @@ func main() {
 	app.Patch("/users/:id", jwtAuth, handleUpdateUserProfile)
 	app.Get("/users/:id", jwtAuth, handleGetUserProfile)
 	app.Get("/api/users", jwtAuth, handleListAllUsers)
+	app.Get("/api/users/suggestions", jwtAuth, handleUserSuggestions)
+	app.Get("/api/tags/trending", jwtAuth, handleTrendingTags)
 
 	// ── WebSocket ─────────────────────────────────────────────────────────────
 	app.Get("/ws", wsAuth, websocket.New(handleConversationWS))

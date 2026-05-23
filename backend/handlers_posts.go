@@ -10,6 +10,34 @@ import (
 	"github.com/gofiber/fiber/v2"
 )
 
+func handleTrendingTags(c *fiber.Ctx) error {
+	type TagCount struct {
+		Tag   string `json:"tag"`
+		Count int    `json:"count"`
+	}
+	rows, err := dbPool.Query(context.Background(),
+		`SELECT lower(m[1]) AS tag, COUNT(*) AS count
+		 FROM posts,
+		      LATERAL regexp_matches(description, '#([A-Za-z][A-Za-z0-9_]{1,})', 'g') AS m
+		 GROUP BY lower(m[1])
+		 ORDER BY count DESC
+		 LIMIT 5`)
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": "failed to fetch tags"})
+	}
+	defer rows.Close()
+	var tags []TagCount
+	for rows.Next() {
+		var t TagCount
+		rows.Scan(&t.Tag, &t.Count)
+		tags = append(tags, t)
+	}
+	if tags == nil {
+		tags = []TagCount{}
+	}
+	return c.JSON(tags)
+}
+
 func handleListPosts(c *fiber.Ctx) error {
 	callerID := ""
 	authHeader := c.Get("Authorization")

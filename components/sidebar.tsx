@@ -6,10 +6,10 @@ import Image from "next/image"
 import { useTheme } from "@/lib/theme-context"
 
 const trendingTopics = [
-  { tag: "#MinimalDesign", posts: 12847 },
-  { tag: "#SustainableFashion", posts: 8934 },
-  { tag: "#ArtisanCraft", posts: 6721 },
-  { tag: "#AvantGarde", posts: 5428 },
+  "#MinimalDesign",
+  "#SustainableFashion",
+  "#ArtisanCraft",
+  "#AvantGarde",
 ]
 
 
@@ -51,19 +51,19 @@ export function Sidebar() {
           <h3 className="font-serif text-lg tracking-wide">The Zeitgeist</h3>
         </div>
         <div className="space-y-4">
-          {trendingTopics.map((topic) => (
+          {trendingTopics.map((tag) => (
             <Link
-              key={topic.tag}
+              key={tag}
               href="#"
               className="block group"
             >
               <div className="flex items-center justify-between">
                 <p className="font-light text-sm group-hover:text-neutral-500 transition-colors">
-                  {topic.tag}
+                  {tag}
                 </p>
                 <ArrowRight className="h-3 w-3 opacity-0 group-hover:opacity-100 transition-opacity -translate-x-2 group-hover:translate-x-0 transition-transform duration-500" />
               </div>
-              <p className="text-[10px] font-mono text-neutral-400 mt-1">{topic.posts.toLocaleString()} EDITOR PICKS</p>
+              <p className="text-[10px] font-mono text-neutral-400 mt-1">EDITOR PICKS</p>
             </Link>
           ))}
         </div>
