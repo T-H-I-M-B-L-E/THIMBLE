@@ -5,6 +5,7 @@ import { X, Heart, MessageCircle, Share2, Bookmark } from "lucide-react"
 import type { PostData } from "@/components/post-card"
 import { useLike, useComments, prefetchComments } from "@/hooks/use-social"
 import { Avatar } from "@/components/avatar"
+import { VerifiedBadge } from "@/components/verified-badge"
 
 interface PostLightboxProps {
   post: PostData
@@ -144,8 +145,9 @@ export function PostLightbox({ post, isOpen, onClose }: PostLightboxProps) {
             <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
               <Avatar name={post.authorName} image={post.authorAvatar} size={40} />
               <div style={{ flex: 1 }}>
-                <p style={{ fontWeight: 600, fontSize: "14px", color: "var(--t-ink)" }}>
+                <p style={{ fontWeight: 600, fontSize: "14px", color: "var(--t-ink)", display: "inline-flex", alignItems: "center", gap: 4 }}>
                   {post.authorName}
+                  {post.authorVerified && <VerifiedBadge size={13} />}
                 </p>
                 <p style={{ fontSize: "12px", color: "var(--t-ink-3)" }}>
                   {new Date(post.createdAt).toLocaleDateString()}
@@ -214,8 +216,9 @@ export function PostLightbox({ post, isOpen, onClose }: PostLightboxProps) {
                   <div key={comment.id} style={{ fontSize: "12px", display: "flex", gap: "8px", alignItems: "flex-start" }}>
                     <Avatar name={comment.userName} image={comment.userAvatar} size={24} />
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <p style={{ fontWeight: 600, color: "var(--t-ink)", marginBottom: "2px", fontSize: "11px" }}>
+                      <p style={{ fontWeight: 600, color: "var(--t-ink)", marginBottom: "2px", fontSize: "11px", display: "inline-flex", alignItems: "center", gap: 3 }}>
                         {comment.userName}
+                        {comment.userVerified && <VerifiedBadge size={10} />}
                       </p>
                       <p style={{ color: "var(--t-ink-2)", fontSize: "11px", wordBreak: "break-word" }}>{comment.content}</p>
                     </div>

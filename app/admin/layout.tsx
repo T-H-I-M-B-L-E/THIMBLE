@@ -53,6 +53,7 @@ function AdminLayoutInner({ children }: { children: React.ReactNode }) {
 
   // Admin chat — background WS for unread tracking + splash notification
   const [unread, setUnread] = useState(0)
+  const [pendingVerifications, setPendingVerifications] = useState(0)
   const [notif, setNotif] = useState<MsgNotif>({ senderFirstName: '', visible: false })
   const chatWs = useRef<WebSocket | null>(null)
   const notifTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -84,6 +85,19 @@ function AdminLayoutInner({ children }: { children: React.ReactNode }) {
     const id = setInterval(load, 60000)
     return () => clearInterval(id)
   }, [])
+
+  // Pending verifications count (polls every 60s)
+  useEffect(() => {
+    if (!authChecked) return
+    const load = () =>
+      fetch('/api/admin/stats', { credentials: 'include' })
+        .then(r => r.ok ? r.json() : null)
+        .then(s => { if (s?.pendingVerifications != null) setPendingVerifications(s.pendingVerifications) })
+        .catch(() => {})
+    load()
+    const id = setInterval(load, 60000)
+    return () => clearInterval(id)
+  }, [authChecked])
 
   // Settings + email stats
   useEffect(() => {
@@ -165,6 +179,7 @@ function AdminLayoutInner({ children }: { children: React.ReactNode }) {
   const navLinks: { href: string; label: string; badge?: number }[] = [
     { href: '/admin', label: 'Dashboard' },
     { href: '/admin/users', label: 'Users' },
+    { href: '/admin/verification', label: 'Verify', badge: pendingVerifications > 0 ? pendingVerifications : undefined },
     { href: '/admin/chat', label: 'Messages', badge: unread > 0 ? unread : undefined },
   ]
 

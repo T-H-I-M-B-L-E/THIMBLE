@@ -12,6 +12,7 @@ import { useUsers } from "@/hooks/use-users"
 import { getSafeHostname, normalizeWebsiteUrl } from "@/lib/platform"
 import { PostLightbox } from "@/components/post-lightbox"
 import { RoleBadge } from "@/components/role-badge"
+import { VerifiedBadge } from "@/components/verified-badge"
 import type { PostData } from "@/components/post-card"
 
 export default function UserProfilePage() {
@@ -188,8 +189,9 @@ export default function UserProfilePage() {
           {/* Meta + Actions */}
           <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: "16px" }}>
             <div>
-              <h1 style={{ fontSize: "28px", fontWeight: 700, color: "var(--t-ink)", margin: "0 0 8px 0" }}>
+              <h1 style={{ fontSize: "28px", fontWeight: 700, color: "var(--t-ink)", margin: "0 0 8px 0", display: "inline-flex", alignItems: "center", gap: 8 }}>
                 {viewedUser?.fullName}
+                {viewedUser?.verificationStatus === "verified" && <VerifiedBadge size={20} />}
               </h1>
               <p style={{ fontSize: "14px", color: "var(--t-ink-2)", margin: "0 0 8px 0" }}>
                 @{viewedUser?.email?.split("@")[0]}

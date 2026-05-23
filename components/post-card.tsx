@@ -8,12 +8,14 @@ import { useLike, useComments, useFollow, prefetchComments } from "@/hooks/use-s
 import type { Comment } from "@/hooks/use-social"
 import { useUsers } from "@/hooks/use-users"
 import { Avatar } from "@/components/avatar"
+import { VerifiedBadge } from "@/components/verified-badge"
 
 export interface PostData {
   id: number | string
   userId?: string
   authorName: string
   authorAvatar: string
+  authorVerified?: boolean
   imageUrl: string
   description: string
   likes: number
@@ -67,7 +69,10 @@ function CommentItem({ comment }: { comment: Comment }) {
       <Avatar name={comment.userName} image={comment.userAvatar} size={28} />
       <div className="t-comment-body">
         <div className="t-comment-head">
-          <span className="t-strong">{comment.userName}</span>
+          <span className="t-strong" style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+            {comment.userName}
+            {comment.userVerified && <VerifiedBadge size={12} />}
+          </span>
           <span className="t-muted-xs">{formatDate(comment.createdAt)}</span>
         </div>
         <p>{comment.content}</p>
@@ -136,9 +141,10 @@ export function PostCard({ post, currentUserId, onDelete }: PostCardProps) {
             <button
               onClick={handleAuthorClick}
               className="t-post-name"
-              style={{ background: "none", border: "none", padding: 0, cursor: "pointer", color: "inherit", font: "inherit" }}
+              style={{ background: "none", border: "none", padding: 0, cursor: "pointer", color: "inherit", font: "inherit", display: "inline-flex", alignItems: "center", gap: 4 }}
             >
               {post.authorName}
+              {post.authorVerified && <VerifiedBadge size={13} />}
             </button>
             <span className="t-post-dot">·</span>
             <span className="t-post-time">{formatDate(post.createdAt)}</span>

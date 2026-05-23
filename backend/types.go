@@ -93,17 +93,18 @@ type TypingEvent struct {
 }
 
 type Post struct {
-	Id           int       `json:"id"`
-	UserId       string    `json:"userId"`
-	AuthorName   string    `json:"authorName"`
-	AuthorAvatar string    `json:"authorAvatar"`
-	ImageUrl     string    `json:"imageUrl"`
-	Description  string    `json:"description"`
-	Likes        int       `json:"likes"`
-	CommentCount int       `json:"commentCount"`
-	LikedByMe    bool      `json:"likedByMe"`
-	TaggedUsers  []string  `json:"taggedUsers"`
-	CreatedAt    time.Time `json:"createdAt"`
+	Id             int       `json:"id"`
+	UserId         string    `json:"userId"`
+	AuthorName     string    `json:"authorName"`
+	AuthorAvatar   string    `json:"authorAvatar"`
+	AuthorVerified bool      `json:"authorVerified"`
+	ImageUrl       string    `json:"imageUrl"`
+	Description    string    `json:"description"`
+	Likes          int       `json:"likes"`
+	CommentCount   int       `json:"commentCount"`
+	LikedByMe      bool      `json:"likedByMe"`
+	TaggedUsers    []string  `json:"taggedUsers"`
+	CreatedAt      time.Time `json:"createdAt"`
 }
 
 type Gig struct {

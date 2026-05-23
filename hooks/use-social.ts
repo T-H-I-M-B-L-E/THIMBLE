@@ -15,6 +15,7 @@ export interface Comment {
   userId: string
   userName: string
   userAvatar?: string
+  userVerified?: boolean
   content: string
   createdAt: string
 }

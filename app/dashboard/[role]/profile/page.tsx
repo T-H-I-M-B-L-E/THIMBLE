@@ -7,6 +7,8 @@ import { useRouter } from "next/navigation"
 import { useState, useEffect } from "react"
 import { useParams } from "next/navigation"
 import { EditProfileModal } from "@/components/edit-profile-modal"
+import { VerificationModal } from "@/components/verification-modal"
+import { VerifiedBadge } from "@/components/verified-badge"
 import { useStore } from "@/lib/store"
 import { getApiUrl, getSafeHostname, normalizeWebsiteUrl } from "@/lib/platform"
 import { Globe, Instagram, Trash2, Settings, Shield, User } from "lucide-react"
@@ -21,6 +23,7 @@ export default function ProfilePage() {
   const role = params.role as string
   const { user, isLoading } = useAuth()
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
+  const [isVerifyModalOpen, setIsVerifyModalOpen] = useState(false)
   const [userPosts, setUserPosts] = useState<any[]>([])
   const [isLoadingPosts, setIsLoadingPosts] = useState(true)
   const [activeTab, setActiveTab] = useState("posts")
@@ -90,6 +93,11 @@ export default function ProfilePage() {
         onClose={() => setIsEditModalOpen(false)}
         user={user}
       />
+      <VerificationModal
+        isOpen={isVerifyModalOpen}
+        onClose={() => setIsVerifyModalOpen(false)}
+        user={user}
+      />
 
       <div style={{ maxWidth: "900px", width: "100%", margin: "0 auto", paddingBottom: "40px" }}>
         {/* Profile Header */}
@@ -118,8 +126,9 @@ export default function ProfilePage() {
           {/* Meta + Actions */}
           <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: "16px" }}>
             <div>
-              <h1 style={{ fontSize: "28px", fontWeight: 700, color: "var(--t-ink)", margin: "0 0 8px 0" }}>
+              <h1 style={{ fontSize: "28px", fontWeight: 700, color: "var(--t-ink)", margin: "0 0 8px 0", display: "inline-flex", alignItems: "center", gap: 8 }}>
                 {user?.fullName}
+                {user?.verificationStatus === "verified" && <VerifiedBadge size={20} />}
               </h1>
               <p style={{ fontSize: "14px", color: "var(--t-ink-2)", margin: "0 0 8px 0" }}>
                 @{user?.email?.split("@")[0]}
@@ -160,12 +169,15 @@ export default function ProfilePage() {
                 <Settings size={13} />
                 Edit
               </button>
-              <button
-                style={{ background: "var(--t-gold-soft)", border: "1px solid var(--t-gold)", color: "var(--t-gold-ink)", padding: "8px 14px", borderRadius: "9px", fontSize: "13px", fontWeight: 500, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: "6px", fontFamily: "inherit" }}
-              >
-                <Shield size={13} />
-                Verify
-              </button>
+              {user?.verificationStatus !== "verified" && (
+                <button
+                  onClick={() => setIsVerifyModalOpen(true)}
+                  style={{ background: "var(--t-gold-soft)", border: "1px solid var(--t-gold)", color: "var(--t-gold-ink)", padding: "8px 14px", borderRadius: "9px", fontSize: "13px", fontWeight: 500, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: "6px", fontFamily: "inherit" }}
+                >
+                  <Shield size={13} />
+                  {user?.verificationStatus === "pending" ? "In review" : "Verify"}
+                </button>
+              )}
             </div>
           </div>
         </div>

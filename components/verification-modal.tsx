@@ -1,268 +1,329 @@
 "use client"
 
-import { useState, useRef } from "react"
-import Image from "next/image"
-import { useStore } from "@/lib/store"
+import { useState, useEffect, useRef } from "react"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
-import { X, Upload, CheckCircle, Clock, Camera, FileText, Globe } from "lucide-react"
+import { Loader2, Upload, Clock, ShieldCheck, X } from "lucide-react"
+import { uploadFile } from "@/lib/upload"
+import { VerifiedBadge } from "@/components/verified-badge"
+
+interface VerificationRequest {
+  id: number
+  status: "pending" | "approved" | "rejected"
+  fullName: string
+  email: string
+  idDocumentUrl: string
+  reason: string
+  adminNote?: string
+  createdAt: string
+}
 
 interface VerificationModalProps {
   isOpen: boolean
   onClose: () => void
+  user: { id?: string; fullName?: string; email?: string; verificationStatus?: string } | null
+  onSubmitted?: () => void
 }
 
-export function VerificationModal({ isOpen, onClose }: VerificationModalProps) {
-  const { user, submitVerification, approveVerification } = useStore()
-  const [step, setStep] = useState<"upload" | "pending" | "verified">(
-    user?.verificationStatus === "verified" ? "verified" : 
-    user?.verificationStatus === "pending" ? "pending" : "upload"
-  )
-  const [documents, setDocuments] = useState({
-    idDocument: "",
-    selfie: "",
-    website: "",
-  })
-  const [previews, setPreviews] = useState({
-    idDocument: "",
-    selfie: "",
-  })
-  const [uploading, setUploading] = useState({
-    idDocument: false,
-    selfie: false,
-  })
+export function VerificationModal({ isOpen, onClose, user, onSubmitted }: VerificationModalProps) {
+  const [existing, setExisting] = useState<VerificationRequest | null>(null)
+  const [loading, setLoading] = useState(true)
 
-  const idInputRef = useRef<HTMLInputElement>(null)
-  const selfieInputRef = useRef<HTMLInputElement>(null)
+  const [fullName, setFullName] = useState(user?.fullName || "")
+  const [email, setEmail] = useState(user?.email || "")
+  const [reason, setReason] = useState("")
+  const [idDocumentUrl, setIdDocumentUrl] = useState("")
+  const [uploading, setUploading] = useState(false)
+  const [uploadProgress, setUploadProgress] = useState(0)
+  const [submitting, setSubmitting] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
-  if (!isOpen) return null
+  const fileRef = useRef<HTMLInputElement>(null)
 
-  const handleFileSelect = async (type: "idDocument" | "selfie", file: File) => {
-    setUploading((prev) => ({ ...prev, [type]: true }))
-    
-    // Simulate upload delay
-    await new Promise((resolve) => setTimeout(resolve, 1000))
-    
-    const reader = new FileReader()
-    reader.onloadend = () => {
-      setPreviews((prev) => ({ ...prev, [type]: reader.result as string }))
-      setDocuments((prev) => ({ ...prev, [type]: file.name }))
-      setUploading((prev) => ({ ...prev, [type]: false }))
+  useEffect(() => {
+    if (!isOpen) return
+    setLoading(true)
+    setError(null)
+    fetch("/api/verification/me", { credentials: "include", cache: "no-store" })
+      .then(r => r.ok ? r.json() : { request: null })
+      .then(d => setExisting(d?.request ?? null))
+      .catch(() => setExisting(null))
+      .finally(() => setLoading(false))
+  }, [isOpen])
+
+  useEffect(() => {
+    if (!isOpen) return
+    setFullName(user?.fullName || "")
+    setEmail(user?.email || "")
+    setReason("")
+    setIdDocumentUrl("")
+    setUploadProgress(0)
+  }, [isOpen, user])
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setError(null)
+    setUploading(true)
+    try {
+      const url = await uploadFile(file, p => setUploadProgress(p), "verification")
+      setIdDocumentUrl(url)
+    } catch {
+      setError("Upload failed. Try again.")
+      setUploadProgress(0)
+    } finally {
+      setUploading(false)
     }
-    reader.readAsDataURL(file)
   }
 
-  const handleSubmit = () => {
-    if (!documents.idDocument || !documents.selfie) return
-    submitVerification(documents)
-    setStep("pending")
+  const canSubmit =
+    !submitting && !uploading &&
+    fullName.trim() !== "" &&
+    email.trim() !== "" &&
+    reason.trim() !== "" &&
+    idDocumentUrl !== ""
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!canSubmit) return
+    setSubmitting(true)
+    setError(null)
+    try {
+      const res = await fetch("/api/verification", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          fullName: fullName.trim(),
+          email: email.trim(),
+          idDocumentUrl,
+          reason: reason.trim(),
+        }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data?.error || "Failed to submit")
+      setExisting({
+        id: data.id ?? 0,
+        status: "pending",
+        fullName: fullName.trim(),
+        email: email.trim(),
+        idDocumentUrl,
+        reason: reason.trim(),
+        createdAt: new Date().toISOString(),
+      })
+      onSubmitted?.()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to submit")
+    } finally {
+      setSubmitting(false)
+    }
   }
 
-  const handleSimulateApproval = () => {
-    approveVerification()
-    setStep("verified")
-  }
-
-  const removeFile = (type: "idDocument" | "selfie") => {
-    setPreviews((prev) => ({ ...prev, [type]: "" }))
-    setDocuments((prev) => ({ ...prev, [type]: "" }))
-  }
+  const isVerified = user?.verificationStatus === "verified"
+  const hasPending = !!existing && existing.status === "pending"
+  const wasRejected = !!existing && existing.status === "rejected"
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <div className="bg-white dark:bg-black border border-neutral-200 dark:border-neutral-800 w-full max-w-md max-h-[90vh] overflow-y-auto">
-        {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-neutral-200 dark:border-neutral-800">
-          <h2 className="text-lg font-medium text-black dark:text-white">
-            {step === "upload" && "Get Verified"}
-            {step === "pending" && "Verification Pending"}
-            {step === "verified" && "Verified"}
-          </h2>
-          <button onClick={onClose} className="p-1 hover:bg-neutral-100 dark:hover:bg-neutral-900">
-            <X className="h-5 w-5" />
-          </button>
-        </div>
+    <Dialog open={isOpen} onOpenChange={onClose}>
+      <DialogContent className="w-full max-w-none h-dvh sm:h-auto sm:w-[95vw] sm:max-w-[480px] p-0 overflow-hidden flex flex-col">
+        <DialogHeader className="p-5 border-b border-(--t-line) shrink-0 flex flex-row items-center gap-3">
+          <span style={{
+            width: 32, height: 32, borderRadius: 999,
+            background: "rgba(212,169,58,0.14)",
+            border: "1px solid rgba(212,169,58,0.30)",
+            display: "inline-flex", alignItems: "center", justifyContent: "center",
+            color: "#B07F1A", flexShrink: 0,
+          }}>
+            <ShieldCheck size={16} />
+          </span>
+          <DialogTitle className="text-lg font-semibold tracking-tight">
+            Get verified
+          </DialogTitle>
+        </DialogHeader>
 
-        {/* Content */}
-        <div className="p-4 space-y-4">
-          {step === "upload" && (
-            <>
-              <p className="text-sm text-neutral-500">
-                Verification helps build trust. Submit your documents to unlock all features.
+        <div className="flex-1 overflow-y-auto p-5">
+          {loading ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="animate-spin" size={20} />
+            </div>
+          ) : isVerified ? (
+            <StatusCard
+              icon={<VerifiedBadge size={36} />}
+              title="You're verified"
+              body="The gold badge appears next to your name across the app."
+            />
+          ) : hasPending ? (
+            <StatusCard
+              icon={<Clock size={36} color="#B07F1A" />}
+              title="Verification in review"
+              body="We've received your application. You'll be notified once a decision is made."
+              footnote={`Submitted on ${new Date(existing!.createdAt).toLocaleDateString()}`}
+            />
+          ) : (
+            <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+              {wasRejected && (
+                <div style={{
+                  padding: 12, borderRadius: 12,
+                  background: "rgba(220,38,38,0.06)",
+                  border: "1px solid rgba(220,38,38,0.20)",
+                  fontSize: 12, color: "#dc2626",
+                }}>
+                  Your previous request was rejected.
+                  {existing?.adminNote && <> Reason: <em>{existing.adminNote}</em></>} You can apply again.
+                </div>
+              )}
+
+              <p style={{ fontSize: 13, color: "var(--t-ink-2)", lineHeight: 1.5, margin: 0 }}>
+                Verification adds a gold badge to your name. Submit your details and a
+                photo of your government ID. We'll review within a few days.
               </p>
 
-              {/* ID Document */}
-              <div className="space-y-2">
-                <Label className="text-xs uppercase tracking-wider text-neutral-500 flex items-center gap-2">
-                  <FileText className="h-4 w-4" />
-                  ID Document *
-                </Label>
-                
-                {!previews.idDocument ? (
-                  <button
-                    onClick={() => idInputRef.current?.click()}
-                    disabled={uploading.idDocument}
-                    className="w-full border-2 border-dashed border-neutral-300 dark:border-neutral-700 p-6 text-center hover:border-neutral-400 dark:hover:border-neutral-600 transition-colors disabled:opacity-50"
-                  >
-                    {uploading.idDocument ? (
-                      <div className="flex flex-col items-center gap-2">
-                        <div className="h-8 w-8 animate-spin rounded-full border-2 border-neutral-400 border-t-black" />
-                        <p className="text-sm text-neutral-500">Uploading...</p>
-                      </div>
+              <Field label="Full name" required>
+                <Input value={fullName} onChange={e => setFullName(e.target.value)} required maxLength={120} />
+              </Field>
+
+              <Field label="Email" required>
+                <Input type="email" value={email} onChange={e => setEmail(e.target.value)} required maxLength={200} />
+              </Field>
+
+              <Field label="Government ID" required hint="JPG, PNG or PDF · up to 10 MB">
+                {idDocumentUrl ? (
+                  <div style={previewWrap}>
+                    {idDocumentUrl.match(/\.(jpg|jpeg|png|webp|gif)(\?|$)/i) ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={idDocumentUrl} alt="ID" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                     ) : (
-                      <>
-                        <Upload className="h-8 w-8 mx-auto mb-2 text-neutral-400" />
-                        <p className="text-sm text-neutral-500">Click to upload ID</p>
-                        <p className="text-xs text-neutral-400">Driver&apos;s License, Passport, or National ID</p>
-                      </>
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", color: "var(--t-ink-2)", fontSize: 13 }}>
+                        Document uploaded
+                      </div>
                     )}
-                  </button>
-                ) : (
-                  <div className="relative w-full h-48 border border-neutral-200 dark:border-neutral-800">
-                    <Image
-                      src={previews.idDocument}
-                      alt="ID Document"
-                      fill
-                      className="object-cover"
-                    />
                     <button
-                      onClick={() => removeFile("idDocument")}
-                      className="absolute top-2 right-2 p-1 bg-black/50 text-white hover:bg-black/70 z-10"
+                      type="button"
+                      onClick={() => { setIdDocumentUrl(""); setUploadProgress(0) }}
+                      aria-label="Remove document"
+                      style={removeBtn}
                     >
-                      <X className="h-4 w-4" />
+                      <X size={14} />
                     </button>
                   </div>
-                )}
-                {previews.idDocument && (
-                  <p className="text-xs text-green-600 mt-1 flex items-center gap-1">
-                    <CheckCircle className="h-3 w-3" />
-                    ID uploaded successfully
-                  </p>
-                )}
-                <input
-                  ref={idInputRef}
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={(e) => e.target.files?.[0] && handleFileSelect("idDocument", e.target.files[0])}
-                />
-              </div>
-
-              {/* Selfie */}
-              <div className="space-y-2">
-                <Label className="text-xs uppercase tracking-wider text-neutral-500 flex items-center gap-2">
-                  <Camera className="h-4 w-4" />
-                  Selfie Verification *
-                </Label>
-                
-                {!previews.selfie ? (
-                  <button
-                    onClick={() => selfieInputRef.current?.click()}
-                    disabled={uploading.selfie}
-                    className="w-full border-2 border-dashed border-neutral-300 dark:border-neutral-700 p-6 text-center hover:border-neutral-400 dark:hover:border-neutral-600 transition-colors disabled:opacity-50"
-                  >
-                    {uploading.selfie ? (
-                      <div className="flex flex-col items-center gap-2">
-                        <div className="h-8 w-8 animate-spin rounded-full border-2 border-neutral-400 border-t-black" />
-                        <p className="text-sm text-neutral-500">Uploading...</p>
-                      </div>
-                    ) : (
-                      <>
-                        <Camera className="h-8 w-8 mx-auto mb-2 text-neutral-400" />
-                        <p className="text-sm text-neutral-500">Take or upload a selfie</p>
-                        <p className="text-xs text-neutral-400">Clear photo of your face required</p>
-                      </>
-                    )}
-                  </button>
-                ) : (
-                  <div className="relative w-full h-48 border border-neutral-200 dark:border-neutral-800">
-                    <Image
-                      src={previews.selfie}
-                      alt="Selfie"
-                      fill
-                      className="object-cover"
-                    />
-                    <button
-                      onClick={() => removeFile("selfie")}
-                      className="absolute top-2 right-2 p-1 bg-black/50 text-white hover:bg-black/70 z-10"
-                    >
-                      <X className="h-4 w-4" />
-                    </button>
+                ) : uploading ? (
+                  <div style={{ ...dropzone, cursor: "default" }}>
+                    <Loader2 className="animate-spin" size={20} />
+                    <span style={{ fontSize: 12, color: "var(--t-ink-3)" }}>
+                      Uploading… {uploadProgress}%
+                    </span>
                   </div>
+                ) : (
+                  <label style={dropzone}>
+                    <Upload size={22} />
+                    <span style={{ fontSize: 13, fontWeight: 600, color: "var(--t-ink)" }}>Tap to upload ID</span>
+                    <span style={{ fontSize: 11, color: "var(--t-ink-3)" }}>JPG, PNG · up to 10 MB</span>
+                    <input
+                      ref={fileRef}
+                      type="file"
+                      accept="image/*,application/pdf"
+                      onChange={handleFileChange}
+                      style={{ display: "none" }}
+                    />
+                  </label>
                 )}
-                {previews.selfie && (
-                  <p className="text-xs text-green-600 mt-1 flex items-center gap-1">
-                    <CheckCircle className="h-3 w-3" />
-                    Selfie uploaded successfully
-                  </p>
-                )}
-                <input
-                  ref={selfieInputRef}
-                  type="file"
-                  accept="image/*"
-                  capture="user"
-                  className="hidden"
-                  onChange={(e) => e.target.files?.[0] && handleFileSelect("selfie", e.target.files[0])}
+              </Field>
+
+              <Field label="Reason for verification" required>
+                <Textarea
+                  value={reason}
+                  onChange={e => setReason(e.target.value)}
+                  placeholder="Tell us why your account should be verified…"
+                  required
+                  maxLength={500}
+                  className="resize-none text-[14px] rounded-2xl"
+                  style={{
+                    background: "rgba(255,255,255,0.55)",
+                    border: "1px solid rgba(255,255,255,0.65)",
+                    minHeight: 100,
+                  }}
                 />
+              </Field>
+
+              {error && <p style={{ fontSize: 13, color: "#dc2626" }}>{error}</p>}
+
+              <div className="flex items-center justify-end gap-3 pt-2">
+                <button type="button" onClick={onClose} className="t-btn-quiet" style={{ fontSize: 13 }}>
+                  Cancel
+                </button>
+                <Button
+                  type="submit"
+                  disabled={!canSubmit}
+                  className="t-btn-primary"
+                  style={{
+                    height: 40, padding: "0 20px", fontSize: 14, fontWeight: 600,
+                    opacity: canSubmit ? 1 : 0.55,
+                  }}
+                >
+                  {submitting ? <><Loader2 size={14} className="animate-spin" /> Submitting…</> : "Submit application"}
+                </Button>
               </div>
-
-              {/* Website/Social (Optional) */}
-              <div className="space-y-2">
-                <Label className="text-xs uppercase tracking-wider text-neutral-500 flex items-center gap-2">
-                  <Globe className="h-4 w-4" />
-                  Website or Social Link (Optional)
-                </Label>
-                <Input
-                  placeholder="https://yourwebsite.com"
-                  value={documents.website}
-                  onChange={(e) => setDocuments((prev) => ({ ...prev, website: e.target.value }))}
-                  className="rounded-none border-neutral-300"
-                />
-              </div>
-
-              <Button
-                onClick={handleSubmit}
-                disabled={!documents.idDocument || !documents.selfie}
-                className="w-full rounded-none bg-black text-white hover:bg-neutral-800 disabled:opacity-50"
-              >
-                Submit for Review
-              </Button>
-            </>
-          )}
-
-          {step === "pending" && (
-            <div className="text-center py-8 space-y-4">
-              <Clock className="h-16 w-16 mx-auto text-amber-500" />
-              <h3 className="text-lg font-medium">Under Review</h3>
-              <p className="text-sm text-neutral-500">
-                Your documents are being reviewed. This usually takes 1-2 business days.
-              </p>
-              {/* Demo button */}
-              <Button
-                onClick={handleSimulateApproval}
-                variant="outline"
-                className="rounded-none"
-              >
-                [Demo] Approve Verification
-              </Button>
-            </div>
-          )}
-
-          {step === "verified" && (
-            <div className="text-center py-8 space-y-4">
-              <CheckCircle className="h-16 w-16 mx-auto text-green-500" />
-              <h3 className="text-lg font-medium">You&apos;re Verified!</h3>
-              <p className="text-sm text-neutral-500">
-                You now have full access to all platform features.
-              </p>
-              <Button onClick={onClose} className="rounded-none bg-black text-white">
-                Continue
-              </Button>
-            </div>
+            </form>
           )}
         </div>
-      </div>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+function Field({
+  label, hint, required, children,
+}: { label: string; hint?: string; required?: boolean; children: React.ReactNode }) {
+  return (
+    <div className="flex flex-col gap-2">
+      <Label className="text-xs font-medium" style={{ color: "var(--t-ink-2)" }}>
+        {label}
+        {required && <span style={{ color: "#dc2626" }}> *</span>}
+        {hint && <span style={{ color: "var(--t-ink-3)", fontWeight: 400, marginLeft: 6 }}>({hint})</span>}
+      </Label>
+      {children}
     </div>
   )
+}
+
+function StatusCard({
+  icon, title, body, footnote,
+}: { icon: React.ReactNode; title: string; body: string; footnote?: string }) {
+  return (
+    <div style={{
+      padding: 24, borderRadius: 18, textAlign: "center",
+      background: "rgba(255,255,255,0.55)",
+      border: "1px solid rgba(255,255,255,0.65)",
+    }}>
+      <div style={{ marginBottom: 12 }}>{icon}</div>
+      <p style={{ fontSize: 18, fontWeight: 600, color: "var(--t-ink)", marginBottom: 6 }}>{title}</p>
+      <p style={{ fontSize: 13, color: "var(--t-ink-2)", lineHeight: 1.5 }}>{body}</p>
+      {footnote && <p style={{ fontSize: 11, color: "var(--t-ink-3)", marginTop: 14 }}>{footnote}</p>}
+    </div>
+  )
+}
+
+const dropzone: React.CSSProperties = {
+  display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+  gap: 8, padding: "24px 16px", borderRadius: 16, cursor: "pointer",
+  border: "2px dashed rgba(29,29,31,0.18)",
+  background: "rgba(255,255,255,0.45)",
+  color: "var(--t-ink-2)",
+}
+
+const previewWrap: React.CSSProperties = {
+  position: "relative", width: "100%", height: 180,
+  borderRadius: 14, overflow: "hidden",
+  background: "var(--t-surface-2)",
+}
+
+const removeBtn: React.CSSProperties = {
+  position: "absolute", top: 8, right: 8,
+  width: 28, height: 28, borderRadius: "50%",
+  background: "rgba(20,16,40,0.55)", color: "#fff",
+  border: 0, cursor: "pointer",
+  display: "flex", alignItems: "center", justifyContent: "center",
 }

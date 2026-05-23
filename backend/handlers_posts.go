@@ -32,6 +32,7 @@ func handleListPosts(c *fiber.Ctx) error {
 		SELECT p.id, p.user_id,
 		       COALESCE(u.full_name, p.author_name) AS author_name,
 		       COALESCE(u.avatar_url, p.author_avatar) AS author_avatar,
+		       COALESCE(u.verification_status = 'verified', FALSE) AS author_verified,
 		       p.image_url, p.description, p.likes, p.tagged_users, p.created_at,
 		       (SELECT COUNT(*) FROM post_comments pc WHERE pc.post_id = p.id) AS comment_count,
 		       CASE WHEN $1 <> '' THEN EXISTS(SELECT 1 FROM post_likes pl WHERE pl.post_id = p.id AND pl.user_id = $1) ELSE FALSE END AS liked_by_me
@@ -62,7 +63,7 @@ func handleListPosts(c *fiber.Ctx) error {
 	for rows.Next() {
 		var p Post
 		var taggedJSON []byte
-		if err := rows.Scan(&p.Id, &p.UserId, &p.AuthorName, &p.AuthorAvatar, &p.ImageUrl, &p.Description, &p.Likes, &taggedJSON, &p.CreatedAt, &p.CommentCount, &p.LikedByMe); err == nil {
+		if err := rows.Scan(&p.Id, &p.UserId, &p.AuthorName, &p.AuthorAvatar, &p.AuthorVerified, &p.ImageUrl, &p.Description, &p.Likes, &taggedJSON, &p.CreatedAt, &p.CommentCount, &p.LikedByMe); err == nil {
 			json.Unmarshal(taggedJSON, &p.TaggedUsers)
 			posts = append(posts, p)
 		}
@@ -180,19 +181,24 @@ func handleUnlikePost(c *fiber.Ctx) error {
 }
 
 type CommentOut struct {
-	ID         int64     `json:"id"`
-	UserID     string    `json:"userId"`
-	UserName   string    `json:"userName"`
-	UserAvatar string    `json:"userAvatar"`
-	Content    string    `json:"content"`
-	CreatedAt  time.Time `json:"createdAt"`
+	ID           int64     `json:"id"`
+	UserID       string    `json:"userId"`
+	UserName     string    `json:"userName"`
+	UserAvatar   string    `json:"userAvatar"`
+	UserVerified bool      `json:"userVerified"`
+	Content      string    `json:"content"`
+	CreatedAt    time.Time `json:"createdAt"`
 }
 
 func handleGetPostComments(c *fiber.Ctx) error {
 	postId := c.Params("id")
 	rows, err := dbPool.Query(context.Background(),
-		`SELECT id, user_id, user_name, user_avatar, content, created_at
-		 FROM post_comments WHERE post_id = $1 ORDER BY created_at ASC`, postId)
+		`SELECT pc.id, pc.user_id, pc.user_name, pc.user_avatar,
+		        COALESCE(u.verification_status = 'verified', FALSE) AS user_verified,
+		        pc.content, pc.created_at
+		 FROM post_comments pc
+		 LEFT JOIN users u ON u.id = pc.user_id
+		 WHERE pc.post_id = $1 ORDER BY pc.created_at ASC`, postId)
 	if err != nil {
 		return c.Status(500).JSON(fiber.Map{"error": "failed to fetch comments"})
 	}
@@ -200,7 +206,7 @@ func handleGetPostComments(c *fiber.Ctx) error {
 	var comments []CommentOut
 	for rows.Next() {
 		var cm CommentOut
-		rows.Scan(&cm.ID, &cm.UserID, &cm.UserName, &cm.UserAvatar, &cm.Content, &cm.CreatedAt)
+		rows.Scan(&cm.ID, &cm.UserID, &cm.UserName, &cm.UserAvatar, &cm.UserVerified, &cm.Content, &cm.CreatedAt)
 		comments = append(comments, cm)
 	}
 	if comments == nil {
@@ -223,12 +229,16 @@ func handleCreatePostComment(c *fiber.Ctx) error {
 	var userName, userAvatar string
 	dbPool.QueryRow(context.Background(), `SELECT full_name, COALESCE(avatar_url,'') FROM users WHERE id = $1`, userId).Scan(&userName, &userAvatar)
 
+	var verified bool
+	dbPool.QueryRow(context.Background(), `SELECT verification_status = 'verified' FROM users WHERE id = $1`, userId).Scan(&verified)
+
 	var cm CommentOut
 	err := dbPool.QueryRow(context.Background(),
 		`INSERT INTO post_comments (post_id, user_id, user_name, user_avatar, content)
 		 VALUES ($1, $2, $3, $4, $5) RETURNING id, user_id, user_name, user_avatar, content, created_at`,
 		postId, userId, userName, userAvatar, strings.TrimSpace(body.Content)).
 		Scan(&cm.ID, &cm.UserID, &cm.UserName, &cm.UserAvatar, &cm.Content, &cm.CreatedAt)
+	cm.UserVerified = verified
 	if err != nil {
 		return c.Status(500).JSON(fiber.Map{"error": "failed to post comment"})
 	}

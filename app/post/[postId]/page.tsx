@@ -8,6 +8,7 @@ import type { PostData } from "@/components/post-card"
 import { useLike, useComments, prefetchComments } from "@/hooks/use-social"
 import { useAuth } from "@/lib/useAuth"
 import { Avatar } from "@/components/avatar"
+import { VerifiedBadge } from "@/components/verified-badge"
 
 interface PostDetail extends PostData {
   userId: string
@@ -133,8 +134,9 @@ export default function PostDetailPage() {
             {/* Description */}
             {post.description && (
               <div style={{ marginBottom: "24px" }}>
-                <h2 style={{ fontSize: "18px", fontWeight: 600, marginBottom: "8px", color: "var(--t-ink)" }}>
+                <h2 style={{ fontSize: "18px", fontWeight: 600, marginBottom: "8px", color: "var(--t-ink)", display: "inline-flex", alignItems: "center", gap: 6 }}>
                   {post.authorName}
+                  {post.authorVerified && <VerifiedBadge size={15} />}
                 </h2>
                 <p style={{ fontSize: "15px", lineHeight: "1.5", color: "var(--t-ink-2)" }}>
                   {post.description}
@@ -219,8 +221,9 @@ export default function PostDetailPage() {
                       <Avatar name={comment.userName} image={comment.userAvatar} size={32} />
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "4px" }}>
-                          <p style={{ fontWeight: 600, fontSize: "14px", color: "var(--t-ink)" }}>
+                          <p style={{ fontWeight: 600, fontSize: "14px", color: "var(--t-ink)", display: "inline-flex", alignItems: "center", gap: 4 }}>
                             {comment.userName}
+                            {comment.userVerified && <VerifiedBadge size={12} />}
                           </p>
                           <p style={{ fontSize: "12px", color: "var(--t-ink-3)" }}>
                             {new Date(comment.createdAt).toLocaleDateString()}
@@ -250,8 +253,9 @@ export default function PostDetailPage() {
               >
                 <Avatar name={post.authorName} image={post.authorAvatar} size={44} />
                 <div>
-                  <p style={{ fontWeight: 600, fontSize: "14px", color: "var(--t-ink)", textAlign: "left" }}>
+                  <p style={{ fontWeight: 600, fontSize: "14px", color: "var(--t-ink)", textAlign: "left", display: "inline-flex", alignItems: "center", gap: 4 }}>
                     {post.authorName}
+                    {post.authorVerified && <VerifiedBadge size={12} />}
                   </p>
                   <p style={{ fontSize: "12px", color: "var(--t-ink-3)", textAlign: "left" }}>
                     {new Date(post.createdAt).toLocaleDateString()}

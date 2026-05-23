@@ -312,6 +312,12 @@ func main() {
 	adminGroup.Get("/settings", handleAdminGetSettings)
 	adminGroup.Patch("/settings", handleAdminUpdateSettings)
 	adminGroup.Get("/email-stats", handleAdminEmailStats)
+	adminGroup.Get("/verification-requests", handleAdminListVerificationRequests)
+	adminGroup.Patch("/verification-requests/:id", handleAdminReviewVerification)
+
+	// ── Verification (user-facing) ────────────────────────────────────────────
+	app.Get("/api/verification/me", jwtAuth, handleGetMyVerification)
+	app.Post("/api/verification", jwtAuth, handleSubmitVerification)
 
 	port := os.Getenv("PORT")
 	if port == "" {
