@@ -3,19 +3,22 @@
 import { useStore } from "@/lib/store"
 import { useAuth } from "@/lib/useAuth"
 import { ImageIcon } from "lucide-react"
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { PostCard } from "@/components/post-card"
 import type { PostData } from "@/components/post-card"
-import { CreatePostModal } from "@/components/create-post-modal"
+import { InlineComposer } from "@/components/inline-composer"
 import { useFollowing } from "@/hooks/use-social"
+import { getCached, setCached, isFresh } from "@/lib/swr-cache"
+
+const FEED_KEY = "feed:posts"
 
 export function FeedView() {
   const { user } = useAuth()
   const { removeDesignPost } = useStore()
-  const [posts, setPosts] = useState<PostData[]>([])
-  const [isLoading, setIsLoading] = useState(true)
+  const [posts, setPosts] = useState<PostData[]>(() => getCached<PostData[]>(FEED_KEY) ?? [])
+  const [isLoading, setIsLoading] = useState(() => !isFresh(FEED_KEY))
   const [activeFilter, setActiveFilter] = useState("For you")
-  const [createPostOpen, setCreatePostOpen] = useState(false)
+  const [toast, setToast] = useState<string | null>(null)
   const { following } = useFollowing(user?.id)
 
   const visiblePosts = (() => {
@@ -27,20 +30,24 @@ export function FeedView() {
   })()
 
   useEffect(() => {
+    // Always revalidate on mount; the UI is already showing cached posts (if any),
+    // so this is a silent background refresh rather than a blocking load.
     fetchPosts()
   }, [])
 
   const fetchPosts = async () => {
-    setIsLoading(true)
+    const hasCached = (getCached<PostData[]>(FEED_KEY)?.length ?? 0) > 0
+    if (!hasCached) setIsLoading(true)
     try {
-      // Route through /api/posts proxy to avoid CORS and carry auth cookie
       const res = await fetch("/api/posts", { credentials: "include" })
       if (!res.ok) throw new Error("Failed")
       const data = await res.json()
-      setPosts(Array.isArray(data) ? data : [])
+      const arr = Array.isArray(data) ? data : []
+      setPosts(arr)
+      setCached(FEED_KEY, arr)
     } catch (err) {
       console.error("Failed to fetch posts:", err)
-      setPosts([])
+      if (!hasCached) setPosts([])
     } finally {
       setIsLoading(false)
     }
@@ -54,7 +61,11 @@ export function FeedView() {
         credentials: "include",
       })
       if (res.ok || res.status === 204) {
-        setPosts(prev => prev.filter(p => String(p.id) !== String(postId)))
+        setPosts(prev => {
+          const next = prev.filter(p => String(p.id) !== String(postId))
+          setCached(FEED_KEY, next)
+          return next
+        })
         removeDesignPost(String(postId))
       } else {
         const error = await res.json().catch(() => ({}))
@@ -65,40 +76,45 @@ export function FeedView() {
     }
   }
 
+  const addOptimistic = useCallback((post: PostData) => {
+    setPosts(prev => {
+      const next = [post, ...prev]
+      setCached(FEED_KEY, next)
+      return next
+    })
+    return String(post.id)
+  }, [])
+
+  const commitOptimistic = useCallback((tempId: string, real: PostData) => {
+    setPosts(prev => {
+      const next = prev.map(p => (String(p.id) === tempId ? real : p))
+      setCached(FEED_KEY, next)
+      return next
+    })
+  }, [])
+
+  const revertOptimistic = useCallback((tempId: string, error: string) => {
+    if (tempId) {
+      setPosts(prev => {
+        const next = prev.filter(p => String(p.id) !== tempId)
+        setCached(FEED_KEY, next)
+        return next
+      })
+    }
+    setToast(error)
+    setTimeout(() => setToast(null), 4000)
+  }, [])
+
   const filterTabs = ["For you", "Following", "Designers", "Models", "Photographers", "Brands"]
 
   return (
     <div className="t-feed">
-      {/* Composer Bar */}
-      <div className="t-composer-bar">
-        {user?.avatar ? (
-          <img
-            src={user.avatar}
-            alt="Me"
-            className="t-avatar"
-            style={{ width: 40, height: 40, borderRadius: "50%", objectFit: "cover", flexShrink: 0 }}
-          />
-        ) : (
-          <div className="t-avatar t-avatar-ph">
-            {user?.fullName?.[0] ?? "U"}
-          </div>
-        )}
-        <button className="t-composer-input" onClick={() => setCreatePostOpen(true)}>What are you working on?</button>
-        <div className="t-composer-actions">
-          <button className="t-chip" onClick={() => setCreatePostOpen(true)}>
-            <span className="t-chip-dot photo" />
-            Photo
-          </button>
-          <button className="t-chip">
-            <span className="t-chip-dot gig" />
-            Gig
-          </button>
-          <button className="t-chip">
-            <span className="t-chip-dot ask" />
-            Ask
-          </button>
-        </div>
-      </div>
+      <InlineComposer
+        user={user}
+        onOptimistic={addOptimistic}
+        onCommit={commitOptimistic}
+        onRevert={revertOptimistic}
+      />
 
       {/* Filter Pills */}
       <div className="t-filterbar">
@@ -127,7 +143,7 @@ export function FeedView() {
             <ImageIcon size={24} />
           </div>
           <h3>{activeFilter === "Following" ? "Nothing from people you follow yet" : "Nothing here yet"}</h3>
-          <p>{activeFilter === "Following" ? "Follow people to see their posts here." : "Be the first to share your work — use the composer above to post a photo."}</p>
+          <p>{activeFilter === "Following" ? "Follow people to see their posts here." : "Be the first to share — write something above."}</p>
         </div>
       ) : (
         <div className="t-feed-stream">
@@ -139,16 +155,11 @@ export function FeedView() {
               onDelete={handleDelete}
             />
           ))}
-          <div className="t-feed-end">You're caught up — last 24 hours.</div>
+          <div className="t-feed-end">You're caught up.</div>
         </div>
       )}
 
-      <CreatePostModal
-        isOpen={createPostOpen}
-        onClose={() => setCreatePostOpen(false)}
-        onSuccess={() => { setCreatePostOpen(false); fetchPosts() }}
-        user={user}
-      />
+      {toast && <div className="t-toast" role="status">{toast}</div>}
     </div>
   )
 }

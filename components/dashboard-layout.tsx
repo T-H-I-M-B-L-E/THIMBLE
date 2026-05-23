@@ -24,6 +24,12 @@ export function DashboardLayout({ children, role, showRail = false }: DashboardL
   const { user } = useStore()
   const [createPostOpen, setCreatePostOpen] = useState(false)
 
+  const handleCreate = () => {
+    const event = new CustomEvent("thimble:request-compose", { cancelable: true })
+    window.dispatchEvent(event)
+    if (!event.defaultPrevented) setCreatePostOpen(true)
+  }
+
   // Pill nav holds 4 destinations max for a symmetric premium layout.
   // The dashboard root ("Explore") is still reachable via the brand logo.
   const navItems = [
@@ -67,7 +73,7 @@ export function DashboardLayout({ children, role, showRail = false }: DashboardL
             <button
               className="t-btn-post"
               type="button"
-              onClick={() => setCreatePostOpen(true)}
+              onClick={handleCreate}
             >
               <Plus size={16} />
               <span>Post</span>
@@ -105,7 +111,7 @@ export function DashboardLayout({ children, role, showRail = false }: DashboardL
       {/* Floating glass pill nav — always visible */}
       <BottomNav
         items={navItems}
-        onCreate={() => setCreatePostOpen(true)}
+        onCreate={handleCreate}
         createLabel="Create post"
       />
 

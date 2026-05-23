@@ -2,8 +2,8 @@
 
 import Image from "next/image"
 import { useState, useRef } from "react"
-import { Heart, MessageSquare, Bookmark, Share2, MoreHorizontal, Trash2, Send, UserPlus, UserCheck } from "lucide-react"
-import { useLike, useComments, useFollow } from "@/hooks/use-social"
+import { Heart, MessageCircle, Bookmark, Share2, MoreHorizontal, Trash2, Send, UserPlus, UserCheck } from "lucide-react"
+import { useLike, useComments, useFollow, prefetchComments } from "@/hooks/use-social"
 import type { Comment } from "@/hooks/use-social"
 import { useUsers } from "@/hooks/use-users"
 
@@ -49,7 +49,7 @@ function formatDate(dateStr: string) {
   try {
     const d = new Date(dateStr)
     const diff = Date.now() - d.getTime()
-    if (diff < 60000) return "just now"
+    if (diff < 60000) return "now"
     if (diff < 3600000) return `${Math.floor(diff / 60000)}m`
     if (diff < 86400000) return `${Math.floor(diff / 3600000)}h`
     if (diff < 604800000) return `${Math.floor(diff / 86400000)}d`
@@ -88,7 +88,6 @@ export function PostCard({ post, currentUserId, onDelete }: PostCardProps) {
   const [bookmarked, setBookmarked] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
 
-  // Resolve tag IDs → display names from the shared user cache
   const { lookup } = useUsers()
   const taggedDisplay = (post.taggedUsers ?? [])
     .map(id => {
@@ -108,86 +107,87 @@ export function PostCard({ post, currentUserId, onDelete }: PostCardProps) {
 
   return (
     <article className="t-post">
-      {/* Header */}
-      <header className="t-post-head">
-        <div className="t-post-author">
-          <SmallAvatar src={post.authorAvatar} name={post.authorName} size={40} />
-          <div className="t-post-author-meta">
-            <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
-              <span className="t-strong" style={{ fontSize: 14 }}>{post.authorName}</span>
-              {!isSelf && !isChecking && (
-                <button
-                  onClick={toggleFollow}
-                  style={{
-                    display: "inline-flex", alignItems: "center", gap: 4,
-                    padding: "3px 10px", borderRadius: 999, fontSize: 11, fontWeight: 600,
-                    border: isFollowing ? "1px solid rgba(255,255,255,0.6)" : "1px solid transparent",
-                    background: isFollowing ? "rgba(255,255,255,0.55)" : "#1d1d1f",
-                    color: isFollowing ? "var(--t-ink-2)" : "#fff",
-                    cursor: "pointer", fontFamily: "inherit",
-                    boxShadow: isFollowing ? "none" : "0 4px 10px rgba(0,0,0,.18)",
-                    transition: "transform .15s var(--motion-spring), background .2s, box-shadow .2s",
-                  }}
-                  onMouseDown={e => (e.currentTarget.style.transform = "scale(0.96)")}
-                  onMouseUp={e => (e.currentTarget.style.transform = "scale(1)")}
-                  onMouseLeave={e => (e.currentTarget.style.transform = "scale(1)")}
-                >
-                  {isFollowing
-                    ? <><UserCheck size={11} style={{ display: "inline" }} /> Following</>
-                    : <><UserPlus size={11} style={{ display: "inline" }} /> Follow</>
-                  }
-                </button>
-              )}
-            </div>
-            <div className="t-muted-xs">{formatDate(post.createdAt)}</div>
-          </div>
-        </div>
+      <SmallAvatar src={post.authorAvatar} name={post.authorName} size={40} />
 
-        {isOwn ? (
-          <button
-            onClick={() => onDelete(post.id)}
-            style={{ background: "none", border: 0, cursor: "pointer", color: "var(--t-ink-3)", padding: 4 }}
-            aria-label="Delete post"
-          >
-            <Trash2 size={16} />
-          </button>
-        ) : (
-          <button style={{ background: "none", border: 0, cursor: "pointer", color: "var(--t-ink-3)", padding: 4 }}>
-            <MoreHorizontal size={16} />
+      <div className="t-post-main">
+        <header className="t-post-head">
+          <div className="t-post-head-meta">
+            <span className="t-post-name">{post.authorName}</span>
+            <span className="t-post-dot">·</span>
+            <span className="t-post-time">{formatDate(post.createdAt)}</span>
+            {!isSelf && !isChecking && (
+              <button
+                onClick={toggleFollow}
+                className={`t-follow-mini ${isFollowing ? "is-following" : ""}`}
+                type="button"
+              >
+                {isFollowing
+                  ? <><UserCheck size={11} /> Following</>
+                  : <><UserPlus size={11} /> Follow</>}
+              </button>
+            )}
+          </div>
+
+          {isOwn ? (
+            <button
+              onClick={() => onDelete(post.id)}
+              className="t-post-more"
+              aria-label="Delete post"
+            >
+              <Trash2 size={15} />
+            </button>
+          ) : (
+            <button className="t-post-more" aria-label="More">
+              <MoreHorizontal size={15} />
+            </button>
+          )}
+        </header>
+
+        {post.description && (
+          <p className="t-post-text">{post.description}</p>
+        )}
+
+        {taggedDisplay.length > 0 && (
+          <p className="t-post-tagged">
+            <span>with </span>
+            {taggedDisplay.map((t, i) => (
+              <span key={t.id} className="t-post-tagged-name">
+                @{t.name}{i < taggedDisplay.length - 1 ? ", " : ""}
+              </span>
+            ))}
+          </p>
+        )}
+
+        {post.imageUrl && (
+          <button className="t-post-image" aria-label="View post" type="button">
+            <img src={post.imageUrl} alt={post.description || "Post"} loading="lazy" />
           </button>
         )}
-      </header>
 
-      {/* Image (only when present — text-only posts skip this block) */}
-      {post.imageUrl && (
-        <button className="t-post-image" aria-label="View post">
-          <img src={post.imageUrl} alt={post.description || "Post"} loading="lazy" />
-        </button>
-      )}
-
-      {/* Actions + Caption */}
-      <div className="t-post-body">
         <div className="t-post-actions">
           <button
-            className={`t-action ${liked ? "on" : ""}`}
+            className={`t-action ${liked ? "on like" : ""}`}
             onClick={toggleLike}
             aria-label={liked ? "Unlike" : "Like"}
           >
-            <Heart size={16} fill={liked ? "currentColor" : "none"} />
+            <Heart size={16} fill={liked ? "currentColor" : "none"} strokeWidth={1.75} />
             {likeCount > 0 && <span>{likeCount.toLocaleString()}</span>}
           </button>
 
           <button
             className={`t-action ${commentsOpen ? "on" : ""}`}
             onClick={toggleComments}
+            onMouseEnter={() => prefetchComments(post.id)}
+            onPointerDown={() => prefetchComments(post.id)}
+            onFocus={() => prefetchComments(post.id)}
             aria-label="Toggle comments"
           >
-            <MessageSquare size={16} />
+            <MessageCircle size={16} strokeWidth={1.75} />
             {commentCount > 0 && <span>{commentCount}</span>}
           </button>
 
           <button className="t-action" aria-label="Share">
-            <Share2 size={16} />
+            <Share2 size={16} strokeWidth={1.75} />
           </button>
 
           <button
@@ -195,111 +195,62 @@ export function PostCard({ post, currentUserId, onDelete }: PostCardProps) {
             onClick={() => setBookmarked(b => !b)}
             aria-label="Bookmark"
           >
-            <Bookmark size={16} fill={bookmarked ? "currentColor" : "none"} />
+            <Bookmark size={16} fill={bookmarked ? "currentColor" : "none"} strokeWidth={1.75} />
           </button>
-        </div>
-
-        {taggedDisplay.length > 0 && (
-          <p
-            style={{
-              fontSize: 12,
-              color: "var(--t-ink-3)",
-              margin: "4px 0 6px",
-              display: "flex",
-              flexWrap: "wrap",
-              alignItems: "center",
-              gap: 4,
-            }}
-          >
-            <span>with</span>
-            {taggedDisplay.map((t, i) => (
-              <span key={t.id} style={{ color: "var(--t-ink)", fontWeight: 500 }}>
-                @{t.name}{i < taggedDisplay.length - 1 ? "," : ""}
-              </span>
-            ))}
-          </p>
-        )}
-
-        {post.description && (
-          <p className="t-post-caption">
-            <span className="t-strong" style={{ fontSize: 14 }}>{post.authorName} </span>
-            {post.description}
-          </p>
-        )}
-
-        <div className="t-post-tags">
-          <span className="t-tag">#editorial</span>
-          <span className="t-tag">#studio</span>
         </div>
 
         {!commentsOpen && commentCount > 0 && (
           <button
             onClick={toggleComments}
-            style={{
-              background: "none", border: 0, color: "var(--t-ink-3)",
-              fontSize: 13, cursor: "pointer", padding: "2px 0", fontFamily: "inherit",
-            }}
+            className="t-post-viewall"
+            type="button"
           >
             View all {commentCount} comment{commentCount !== 1 ? "s" : ""}
           </button>
         )}
-      </div>
 
-      {/* Comments panel */}
-      {commentsOpen && (
-        <div
-          className="t-comments-panel"
-          style={{ borderTop: "1px solid var(--t-line)", borderRadius: 0 }}
-        >
-          {commentsLoading ? (
-            <div style={{ display: "flex", justifyContent: "center", padding: 16 }}>
-              <div
-                className="animate-spin"
-                style={{ width: 20, height: 20, borderRadius: "50%", border: "2px solid var(--t-line)", borderTopColor: "var(--t-gold)" }}
+        {commentsOpen && (
+          <div className="t-comments-panel">
+            {commentsLoading ? (
+              <div style={{ display: "flex", justifyContent: "center", padding: 16 }}>
+                <div
+                  className="animate-spin"
+                  style={{ width: 20, height: 20, borderRadius: "50%", border: "2px solid var(--t-line)", borderTopColor: "var(--t-gold)" }}
+                />
+              </div>
+            ) : (
+              <div className="t-comments-list">
+                {comments.length === 0 ? (
+                  <p style={{ fontSize: 13, color: "var(--t-ink-3)", padding: "4px 0" }}>
+                    No replies yet — start the thread.
+                  </p>
+                ) : (
+                  comments.map(c => <CommentItem key={c.id} comment={c} />)
+                )}
+              </div>
+            )}
+
+            <form className="t-comment-form" onSubmit={handleSubmitComment}>
+              <input
+                ref={inputRef}
+                value={commentInput}
+                onChange={e => setCommentInput(e.target.value)}
+                placeholder="Reply…"
+                maxLength={500}
+                autoFocus
               />
-            </div>
-          ) : (
-            <div className="t-comments-list">
-              {comments.length === 0 ? (
-                <p style={{ fontSize: 13, color: "var(--t-ink-3)", textAlign: "center", padding: "8px 0" }}>
-                  No comments yet — be the first!
-                </p>
-              ) : (
-                comments.map(c => <CommentItem key={c.id} comment={c} />)
-              )}
-            </div>
-          )}
-
-          <form className="t-comment-form" onSubmit={handleSubmitComment}>
-            <input
-              ref={inputRef}
-              value={commentInput}
-              onChange={e => setCommentInput(e.target.value)}
-              placeholder="Add a comment…"
-              maxLength={500}
-              autoFocus
-            />
-            <button
-              type="submit"
-              disabled={!commentInput.trim() || submitting}
-              style={{
-                width: 38, height: 38, borderRadius: "50%", flexShrink: 0,
-                border: "none", cursor: commentInput.trim() ? "pointer" : "default",
-                background: commentInput.trim() ? "#1d1d1f" : "rgba(255,255,255,0.5)",
-                color: commentInput.trim() ? "#fff" : "var(--t-ink-3)",
-                boxShadow: commentInput.trim() ? "0 4px 12px rgba(0,0,0,.20)" : "none",
-                display: "flex", alignItems: "center", justifyContent: "center",
-                transition: "background .15s, color .15s, transform .15s var(--motion-spring), box-shadow .2s",
-              }}
-              onMouseDown={e => commentInput.trim() && (e.currentTarget.style.transform = "scale(0.94)")}
-              onMouseUp={e => (e.currentTarget.style.transform = "scale(1)")}
-              onMouseLeave={e => (e.currentTarget.style.transform = "scale(1)")}
-            >
-              <Send size={14} />
-            </button>
-          </form>
-        </div>
-      )}
+              <button
+                type="submit"
+                disabled={!commentInput.trim() || submitting}
+                className="t-comment-send"
+                aria-label="Send reply"
+              >
+                <Send size={14} />
+              </button>
+            </form>
+          </div>
+        )}
+      </div>
     </article>
   )
 }

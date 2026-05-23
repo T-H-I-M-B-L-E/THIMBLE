@@ -66,7 +66,11 @@ export default function FeedPage() {
 
       <BottomNav
         items={navItems}
-        onCreate={() => router.push("/upload")}
+        onCreate={() => {
+          const event = new CustomEvent("thimble:request-compose", { cancelable: true })
+          window.dispatchEvent(event)
+          if (!event.defaultPrevented) router.push("/upload")
+        }}
         createLabel="New post"
       />
     </div>

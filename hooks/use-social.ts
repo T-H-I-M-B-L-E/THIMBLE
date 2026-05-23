@@ -1,6 +1,14 @@
 "use client"
 
 import { useState, useCallback, useEffect } from "react"
+import {
+  getCached,
+  setCached,
+  fetchCached,
+  prefetch,
+  subscribe,
+  isFresh,
+} from "@/lib/swr-cache"
 
 export interface Comment {
   id: number | string
@@ -27,7 +35,6 @@ export function useLike(postId: string | number, initialCount: number, initialLi
 
   const toggle = useCallback(async () => {
     if (pending) return
-    // Optimistic update
     setLiked(prev => !prev)
     setCount(prev => liked ? prev - 1 : prev + 1)
     setPending(true)
@@ -38,7 +45,6 @@ export function useLike(postId: string | number, initialCount: number, initialLi
       })
       if (!res.ok) throw new Error('Failed')
     } catch {
-      // Revert on error
       setLiked(prev => !prev)
       setCount(prev => liked ? prev + 1 : prev - 1)
     } finally {
@@ -49,38 +55,67 @@ export function useLike(postId: string | number, initialCount: number, initialLi
   return { count, liked, toggle, pending }
 }
 
-// ── Comments ──────────────────────────────────────────────────────────────────
+// ── Comments ─────────────────────────────────────────────────────────────────
+
+const commentsKey = (postId: string | number) => `comments:${postId}`
+
+const commentsFetcher = (postId: string | number) => async (): Promise<Comment[]> => {
+  const res = await fetch(`/api/posts/${postId}/comments`, { credentials: 'include' })
+  if (!res.ok) return []
+  const data = await res.json()
+  return Array.isArray(data) ? data : []
+}
+
+/**
+ * Warm the comments cache for a post. Safe to call from hover / pointerdown
+ * on the comment button — by the time the click registers, the data is
+ * usually already cached, so the panel opens with zero perceptible latency.
+ */
+export function prefetchComments(postId: string | number): void {
+  prefetch(commentsKey(postId), commentsFetcher(postId))
+}
 
 export function useComments(postId: string | number, initialCount = 0) {
-  const [comments, setComments] = useState<Comment[]>([])
-  const [isLoading, setIsLoading] = useState(false)
-  const [isOpen, setIsOpen] = useState(false)
-  const [count, setCount] = useState(initialCount)
-  const [fetched, setFetched] = useState(false)
+  const key = commentsKey(postId)
 
-  const fetchComments = useCallback(async () => {
-    if (fetched) return
-    setIsLoading(true)
-    try {
-      const res = await fetch(`/api/posts/${postId}/comments`, { credentials: 'include' })
-      if (!res.ok) return
-      const data = await res.json()
-      const arr = Array.isArray(data) ? data : []
-      setComments(arr)
-      setCount(arr.length)
-      setFetched(true)
-    } finally {
-      setIsLoading(false)
-    }
-  }, [postId, fetched])
+  // Seed from cache so reopening a previously-viewed thread is instant.
+  const [comments, setComments] = useState<Comment[]>(() => getCached<Comment[]>(key) ?? [])
+  const [count, setCount] = useState<number>(() => {
+    const cached = getCached<Comment[]>(key)
+    return cached ? cached.length : initialCount
+  })
+  const [isOpen, setIsOpen] = useState(false)
+  const [isLoading, setIsLoading] = useState(false)
+
+  // Stay in sync if another consumer of the same post updates the cache.
+  useEffect(() => {
+    return subscribe(key, () => {
+      const v = getCached<Comment[]>(key)
+      if (v) {
+        setComments(v)
+        setCount(v.length)
+      }
+    })
+  }, [key])
 
   const open = useCallback(() => {
     setIsOpen(true)
-    fetchComments()
-  }, [fetchComments])
+    if (isFresh(key)) return // cached data is already on screen
 
-  const close = () => setIsOpen(false)
-  const toggle = () => (isOpen ? close() : open())
+    setIsLoading(true)
+    fetchCached(key, commentsFetcher(postId)).finally(() => setIsLoading(false))
+  }, [key, postId])
+
+  const close = useCallback(() => setIsOpen(false), [])
+  const toggle = useCallback(() => {
+    setIsOpen(prev => {
+      if (!prev && !isFresh(key)) {
+        setIsLoading(true)
+        fetchCached(key, commentsFetcher(postId)).finally(() => setIsLoading(false))
+      }
+      return !prev
+    })
+  }, [key, postId])
 
   const addComment = useCallback(async (content: string): Promise<boolean> => {
     const trimmed = content.trim()
@@ -94,43 +129,72 @@ export function useComments(postId: string | number, initialCount = 0) {
       })
       if (!res.ok) return false
       const newComment: Comment = await res.json()
-      setComments(prev => [...prev, newComment])
-      setCount(prev => prev + 1)
+      const existing = getCached<Comment[]>(key) ?? []
+      setCached(key, [...existing, newComment])
       return true
     } catch {
       return false
     }
-  }, [postId])
+  }, [key, postId])
 
   return { comments, isLoading, isOpen, count, toggle, close, addComment }
 }
 
-// ── Follow ────────────────────────────────────────────────────────────────────
+// ── Follow ───────────────────────────────────────────────────────────────────
+
+const followKey = (currentId: string, targetId: string) =>
+  `follow:${currentId}:${targetId}`
 
 export function useFollow(targetUserId: string | undefined, currentUserId: string | undefined) {
-  const [isFollowing, setIsFollowing] = useState(false)
-  const [isChecking, setIsChecking] = useState(true)
-  const [pending, setPending] = useState(false)
-
-  // Skip self-follow check
   const isSelf = !!currentUserId && currentUserId === targetUserId
+  const key = currentUserId && targetUserId ? followKey(currentUserId, targetUserId) : ""
+
+  // Seed from cache when we have a stored answer — skips the spinner entirely
+  // for users you've already seen this session.
+  const cached = key ? getCached<boolean>(key) : undefined
+  const [isFollowing, setIsFollowing] = useState<boolean>(cached ?? false)
+  const [isChecking, setIsChecking] = useState<boolean>(cached === undefined && !isSelf && !!key)
+  const [pending, setPending] = useState(false)
 
   useEffect(() => {
     if (!targetUserId || !currentUserId || isSelf) {
       setIsChecking(false)
       return
     }
-    fetch(`/api/follows?followerId=${currentUserId}&followingId=${targetUserId}`, { credentials: 'include' })
-      .then(r => r.json())
-      .then(data => setIsFollowing(!!data?.isFollowing))
+    if (isFresh(key)) {
+      const v = getCached<boolean>(key)
+      if (v !== undefined) setIsFollowing(v)
+      setIsChecking(false)
+      return
+    }
+    setIsChecking(true)
+    fetchCached(key, async () => {
+      const r = await fetch(
+        `/api/follows?followerId=${currentUserId}&followingId=${targetUserId}`,
+        { credentials: 'include' }
+      )
+      const data = await r.json().catch(() => ({}))
+      return !!data?.isFollowing
+    })
+      .then(v => setIsFollowing(v))
       .catch(() => {})
       .finally(() => setIsChecking(false))
-  }, [targetUserId, currentUserId, isSelf])
+  }, [key, targetUserId, currentUserId, isSelf])
+
+  // Mirror cache → local state if it changes elsewhere (e.g. another card).
+  useEffect(() => {
+    if (!key) return
+    return subscribe(key, () => {
+      const v = getCached<boolean>(key)
+      if (v !== undefined) setIsFollowing(v)
+    })
+  }, [key])
 
   const toggle = useCallback(async () => {
     if (!targetUserId || pending || isSelf) return
     const next = !isFollowing
     setIsFollowing(next)
+    setCached(key, next)
     setPending(true)
     try {
       const res = await fetch('/api/follows', {
@@ -142,28 +206,54 @@ export function useFollow(targetUserId: string | undefined, currentUserId: strin
       if (!res.ok) throw new Error('Failed')
     } catch {
       setIsFollowing(!next)
+      setCached(key, !next)
     } finally {
       setPending(false)
     }
-  }, [targetUserId, isFollowing, pending, isSelf])
+  }, [key, targetUserId, isFollowing, pending, isSelf])
 
   return { isFollowing, isChecking, isSelf, toggle, pending }
 }
 
-// ── Following list (for messaging user discovery) ─────────────────────────────
+// ── Following list (for messaging user discovery) ────────────────────────────
 
 export function useFollowing(currentUserId: string | undefined) {
-  const [following, setFollowing] = useState<FollowingUser[]>([])
-  const [isLoading, setIsLoading] = useState(true)
+  const key = currentUserId ? `following:${currentUserId}` : ""
+  const [following, setFollowing] = useState<FollowingUser[]>(() =>
+    key ? (getCached<FollowingUser[]>(key) ?? []) : []
+  )
+  const [isLoading, setIsLoading] = useState<boolean>(
+    !!currentUserId && !isFresh(key)
+  )
 
   useEffect(() => {
     if (!currentUserId) { setIsLoading(false); return }
-    fetch(`/api/follows?followerId=${currentUserId}&type=following`, { credentials: 'include' })
-      .then(r => r.json())
-      .then(data => setFollowing(Array.isArray(data) ? data : []))
-      .catch(() => setFollowing([]))
+    if (isFresh(key)) {
+      const v = getCached<FollowingUser[]>(key)
+      if (v) setFollowing(v)
+      setIsLoading(false)
+      return
+    }
+    fetchCached(key, async () => {
+      const r = await fetch(
+        `/api/follows?followerId=${currentUserId}&type=following`,
+        { credentials: 'include' }
+      )
+      const data = await r.json().catch(() => [])
+      return Array.isArray(data) ? data : []
+    })
+      .then(v => setFollowing(v))
+      .catch(() => {})
       .finally(() => setIsLoading(false))
-  }, [currentUserId])
+  }, [key, currentUserId])
+
+  useEffect(() => {
+    if (!key) return
+    return subscribe(key, () => {
+      const v = getCached<FollowingUser[]>(key)
+      if (v) setFollowing(v)
+    })
+  }, [key])
 
   return { following, isLoading }
 }
