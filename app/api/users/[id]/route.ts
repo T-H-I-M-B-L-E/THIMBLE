@@ -13,6 +13,9 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     headers: { Authorization: `Bearer ${getToken(request)}` },
   })
   const data = await res.json().catch(() => ({}))
+  if (data && typeof data === 'object' && data.avatarUrl && !data.avatar) {
+    data.avatar = data.avatarUrl
+  }
   return NextResponse.json(data, { status: res.status })
 }
 

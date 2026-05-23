@@ -47,6 +47,11 @@ export async function GET(request: NextRequest) {
     }
 
     const user = await response.json()
+    // Backend serializes the avatar as `avatarUrl`, but the rest of the
+    // frontend reads `user.avatar`. Mirror it so both work.
+    if (user && typeof user === 'object' && user.avatarUrl && !user.avatar) {
+      user.avatar = user.avatarUrl
+    }
     return NextResponse.json(user)
   } catch (error) {
     console.error('Error in GET /api/auth/me:', error)
