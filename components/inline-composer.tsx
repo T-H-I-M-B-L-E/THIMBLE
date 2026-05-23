@@ -213,7 +213,10 @@ export function InlineComposer({ user, onOptimistic, onCommit, onRevert }: Inlin
           />
 
           {imageUrl && (
-            <div className="t-icomp-preview">
+            <div
+              className="t-icomp-preview"
+              onMouseDown={e => e.preventDefault()}
+            >
               <Image src={imageUrl} alt="Attached" fill style={{ objectFit: "cover" }} />
               <button
                 type="button"
