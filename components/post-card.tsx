@@ -101,7 +101,15 @@ export function PostCard({ post, currentUserId, onDelete }: PostCardProps) {
 
   const handleTaggedUserClick = (userId: string, userRole?: string) => {
     const role = userRole?.toLowerCase() || "designer"
+    prefetchComments(post.id)
     router.push(`/dashboard/${role}/profile/${userId}`)
+  }
+
+  const handleAuthorClick = () => {
+    if (!post.userId) return
+    prefetchComments(post.id)
+    const role = "designer"
+    router.push(`/dashboard/${role}/profile/${post.userId}`)
   }
 
   const handleSubmitComment = async (e: React.FormEvent) => {
@@ -115,12 +123,23 @@ export function PostCard({ post, currentUserId, onDelete }: PostCardProps) {
 
   return (
     <article className="t-post">
-      <Avatar name={post.authorName} image={post.authorAvatar} size={40} />
+      <button
+        onClick={handleAuthorClick}
+        style={{ background: "none", border: "none", padding: 0, cursor: "pointer" }}
+      >
+        <Avatar name={post.authorName} image={post.authorAvatar} size={40} />
+      </button>
 
       <div className="t-post-main">
         <header className="t-post-head">
           <div className="t-post-head-meta">
-            <span className="t-post-name">{post.authorName}</span>
+            <button
+              onClick={handleAuthorClick}
+              className="t-post-name"
+              style={{ background: "none", border: "none", padding: 0, cursor: "pointer", color: "inherit", font: "inherit" }}
+            >
+              {post.authorName}
+            </button>
             <span className="t-post-dot">·</span>
             <span className="t-post-time">{formatDate(post.createdAt)}</span>
             {!isSelf && !isChecking && (

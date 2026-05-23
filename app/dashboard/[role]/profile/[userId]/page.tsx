@@ -7,7 +7,7 @@ import { useRouter } from "next/navigation"
 import { useState, useEffect } from "react"
 import { useParams } from "next/navigation"
 import { Globe, Instagram, User, ArrowLeft } from "lucide-react"
-import { useFollowing } from "@/hooks/use-social"
+import { useFollowing, prefetchComments } from "@/hooks/use-social"
 import { useUsers } from "@/hooks/use-users"
 import { getSafeHostname, normalizeWebsiteUrl } from "@/lib/platform"
 import { PostLightbox } from "@/components/post-lightbox"
@@ -265,7 +265,10 @@ export default function UserProfilePage() {
                   <button
                     key={post.id}
                     className="t-grid-item"
-                    onClick={() => setSelectedPost(post)}
+                    onClick={() => {
+                      prefetchComments(post.id)
+                      setSelectedPost(post)
+                    }}
                     style={{ padding: 0, border: "none", background: "none", cursor: "pointer" }}
                   >
                     <img src={post.imageUrl} alt={post.description || "Work"} />

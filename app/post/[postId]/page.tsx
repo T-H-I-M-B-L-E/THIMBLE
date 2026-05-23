@@ -5,7 +5,7 @@ import { useEffect, useState } from "react"
 import Image from "next/image"
 import { ArrowLeft, Heart, MessageCircle, Share2, Bookmark } from "lucide-react"
 import type { PostData } from "@/components/post-card"
-import { useLike, useComments } from "@/hooks/use-social"
+import { useLike, useComments, prefetchComments } from "@/hooks/use-social"
 import { useAuth } from "@/lib/useAuth"
 import { Avatar } from "@/components/avatar"
 
@@ -241,17 +241,23 @@ export default function PostDetailPage() {
           <div>
             {/* Author Info */}
             <div style={{ padding: "16px", background: "var(--t-surface)", borderRadius: "12px", border: "1px solid var(--t-line)", marginBottom: "24px" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "12px" }}>
+              <button
+                onClick={() => {
+                  prefetchComments(post.id)
+                  router.push(`/dashboard/designer/profile/${post.userId}`)
+                }}
+                style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "12px", width: "100%", background: "none", border: "none", cursor: "pointer", padding: 0 }}
+              >
                 <Avatar name={post.authorName} image={post.authorAvatar} size={44} />
                 <div>
-                  <p style={{ fontWeight: 600, fontSize: "14px", color: "var(--t-ink)" }}>
+                  <p style={{ fontWeight: 600, fontSize: "14px", color: "var(--t-ink)", textAlign: "left" }}>
                     {post.authorName}
                   </p>
-                  <p style={{ fontSize: "12px", color: "var(--t-ink-3)" }}>
+                  <p style={{ fontSize: "12px", color: "var(--t-ink-3)", textAlign: "left" }}>
                     {new Date(post.createdAt).toLocaleDateString()}
                   </p>
                 </div>
-              </div>
+              </button>
               <button
                 style={{
                   width: "100%",

@@ -10,7 +10,7 @@ import { EditProfileModal } from "@/components/edit-profile-modal"
 import { useStore } from "@/lib/store"
 import { getApiUrl, getSafeHostname, normalizeWebsiteUrl } from "@/lib/platform"
 import { Globe, Instagram, Trash2, Settings, Shield, User } from "lucide-react"
-import { useFollowing } from "@/hooks/use-social"
+import { useFollowing, prefetchComments } from "@/hooks/use-social"
 import { PostLightbox } from "@/components/post-lightbox"
 import { RoleBadge } from "@/components/role-badge"
 import type { PostData } from "@/components/post-card"
@@ -218,7 +218,10 @@ export default function ProfilePage() {
                   <button
                     key={post.id}
                     className="t-grid-item"
-                    onClick={() => setSelectedPost(post)}
+                    onClick={() => {
+                      prefetchComments(post.id)
+                      setSelectedPost(post)
+                    }}
                     style={{ padding: 0, border: "none", background: "none", cursor: "pointer" }}
                   >
                     <img src={post.imageUrl} alt={post.description || "Work"} />
