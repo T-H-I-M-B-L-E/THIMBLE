@@ -28,10 +28,10 @@ export function EditProfileModal({ isOpen, onClose, user }: EditProfileModalProp
   useEffect(() => {
     if (user) {
       setFullName(user.fullName || "")
-      setBio(user.unsafeMetadata?.bio || "")
-      setWebsite(user.unsafeMetadata?.website || "")
-      setInstagram(user.unsafeMetadata?.instagram || "")
-      setAvatarUrl(user.unsafeMetadata?.avatarUrl || user.imageUrl || "")
+      setBio(user.bio || "")
+      setWebsite(user.website || "")
+      setInstagram(user.instagram || "")
+      setAvatarUrl(user.avatar || user.avatarUrl || "")
     }
   }, [user, isOpen])
 
@@ -52,25 +52,26 @@ export function EditProfileModal({ isOpen, onClose, user }: EditProfileModalProp
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (!user?.id) return
     setIsSubmitting(true)
 
     try {
-      // Split full name back into first and last
-      const names = fullName.split(" ")
-      const firstName = names[0] || ""
-      const lastName = names.slice(1).join(" ") || ""
-
-      await user.update({
-        firstName,
-        lastName,
-        unsafeMetadata: {
-          ...user.unsafeMetadata,
+      const res = await fetch(`/api/users/${user.id}`, {
+        method: "PATCH",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
           bio,
-          avatarUrl,
+          avatar: avatarUrl,
           website: normalizeWebsiteUrl(website),
-          instagram,
-        }
+        }),
       })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        throw new Error(data?.error || "Failed to update profile")
+      }
+      // Trigger a refresh so useAuth picks up the new fields
+      window.dispatchEvent(new Event("focus"))
       onClose()
     } catch (err) {
       console.error("Failed to update profile:", err)
