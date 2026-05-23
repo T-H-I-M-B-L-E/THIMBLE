@@ -2,13 +2,18 @@
 
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { ArrowLeft, Heart, MessageCircle, Bookmark } from "lucide-react";
+import {
+  ArrowLeft,
+  Heart,
+  MessageCircle,
+  Share2,
+  Bookmark,
+} from "lucide-react";
 import type { PostData } from "@/components/post-card";
 import { useLike, useComments, prefetchComments } from "@/hooks/use-social";
 import { useAuth } from "@/lib/useAuth";
 import { Avatar } from "@/components/avatar";
 import { VerifiedBadge } from "@/components/verified-badge";
-import { SharePopover } from "@/components/SharePopover";
 
 interface PostDetail extends PostData {
   userId: string;
@@ -25,11 +30,6 @@ export default function PostDetailPage() {
   const [commentInput, setCommentInput] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [bookmarked, setBookmarked] = useState(false);
-
-  const postUrl =
-    typeof window !== "undefined"
-      ? `${window.location.origin}/post/${postId}`
-      : `/post/${postId}`;
 
   useEffect(() => {
     const fetchPost = async () => {
@@ -508,13 +508,24 @@ export default function PostDetailPage() {
                 {commentCount} {commentCount === 1 ? "Reply" : "Replies"}
               </button>
 
-              <div style={{ display: "flex", width: "100%" }}>
-                <SharePopover
-                  postId={post.id}
-                  postUrl={postUrl}
-                  title={post.description || post.authorName}
-                />
-              </div>
+              <button
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                  padding: "10px 12px",
+                  background: "var(--t-surface-2)",
+                  color: "var(--t-ink)",
+                  border: "1px solid var(--t-line)",
+                  borderRadius: 8,
+                  cursor: "pointer",
+                  fontSize: 13,
+                  fontWeight: 500,
+                }}
+              >
+                <Share2 size={16} strokeWidth={1.75} />
+                Share
+              </button>
 
               <button
                 onClick={() => setBookmarked((b) => !b)}

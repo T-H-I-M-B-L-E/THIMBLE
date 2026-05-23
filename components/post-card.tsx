@@ -7,13 +7,13 @@ import {
   Heart,
   MessageCircle,
   Bookmark,
+  Share2,
   MoreHorizontal,
   Trash2,
   Send,
   UserPlus,
   UserCheck,
 } from "lucide-react";
-import { SharePopover } from "@/components/SharePopover";
 import {
   useLike,
   useComments,
@@ -116,11 +116,6 @@ export function PostCard({ post, currentUserId, onDelete }: PostCardProps) {
       return u ? { id, name: u.fullName, role: u.role } : null;
     })
     .filter(Boolean) as { id: string; name: string; role?: string }[];
-
-  const postUrl =
-    typeof window !== "undefined"
-      ? `${window.location.origin}/post/${post.id}`
-      : `/post/${post.id}`;
 
   const handleTaggedUserClick = (userId: string, userRole?: string) => {
     const role = userRole?.toLowerCase() || "designer";
@@ -269,11 +264,9 @@ export function PostCard({ post, currentUserId, onDelete }: PostCardProps) {
             {commentCount > 0 && <span>{commentCount}</span>}
           </button>
 
-          <SharePopover
-            postId={post.id}
-            postUrl={postUrl}
-            title={post.description || post.authorName}
-          />
+          <button className="t-action" aria-label="Share">
+            <Share2 size={16} strokeWidth={1.75} />
+          </button>
 
           <button
             className={`t-action ml-auto ${bookmarked ? "on" : ""}`}
