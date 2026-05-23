@@ -2,9 +2,11 @@ import { NextRequest, NextResponse } from 'next/server'
 import { jwtVerify } from 'jose'
 
 function getJWTSecret(): Uint8Array {
-  return new TextEncoder().encode(
-    process.env.JWT_SECRET || 'fallback-secret-key-change-in-production'
-  )
+  const secret = process.env.JWT_SECRET
+  if (!secret) {
+    throw new Error('JWT_SECRET environment variable is required but not set')
+  }
+  return new TextEncoder().encode(secret)
 }
 
 const protectedRoutes = [

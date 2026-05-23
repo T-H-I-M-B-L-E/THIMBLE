@@ -75,7 +75,10 @@ func handleListPosts(c *fiber.Ctx) error {
 }
 
 func handleCreatePost(c *fiber.Ctx) error {
-	userId, _ := c.Locals("userId").(string)
+	userId, ok := c.Locals("userId").(string)
+	if !ok || userId == "" {
+		return c.Status(401).JSON(fiber.Map{"error": "unauthorized"})
+	}
 
 	var p Post
 	if err := c.BodyParser(&p); err != nil {
@@ -109,7 +112,10 @@ func handleCreatePost(c *fiber.Ctx) error {
 }
 
 func handleDeletePost(c *fiber.Ctx) error {
-	userId, _ := c.Locals("userId").(string)
+	userId, ok := c.Locals("userId").(string)
+	if !ok || userId == "" {
+		return c.Status(401).JSON(fiber.Map{"error": "unauthorized"})
+	}
 	postId := c.Params("id")
 	ctx := context.Background()
 
@@ -156,27 +162,64 @@ func handleGetPostLikes(c *fiber.Ctx) error {
 }
 
 func handleLikePost(c *fiber.Ctx) error {
-	userId, _ := c.Locals("userId").(string)
+	userId, ok := c.Locals("userId").(string)
+	if !ok || userId == "" {
+		return c.Status(401).JSON(fiber.Map{"error": "unauthorized"})
+	}
 	postId := c.Params("id")
-	_, err := dbPool.Exec(context.Background(),
-		`INSERT INTO post_likes (post_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`, postId, userId)
+	ctx := context.Background()
+
+	tx, err := dbPool.Begin(ctx)
 	if err != nil {
 		return c.Status(500).JSON(fiber.Map{"error": "failed to like post"})
 	}
-	dbPool.Exec(context.Background(), `UPDATE posts SET likes = (SELECT COUNT(*) FROM post_likes WHERE post_id = $1) WHERE id = $1`, postId)
+	defer tx.Rollback(ctx)
+
+	if _, err = tx.Exec(ctx,
+		`INSERT INTO post_likes (post_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`, postId, userId); err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": "failed to like post"})
+	}
+
 	var count int
-	dbPool.QueryRow(context.Background(), `SELECT likes FROM posts WHERE id = $1`, postId).Scan(&count)
+	if err = tx.QueryRow(ctx,
+		`UPDATE posts SET likes = (SELECT COUNT(*) FROM post_likes WHERE post_id = $1) WHERE id = $1 RETURNING likes`, postId).Scan(&count); err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": "failed to like post"})
+	}
+
+	if err = tx.Commit(ctx); err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": "failed to like post"})
+	}
 	return c.JSON(fiber.Map{"likes": count})
 }
 
 func handleUnlikePost(c *fiber.Ctx) error {
-	userId, _ := c.Locals("userId").(string)
+	userId, ok := c.Locals("userId").(string)
+	if !ok || userId == "" {
+		return c.Status(401).JSON(fiber.Map{"error": "unauthorized"})
+	}
 	postId := c.Params("id")
-	dbPool.Exec(context.Background(),
-		`DELETE FROM post_likes WHERE post_id = $1 AND user_id = $2`, postId, userId)
-	dbPool.Exec(context.Background(), `UPDATE posts SET likes = (SELECT COUNT(*) FROM post_likes WHERE post_id = $1) WHERE id = $1`, postId)
+	ctx := context.Background()
+
+	tx, err := dbPool.Begin(ctx)
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": "failed to unlike post"})
+	}
+	defer tx.Rollback(ctx)
+
+	if _, err = tx.Exec(ctx,
+		`DELETE FROM post_likes WHERE post_id = $1 AND user_id = $2`, postId, userId); err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": "failed to unlike post"})
+	}
+
 	var count int
-	dbPool.QueryRow(context.Background(), `SELECT likes FROM posts WHERE id = $1`, postId).Scan(&count)
+	if err = tx.QueryRow(ctx,
+		`UPDATE posts SET likes = (SELECT COUNT(*) FROM post_likes WHERE post_id = $1) WHERE id = $1 RETURNING likes`, postId).Scan(&count); err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": "failed to unlike post"})
+	}
+
+	if err = tx.Commit(ctx); err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": "failed to unlike post"})
+	}
 	return c.JSON(fiber.Map{"likes": count})
 }
 
@@ -216,7 +259,10 @@ func handleGetPostComments(c *fiber.Ctx) error {
 }
 
 func handleCreatePostComment(c *fiber.Ctx) error {
-	userId, _ := c.Locals("userId").(string)
+	userId, ok := c.Locals("userId").(string)
+	if !ok || userId == "" {
+		return c.Status(401).JSON(fiber.Map{"error": "unauthorized"})
+	}
 	postId := c.Params("id")
 
 	var body struct {

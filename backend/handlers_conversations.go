@@ -68,7 +68,10 @@ func handleListConversations(c *fiber.Ctx) error {
 }
 
 func handleCreateConversation(c *fiber.Ctx) error {
-	userId, _ := c.Locals("userId").(string)
+	userId, ok := c.Locals("userId").(string)
+	if !ok || userId == "" {
+		return c.Status(401).JSON(fiber.Map{"error": "unauthorized"})
+	}
 	ctx := context.Background()
 
 	var req struct {
@@ -166,12 +169,16 @@ func handleConversationWS(c *websocket.Conn) {
 
 		if eventType, ok := eventMap["type"].(string); ok && eventType == "typing" {
 			clientsMu.RLock()
+			targets := make([]*websocket.Conn, 0, len(rooms[convId]))
 			for conn := range rooms[convId] {
 				if conn != c {
-					conn.WriteMessage(mt, msgBytes)
+					targets = append(targets, conn)
 				}
 			}
 			clientsMu.RUnlock()
+			for _, conn := range targets {
+				conn.WriteMessage(mt, msgBytes)
+			}
 			continue
 		}
 
@@ -199,10 +206,14 @@ func handleConversationWS(c *websocket.Conn) {
 		out, _ := json.Marshal(msg)
 
 		clientsMu.RLock()
+		targets := make([]*websocket.Conn, 0, len(rooms[convId]))
 		for conn := range rooms[convId] {
-			conn.WriteMessage(mt, out)
+			targets = append(targets, conn)
 		}
 		clientsMu.RUnlock()
+		for _, conn := range targets {
+			conn.WriteMessage(mt, out)
+		}
 	}
 }
 
@@ -238,7 +249,9 @@ func handleAdminChatHistory(c *fiber.Ctx) error {
 func handleAdminWS(c *websocket.Conn) {
 	userId, _ := c.Locals("userId").(string)
 	var userName string
-	dbPool.QueryRow(context.Background(), "SELECT full_name FROM users WHERE id = $1", userId).Scan(&userName)
+	nameCtx, nameCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	dbPool.QueryRow(nameCtx, "SELECT full_name FROM users WHERE id = $1", userId).Scan(&userName)
+	nameCancel()
 
 	adminRoomMu.Lock()
 	adminRoom[c] = userId
