@@ -1,73 +1,137 @@
 "use client"
 
+import { useEffect, useState } from "react"
 import Image from "next/image"
+import Link from "next/link"
+import { useStore } from "@/lib/store"
+
+interface SuggestedUser {
+  id: string
+  fullName: string
+  avatarUrl: string
+  role: string
+  location: string
+}
+
+interface TrendingTag {
+  tag: string
+  count: number
+}
 
 export function RightRail() {
+  const user = useStore((s) => s.user)
+  const [suggestions, setSuggestions] = useState<SuggestedUser[]>([])
+  const [tags, setTags] = useState<TrendingTag[]>([])
+
+  useEffect(() => {
+    fetch("/api/users/suggestions", { credentials: "include" })
+      .then((r) => r.json())
+      .then((data) => { if (Array.isArray(data)) setSuggestions(data) })
+      .catch(() => {})
+  }, [])
+
+  useEffect(() => {
+    fetch("/api/tags/trending", { credentials: "include" })
+      .then((r) => r.json())
+      .then((data) => { if (Array.isArray(data)) setTags(data) })
+      .catch(() => {})
+  }, [])
+
   return (
     <aside className="t-rail">
-      <div className="t-rail-section">
-        <div className="t-rail-greet">Today</div>
-        <div className="t-rail-stat-row">
-          <div className="t-stat">
-            <div className="t-stat-num">12</div>
-            <div className="t-stat-lab">Profile views</div>
-          </div>
-          <div className="t-stat">
-            <div className="t-stat-num">3</div>
-            <div className="t-stat-lab">New followers</div>
-          </div>
-          <div className="t-stat">
-            <div className="t-stat-num">2</div>
-            <div className="t-stat-lab">Gig replies</div>
+      {user && (
+        <div className="t-rail-section">
+          <div className="t-rail-greet">Your stats</div>
+          <div className="t-rail-stat-row">
+            <div className="t-stat">
+              <div className="t-stat-num">{user.followers ?? 0}</div>
+              <div className="t-stat-lab">Followers</div>
+            </div>
+            <div className="t-stat">
+              <div className="t-stat-num">{user.following ?? 0}</div>
+              <div className="t-stat-lab">Following</div>
+            </div>
+            <div className="t-stat">
+              <div className="t-stat-num">{user.posts ?? 0}</div>
+              <div className="t-stat-lab">Posts</div>
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
-      <div className="t-rail-section">
-        <div className="t-rail-h">People you might know</div>
-        <ul className="t-suggest">
-          {[
-            { name: "Atelier Nord", role: "Brand", city: "Oslo", avatar: "https://images.unsplash.com/photo-1560250097-0b93528c311a?w=120&h=120&fit=crop" },
-            { name: "Yusuf Demir", role: "Photographer", city: "Istanbul", avatar: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=120&h=120&fit=crop" },
-            { name: "Studio Calma", role: "Designer", city: "Porto", avatar: "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=120&h=120&fit=crop" },
-          ].map((person) => (
-            <li key={person.name}>
-              <Image
-                src={person.avatar}
-                alt={person.name}
-                width={32}
-                height={32}
-                className="t-avatar-sm"
-                style={{ borderRadius: "50%" }}
-              />
-              <div className="t-suggest-meta">
-                <div className="t-strong" style={{ fontSize: "13px" }}>{person.name}</div>
-                <div className="t-muted-xs">{person.role} · {person.city}</div>
-              </div>
-              <button style={{ marginLeft: "auto", fontSize: "12px", fontWeight: 500, color: "var(--t-gold-ink)", background: "none", border: 0, cursor: "pointer" }}>
-                Follow
-              </button>
-            </li>
-          ))}
-        </ul>
-      </div>
+      {suggestions.length > 0 && (
+        <div className="t-rail-section">
+          <div className="t-rail-h">People you might know</div>
+          <ul className="t-suggest">
+            {suggestions.map((person) => (
+              <li key={person.id}>
+                <Link href={`/dashboard/${user?.role ?? "model"}/profile/${person.id}`}>
+                  {person.avatarUrl ? (
+                    <Image
+                      src={person.avatarUrl}
+                      alt={person.fullName}
+                      width={32}
+                      height={32}
+                      className="t-avatar-sm"
+                      style={{ borderRadius: "50%" }}
+                    />
+                  ) : (
+                    <div
+                      className="t-avatar-sm"
+                      style={{
+                        width: 32,
+                        height: 32,
+                        borderRadius: "50%",
+                        background: "var(--t-muted, #e5e5e5)",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        fontSize: 14,
+                        fontWeight: 600,
+                      }}
+                    >
+                      {person.fullName[0]}
+                    </div>
+                  )}
+                </Link>
+                <div className="t-suggest-meta">
+                  <div className="t-strong" style={{ fontSize: "13px" }}>{person.fullName}</div>
+                  <div className="t-muted-xs">
+                    {person.role}{person.location ? ` · ${person.location}` : ""}
+                  </div>
+                </div>
+                <button
+                  style={{
+                    marginLeft: "auto",
+                    fontSize: "12px",
+                    fontWeight: 500,
+                    color: "var(--t-gold-ink)",
+                    background: "none",
+                    border: 0,
+                    cursor: "pointer",
+                  }}
+                >
+                  Follow
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
-      <div className="t-rail-section">
-        <div className="t-rail-h">Trending tags</div>
-        <ul className="t-trending">
-          {[
-            { tag: "natural-dye", count: 1240 },
-            { tag: "small-batch", count: 892 },
-            { tag: "studio-share", count: 614 },
-            { tag: "open-call", count: 387 },
-          ].map((t) => (
-            <li key={t.tag}>
-              <span style={{ cursor: "pointer" }}>#{t.tag}</span>
-              <span className="t-muted-xs">{t.count.toLocaleString()} posts</span>
-            </li>
-          ))}
-        </ul>
-      </div>
+      {tags.length > 0 && (
+        <div className="t-rail-section">
+          <div className="t-rail-h">Trending tags</div>
+          <ul className="t-trending">
+            {tags.map((t) => (
+              <li key={t.tag}>
+                <span style={{ cursor: "pointer" }}>#{t.tag}</span>
+                <span className="t-muted-xs">{t.count.toLocaleString()} posts</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       <div className="t-rail-foot">
         <span>About</span>
