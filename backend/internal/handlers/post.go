@@ -21,6 +21,15 @@ func ListPosts(c *fiber.Ctx) error {
 	return c.JSON(posts)
 }
 
+func GetPost(c *fiber.Ctx) error {
+	callerID := optionalCallerID(c)
+	post, err := services.GetPost(c.Context(), callerID, c.Params("id"))
+	if err != nil {
+		return respondError(c, err)
+	}
+	return c.JSON(post)
+}
+
 func TrendingTags(c *fiber.Ctx) error {
 	tags, err := services.TrendingTags(c.Context())
 	if err != nil {

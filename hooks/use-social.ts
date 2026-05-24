@@ -138,7 +138,7 @@ export function useComments(postId: string | number, initialCount = 0) {
     }
   }, [key, postId])
 
-  return { comments, isLoading, isOpen, count, toggle, close, addComment }
+  return { comments, isLoading, isOpen, count, open, toggle, close, addComment }
 }
 
 // ── Bookmarks ────────────────────────────────────────────────────────────────

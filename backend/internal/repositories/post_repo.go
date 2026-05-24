@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/jackc/pgx/v5"
+
 	"chat-app/internal/db"
 	"chat-app/internal/models"
 )
@@ -115,6 +117,41 @@ func ListPosts(ctx context.Context, callerID, beforeID, filterUserID string, lim
 		posts = []models.Post{}
 	}
 	return posts, nil
+}
+
+// GetPostByID fetches a single post by id, populating liked_by_me and
+// saved_by_me when callerID is set.
+func GetPostByID(ctx context.Context, callerID, postID string) (*models.Post, error) {
+	var p models.Post
+	var taggedJSON []byte
+	err := db.Pool.QueryRow(ctx, `
+		SELECT p.id, p.user_id,
+		       COALESCE(u.full_name, p.author_name) AS author_name,
+		       COALESCE(u.avatar_url, p.author_avatar) AS author_avatar,
+		       COALESCE(u.is_verified, FALSE) AS author_verified,
+		       p.image_url, p.description, p.likes, p.tagged_users, p.created_at,
+		       (SELECT COUNT(*) FROM post_comments pc WHERE pc.post_id = p.id) AS comment_count,
+		       CASE WHEN $1 <> '' THEN EXISTS(SELECT 1 FROM post_likes pl WHERE pl.post_id = p.id AND pl.user_id = $1) ELSE FALSE END AS liked_by_me,
+		       CASE WHEN $1 <> '' THEN EXISTS(SELECT 1 FROM post_saves ps WHERE ps.post_id = p.id AND ps.user_id = $1) ELSE FALSE END AS saved_by_me
+		FROM posts p
+		LEFT JOIN users u ON u.id = p.user_id
+		WHERE p.id = $2`, callerID, postID).
+		Scan(&p.Id, &p.UserId, &p.AuthorName, &p.AuthorAvatar, &p.AuthorVerified,
+			&p.ImageUrl, &p.Description, &p.Likes, &taggedJSON, &p.CreatedAt,
+			&p.CommentCount, &p.LikedByMe, &p.SavedByMe)
+	if err != nil {
+		if err == pgx.ErrNoRows {
+			return nil, nil
+		}
+		return nil, err
+	}
+	if len(taggedJSON) > 0 {
+		json.Unmarshal(taggedJSON, &p.TaggedUsers)
+	}
+	if p.TaggedUsers == nil {
+		p.TaggedUsers = []string{}
+	}
+	return &p, nil
 }
 
 // InsertPost writes a new row and returns the assigned id and created_at.

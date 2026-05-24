@@ -18,6 +18,17 @@ func ListPosts(ctx context.Context, callerID, beforeID, filterUserID string) ([]
 	return posts, nil
 }
 
+func GetPost(ctx context.Context, callerID, postID string) (*models.Post, *ServiceError) {
+	post, err := repositories.GetPostByID(ctx, callerID, postID)
+	if err != nil {
+		return nil, NewError(500, "db_failed", "failed to fetch post")
+	}
+	if post == nil {
+		return nil, NewError(404, "not_found", "post not found")
+	}
+	return post, nil
+}
+
 func CreatePost(ctx context.Context, userId string, p *models.Post) *ServiceError {
 	hasImage := strings.TrimSpace(p.ImageUrl) != ""
 	hasText := strings.TrimSpace(p.Description) != ""

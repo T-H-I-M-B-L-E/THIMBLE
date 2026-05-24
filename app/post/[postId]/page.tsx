@@ -41,6 +41,7 @@ export default function PostDetailPage() {
     comments,
     isLoading: commentsLoading,
     count: commentCount,
+    open: openComments,
     addComment,
   } = useComments(post?.id ?? 0, post?.commentCount ?? 0);
   const { saved: bookmarked, toggle: toggleBookmark } = useBookmark(post?.id ?? 0, post?.savedByMe);
@@ -63,13 +64,10 @@ export default function PostDetailPage() {
   useEffect(() => {
     const fetchPost = async () => {
       try {
-        const res = await fetch("/api/posts", { credentials: "include" });
-        if (!res.ok) throw new Error("Failed to fetch posts");
-        const posts = await res.json();
-        const found = posts.find(
-          (p: PostData) => String(p.id) === String(postId),
-        );
-        if (found) setPost(found as PostDetail);
+        const res = await fetch(`/api/posts/${postId}`, { credentials: "include" });
+        if (!res.ok) throw new Error("Failed to fetch post");
+        const found = await res.json();
+        if (found && found.id) setPost(found as PostDetail);
       } catch (err) {
         console.error("Failed to fetch post:", err);
       } finally {
@@ -78,6 +76,10 @@ export default function PostDetailPage() {
     };
     fetchPost();
   }, [postId]);
+
+  useEffect(() => {
+    if (post?.id) openComments();
+  }, [post?.id, openComments]);
 
   if (isLoading) {
     return (
