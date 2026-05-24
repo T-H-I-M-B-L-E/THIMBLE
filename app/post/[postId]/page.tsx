@@ -14,6 +14,7 @@ import type { PostData } from "@/components/post-card";
 import { useLike, useComments, useBookmark, prefetchComments } from "@/hooks/use-social";
 import { useAuth } from "@/lib/useAuth";
 import { useNotify } from "@/components/notify-provider";
+import { AuthGate } from "@/components/auth-gate";
 import { Avatar } from "@/components/avatar";
 import { VerifiedBadge } from "@/components/verified-badge";
 
@@ -25,7 +26,7 @@ export default function PostDetailPage() {
   const router = useRouter();
   const params = useParams();
   const postId = params.postId as string;
-  const { user } = useAuth();
+  const { user, isLoading: isAuthLoading } = useAuth();
   const notify = useNotify();
 
   const [post, setPost] = useState<PostDetail | null>(null);
@@ -173,6 +174,7 @@ export default function PostDetailPage() {
   };
 
   return (
+    <AuthGate isAuthenticated={!!user} isAuthLoading={isAuthLoading}>
     <div style={{ minHeight: "100vh", background: "var(--t-bg)" }}>
       {/* OG meta — injected via document.title in client component */}
       {typeof document !== "undefined" &&
@@ -657,5 +659,6 @@ export default function PostDetailPage() {
         </div>
       </div>
     </div>
+    </AuthGate>
   );
 }

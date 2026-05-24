@@ -6,7 +6,7 @@ import Link from "next/link"
 import { useAuth } from "@/lib/useAuth"
 import { useStore } from "@/lib/store"
 import { useTheme } from "@/lib/theme-context"
-import { getPostAuthPath } from "@/lib/platform"
+import { getPostAuthPath, getPostLoginRedirect } from "@/lib/platform"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -46,7 +46,7 @@ export default function SignupPage() {
   // Handle redirect if already signed in
   useEffect(() => {
     if (!isAuthLoading && user) {
-      router.push(getPostAuthPath(user))
+      router.push(getPostLoginRedirect() ?? getPostAuthPath(user))
     }
   }, [user, isAuthLoading, router])
 
@@ -172,9 +172,11 @@ export default function SignupPage() {
         return
       }
 
-      // User verified and logged in
+      // User verified and logged in. Forward any preserved redirect through
+      // onboarding so the final destination is the original post.
       signup({ ...formData, phone: '' })
-      router.push("/onboarding")
+      const redirect = getPostLoginRedirect()
+      router.push(redirect ? `/onboarding?redirect=${encodeURIComponent(redirect)}` : "/onboarding")
     } catch (err: any) {
       console.error("Verification error:", err)
       setErrors((prev) => ({

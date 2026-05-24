@@ -4,7 +4,7 @@ import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/lib/useAuth"
 import { useTheme } from "@/lib/theme-context"
-import { getPostAuthPath } from "@/lib/platform"
+import { getPostAuthPath, getPostLoginRedirect } from "@/lib/platform"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -30,7 +30,7 @@ export default function LoginPage() {
   // Handle redirect if already authenticated
   useEffect(() => {
     if (!isAuthLoading && user) {
-      router.push(getPostAuthPath(user))
+      router.push(getPostLoginRedirect() ?? getPostAuthPath(user))
     }
   }, [user, isAuthLoading, router])
 
@@ -67,8 +67,8 @@ export default function LoginPage() {
         return
       }
 
-      // Redirect to appropriate dashboard
-      const redirectPath = getPostAuthPath(data.user)
+      // Redirect to original location (if AuthGate preserved one) or dashboard
+      const redirectPath = getPostLoginRedirect() ?? getPostAuthPath(data.user)
       router.push(redirectPath)
       router.refresh()
     } catch (err: any) {

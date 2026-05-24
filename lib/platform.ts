@@ -35,6 +35,24 @@ export const getDashboardFeedPath = (role?: string | null) => {
   return `/dashboard/${role}/feed`
 }
 
+/**
+ * If the current URL carries a `?redirect=/path` param pointing at an
+ * in-app route, return it. Otherwise return null. Used by the auth pages
+ * to honor the AuthGate's preserved location.
+ *
+ * Only relative paths starting with `/` are allowed — guards against
+ * open-redirect attacks.
+ */
+export const getPostLoginRedirect = (search?: string): string | null => {
+  if (typeof window === "undefined" && !search) return null
+  const params = new URLSearchParams(search ?? window.location.search)
+  const target = params.get("redirect")
+  if (!target) return null
+  // Must be an in-app path: starts with single slash, not `//` or scheme.
+  if (!target.startsWith("/") || target.startsWith("//")) return null
+  return target
+}
+
 export const getPostAuthPath = (user?: AuthLikeUser | null) => {
   if (!user) return "/auth"
 

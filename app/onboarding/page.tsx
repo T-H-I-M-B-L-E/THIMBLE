@@ -15,7 +15,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
 import { uploadFile } from "@/lib/upload"
 import { cn } from "@/lib/utils"
-import { getDashboardFeedPath, getPostAuthPath, normalizeWebsiteUrl } from "@/lib/platform"
+import { getDashboardFeedPath, getPostAuthPath, getPostLoginRedirect, normalizeWebsiteUrl } from "@/lib/platform"
 
 const roles: { id: UserRole; label: string; description: string; icon: React.ElementType }[] = [
   { id: "model", label: "Model", description: "Showcase your portfolio and find gigs", icon: User },
@@ -61,10 +61,11 @@ export default function OnboardingPage() {
       return
     }
 
-    // If the user has already completed onboarding, redirect to their dashboard
+    // If the user has already completed onboarding, redirect to their
+    // preserved destination (e.g. a shared post link) or their dashboard.
     const postAuthPath = getPostAuthPath(user)
     if (postAuthPath !== "/onboarding") {
-      router.push(postAuthPath)
+      router.push(getPostLoginRedirect() ?? postAuthPath)
       return
     }
   }, [isLoading, user, router])
@@ -407,8 +408,8 @@ export default function OnboardingPage() {
                 </div>
               </div>
 
-              <Button 
-                onClick={() => router.push(getDashboardFeedPath(selectedRole))}
+              <Button
+                onClick={() => router.push(getPostLoginRedirect() ?? getDashboardFeedPath(selectedRole))}
                 className="w-full h-16 rounded-none bg-black text-white hover:bg-neutral-800 uppercase tracking-[0.3em] text-xs"
               >
                 Enter Dashboard
