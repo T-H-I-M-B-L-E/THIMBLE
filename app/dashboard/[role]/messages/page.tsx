@@ -214,16 +214,7 @@ export default function MessagesPage() {
   const isTyping = other && typingUsers.has(other.userId)
 
   return (
-    <DashboardLayout role={role}>
-      {!isVerified && (
-        <div className="t-verify-banner">
-          <Lock size={14} style={{ color: "var(--t-gold)", flexShrink: 0 }} />
-          <span>
-            <strong style={{ color: "var(--t-ink)" }}>Verification required</strong> — get verified to send and receive messages.
-          </span>
-        </div>
-      )}
-
+    <DashboardLayout role={role} fullBleed>
       <div className="t-messages">
 
         {/* ── Sidebar ── */}

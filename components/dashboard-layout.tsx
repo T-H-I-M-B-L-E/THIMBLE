@@ -18,9 +18,10 @@ interface DashboardLayoutProps {
   children: React.ReactNode
   role: string
   showRail?: boolean
+  fullBleed?: boolean
 }
 
-export function DashboardLayout({ children, role, showRail = false }: DashboardLayoutProps) {
+export function DashboardLayout({ children, role, showRail = false, fullBleed = false }: DashboardLayoutProps) {
   const router = useRouter()
   const { user } = useStore()
   const [createPostOpen, setCreatePostOpen] = useState(false)
@@ -98,9 +99,9 @@ export function DashboardLayout({ children, role, showRail = false }: DashboardL
       </header>
 
       {/* Shell — single column on mobile, +rail on wide desktop */}
-      <div className={cn("t-shell", showRail && "has-rail")}>
-        <main className="t-main">
-          <VerificationBanner />
+      <div className={cn("t-shell", showRail && "has-rail", fullBleed && "t-shell--full-bleed")}>
+        <main className={cn("t-main", fullBleed && "t-main--messages")}>
+          {!fullBleed && <VerificationBanner />}
           {children}
         </main>
         {showRail && <RightRail />}

@@ -164,6 +164,8 @@
   --t-side-w:   0px;       /* sidebar removed */
   --t-rail-w:   320px;
   --t-row-gap:  40px;
+  --t-topbar-h: 57px;      /* sticky topbar height — update if topbar changes */
+  --t-nav-h:    110px;     /* bottom pill nav + FAB clearance on mobile */
   /* Glass system */
   --glass-bg:       rgba(255, 255, 255, 0.60);
   --glass-bg-strong:rgba(255, 255, 255, 0.78);
@@ -1028,25 +1030,54 @@
   .t-comment-body { padding: 7px 10px; }
 }
 
+/* ---- Messages layout escape hatch ---- */
+/*
+  The messages page needs to break out of .t-main's max-width + padding.
+  Apply .t-main--messages on the <main> element (via DashboardLayout prop
+  or a wrapping div) so the messages grid can fill the full shell width.
+*/
+.t-main--messages {
+  max-width: 100% !important;
+  width: 100% !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  display: flex;
+  flex-direction: column;
+  /* Fill exactly the space between topbar and bottom of viewport */
+  height: calc(100dvh - var(--t-topbar-h));
+  overflow: hidden;
+}
+
 /* ---- Messages ---- */
 .t-messages {
   display: grid;
-  grid-template-columns: minmax(280px, 320px) 1fr;
-  height: calc(100vh - 130px);
+  grid-template-columns: 300px 1fr;
+  /* Fill the full height of the escape-hatch container */
+  height: 100%;
+  min-height: 0;
   background: var(--t-surface);
   border: 1px solid var(--t-line);
   border-radius: 14px;
   overflow: hidden;
   width: 100%;
+  /* Small inset from shell edges on desktop */
+  margin: 12px 0 12px;
 }
-@media (max-width: 1024px) {
-  .t-messages { grid-template-columns: minmax(240px, 280px) 1fr; }
+@media (min-width: 1100px) {
+  .t-messages { grid-template-columns: 320px 1fr; margin: 16px 0; }
 }
 @media (max-width: 880px) {
   .t-messages {
     grid-template-columns: 1fr;
-    height: calc(100dvh - 72px - max(56px, env(safe-area-inset-bottom)));
+    /* On mobile the bottom nav floats over content, so we push up */
+    height: calc(100dvh - var(--t-topbar-h) - var(--t-nav-h));
     border-radius: 10px;
+    margin: 8px 0;
+  }
+  /* On mobile .t-main--messages still needs bottom clearance for the nav */
+  .t-main--messages {
+    height: auto;
+    overflow: visible;
   }
 }
 
@@ -1689,6 +1720,14 @@ body {
     gap: 28px !important;
     max-width: 1180px;
   }
+}
+/* Full-bleed mode: used by messages so it can fill the shell edge-to-edge */
+.t-shell--full-bleed {
+  padding: 0 !important;
+  max-width: 100% !important;
+}
+@media (max-width: 880px) {
+  .t-shell--full-bleed { padding: 0 8px !important; }
 }
 .t-sidenav { display: none !important; }
 .t-main {
