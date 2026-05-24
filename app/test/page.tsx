@@ -29,7 +29,6 @@ export default function TestPage() {
         items={items}
         onCreate={() => alert("Create")}
         createLabel="Create"
-        pageLabel="Test"
       />
     </div>
   )

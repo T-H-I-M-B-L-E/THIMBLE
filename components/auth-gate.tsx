@@ -161,7 +161,7 @@ export function AuthGate({
                   style={{
                     padding: "12px 16px",
                     background: "var(--t-ink)",
-                    color: "var(--t-bg)",
+                    color: "#fff",
                     border: "none",
                     borderRadius: 10,
                     fontSize: 14,

@@ -4,13 +4,14 @@ import Link from "next/link"
 import Image from "next/image"
 import { useRouter } from "next/navigation"
 import { useStore } from "@/lib/store"
+import { useAuth } from "@/lib/useAuth"
 import { VerificationBanner } from "./verification-banner"
 import { BanWall } from "./ban-wall"
 import { CreatePostModal } from "./create-post-modal"
 import { BottomNav } from "./bottom-nav"
 import { NotificationCenter } from "./notification-center"
-import { useState } from "react"
-import { Home, Briefcase, MessageSquare, User, Plus, Search } from "lucide-react"
+import { useState, useEffect, useRef } from "react"
+import { Home, Briefcase, MessageSquare, User, Search, Settings, LogOut } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { RightRail } from "./right-rail"
 
@@ -24,12 +25,35 @@ interface DashboardLayoutProps {
 export function DashboardLayout({ children, role, showRail = false, fullBleed = false }: DashboardLayoutProps) {
   const router = useRouter()
   const { user } = useStore()
+  const { logout } = useAuth()
   const [createPostOpen, setCreatePostOpen] = useState(false)
+  const [menuOpen, setMenuOpen] = useState(false)
+  const menuRef = useRef<HTMLDivElement>(null)
 
   const handleCreate = () => {
     const event = new CustomEvent("thimble:request-compose", { cancelable: true })
     window.dispatchEvent(event)
     if (!event.defaultPrevented) setCreatePostOpen(true)
+  }
+
+  // Close the avatar menu on outside click or escape.
+  useEffect(() => {
+    if (!menuOpen) return
+    const onClick = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuOpen(false)
+    }
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setMenuOpen(false) }
+    document.addEventListener("mousedown", onClick)
+    document.addEventListener("keydown", onKey)
+    return () => {
+      document.removeEventListener("mousedown", onClick)
+      document.removeEventListener("keydown", onKey)
+    }
+  }, [menuOpen])
+
+  const handleLogout = async () => {
+    await logout()
+    router.push("/auth")
   }
 
   // Pill nav holds 4 destinations max for a symmetric premium layout.
@@ -61,39 +85,62 @@ export function DashboardLayout({ children, role, showRail = false, fullBleed = 
           </div>
           <div className="t-topbar-right">
             <NotificationCenter userId={user?.id} />
-            <button
-              className="t-icon-btn"
-              aria-label="Messages"
-              type="button"
-              onClick={() => router.push(`/dashboard/${role}/messages`)}
-            >
-              <MessageSquare size={18} />
-            </button>
-            <button
-              className="t-btn-post"
-              type="button"
-              onClick={handleCreate}
-            >
-              <Plus size={16} />
-              <span>Post</span>
-            </button>
-            {user?.avatar ? (
-              <Image
-                src={user.avatar}
-                alt={user.fullName || "Me"}
-                width={32}
-                height={32}
-                className="t-topbar-avatar"
-                onClick={() => router.push(`/dashboard/${role}/profile`)}
-              />
-            ) : (
-              <div
-                className="t-topbar-avatar t-avatar-ph"
-                onClick={() => router.push(`/dashboard/${role}/profile`)}
+
+            {/* Avatar opens a small menu — Profile / Settings / Logout */}
+            <div className="t-avatar-menu" ref={menuRef}>
+              <button
+                type="button"
+                aria-label="Account menu"
+                aria-haspopup="menu"
+                aria-expanded={menuOpen}
+                onClick={() => setMenuOpen(o => !o)}
+                className="t-avatar-trigger"
               >
-                {user?.fullName?.[0] ?? "U"}
-              </div>
-            )}
+                {user?.avatar ? (
+                  <Image
+                    src={user.avatar}
+                    alt={user.fullName || "Me"}
+                    width={32}
+                    height={32}
+                    className="t-topbar-avatar"
+                  />
+                ) : (
+                  <div className="t-topbar-avatar t-avatar-ph">
+                    {user?.fullName?.[0] ?? "U"}
+                  </div>
+                )}
+              </button>
+
+              {menuOpen && (
+                <div role="menu" className="t-avatar-dropdown">
+                  <button
+                    role="menuitem"
+                    className="t-avatar-dropdown-item"
+                    onClick={() => { setMenuOpen(false); router.push(`/dashboard/${role}/profile`) }}
+                  >
+                    <User size={15} />
+                    Profile
+                  </button>
+                  <button
+                    role="menuitem"
+                    className="t-avatar-dropdown-item"
+                    onClick={() => { setMenuOpen(false); router.push(`/dashboard/${role}/settings`) }}
+                  >
+                    <Settings size={15} />
+                    Settings
+                  </button>
+                  <div className="t-avatar-dropdown-divider" />
+                  <button
+                    role="menuitem"
+                    className="t-avatar-dropdown-item t-avatar-dropdown-danger"
+                    onClick={() => { setMenuOpen(false); handleLogout() }}
+                  >
+                    <LogOut size={15} />
+                    Log out
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </header>
