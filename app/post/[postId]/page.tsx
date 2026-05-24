@@ -44,6 +44,7 @@ export default function PostDetailPage() {
     count: commentCount,
     open: openComments,
     addComment,
+    deleteComment,
   } = useComments(post?.id ?? 0, post?.commentCount ?? 0);
   const { saved: bookmarked, toggle: toggleBookmark } = useBookmark(post?.id ?? 0, post?.savedByMe);
 
@@ -386,9 +387,31 @@ export default function PostDetailPage() {
                               <VerifiedBadge size={12} />
                             )}
                           </p>
-                          <p style={{ fontSize: 12, color: "var(--t-ink-3)" }}>
-                            {new Date(comment.createdAt).toLocaleDateString()}
-                          </p>
+                          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                            <p style={{ fontSize: 12, color: "var(--t-ink-3)" }}>
+                              {new Date(comment.createdAt).toLocaleDateString()}
+                            </p>
+                            {user?.id === comment.userId && (
+                              <button
+                                onClick={async () => {
+                                  if (!confirm("Delete this reply?")) return;
+                                  await deleteComment(comment.id);
+                                }}
+                                aria-label="Delete reply"
+                                style={{
+                                  background: "none",
+                                  border: "none",
+                                  cursor: "pointer",
+                                  color: "var(--t-ink-3)",
+                                  padding: 2,
+                                  display: "flex",
+                                  alignItems: "center",
+                                }}
+                              >
+                                <Trash2 size={12} />
+                              </button>
+                            )}
+                          </div>
                         </div>
                         <p
                           style={{

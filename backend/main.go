@@ -95,6 +95,7 @@ func registerRoutes(app *fiber.App, authLimiter fiber.Handler) {
 	app.Delete("/api/posts/:id/likes", middleware.RequireJWT, handlers.UnlikePost)
 	app.Get("/api/posts/:id/comments", middleware.RequireJWT, handlers.GetPostComments)
 	app.Post("/api/posts/:id/comments", middleware.RequireJWT, handlers.CreatePostComment)
+	app.Delete("/api/posts/:id/comments/:commentId", middleware.RequireJWT, handlers.DeletePostComment)
 	app.Post("/api/posts/:id/saves", middleware.RequireJWT, handlers.SavePost)
 	app.Delete("/api/posts/:id/saves", middleware.RequireJWT, handlers.UnsavePost)
 

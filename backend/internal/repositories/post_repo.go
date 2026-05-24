@@ -279,6 +279,18 @@ func InsertComment(ctx context.Context, postId, userId, userName, userAvatar, co
 	return cm, err
 }
 
+func GetCommentOwner(ctx context.Context, commentID string) (string, error) {
+	var userID string
+	err := db.Pool.QueryRow(ctx,
+		`SELECT user_id FROM post_comments WHERE id = $1`, commentID).Scan(&userID)
+	return userID, err
+}
+
+func DeleteComment(ctx context.Context, commentID string) error {
+	_, err := db.Pool.Exec(ctx, `DELETE FROM post_comments WHERE id = $1`, commentID)
+	return err
+}
+
 // TrendingTags pulls the top 5 hashtags by case-insensitive frequency.
 func TrendingTags(ctx context.Context) ([]models.TagCount, error) {
 	rows, err := db.Pool.Query(ctx,

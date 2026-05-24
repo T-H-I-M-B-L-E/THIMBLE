@@ -138,7 +138,22 @@ export function useComments(postId: string | number, initialCount = 0) {
     }
   }, [key, postId])
 
-  return { comments, isLoading, isOpen, count, open, toggle, close, addComment }
+  const deleteComment = useCallback(async (commentId: number | string): Promise<boolean> => {
+    try {
+      const res = await fetch(`/api/posts/${postId}/comments/${commentId}`, {
+        method: 'DELETE',
+        credentials: 'include',
+      })
+      if (!res.ok) return false
+      const existing = getCached<Comment[]>(key) ?? []
+      setCached(key, existing.filter(c => String(c.id) !== String(commentId)))
+      return true
+    } catch {
+      return false
+    }
+  }, [key, postId])
+
+  return { comments, isLoading, isOpen, count, open, toggle, close, addComment, deleteComment }
 }
 
 // ── Bookmarks ────────────────────────────────────────────────────────────────

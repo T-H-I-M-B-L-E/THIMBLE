@@ -113,6 +113,17 @@ func CreatePostComment(c *fiber.Ctx) error {
 	return c.Status(201).JSON(cm)
 }
 
+func DeletePostComment(c *fiber.Ctx) error {
+	userId, ok := c.Locals("userId").(string)
+	if !ok || userId == "" {
+		return c.Status(401).JSON(fiber.Map{"error": "unauthorized"})
+	}
+	if err := services.DeletePostComment(c.Context(), userId, c.Params("id"), c.Params("commentId")); err != nil {
+		return respondError(c, err)
+	}
+	return c.SendStatus(204)
+}
+
 func SavePost(ctx *fiber.Ctx) error   { return togglePostSave(ctx, true) }
 func UnsavePost(ctx *fiber.Ctx) error { return togglePostSave(ctx, false) }
 

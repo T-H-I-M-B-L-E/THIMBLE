@@ -112,6 +112,20 @@ func TrendingTags(ctx context.Context) ([]models.TagCount, *ServiceError) {
 	return tags, nil
 }
 
+func DeletePostComment(ctx context.Context, userID, postID, commentID string) *ServiceError {
+	ownerID, err := repositories.GetCommentOwner(ctx, commentID)
+	if err != nil {
+		return NewError(404, "not_found", "comment not found")
+	}
+	if ownerID != userID {
+		return NewError(403, "forbidden", "you can only delete your own comments")
+	}
+	if err := repositories.DeleteComment(ctx, commentID); err != nil {
+		return NewError(500, "db_failed", "failed to delete comment")
+	}
+	return nil
+}
+
 func SetPostSave(ctx context.Context, userID, postID string, save bool) *ServiceError {
 	if err := repositories.SetPostSave(ctx, userID, postID, save); err != nil {
 		return NewError(500, "db_failed", "failed to update save")

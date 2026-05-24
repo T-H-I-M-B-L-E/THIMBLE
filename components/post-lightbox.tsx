@@ -1,9 +1,10 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { X, Heart, MessageCircle, Share2, Bookmark } from "lucide-react"
+import { X, Heart, MessageCircle, Share2, Bookmark, Trash2 } from "lucide-react"
 import type { PostData } from "@/components/post-card"
 import { useLike, useComments, useBookmark, prefetchComments } from "@/hooks/use-social"
+import { useAuth } from "@/lib/useAuth"
 import { Avatar } from "@/components/avatar"
 import { VerifiedBadge } from "@/components/verified-badge"
 
@@ -18,10 +19,11 @@ export function PostLightbox({ post, isOpen, onClose }: PostLightboxProps) {
   const [submitting, setSubmitting] = useState(false)
   const [expandCaption, setExpandCaption] = useState(false)
 
+  const { user } = useAuth()
   const { count: likeCount, liked, toggle: toggleLike } = useLike(post.id, post.likes, post.likedByMe)
   const { saved: bookmarked, toggle: toggleBookmark } = useBookmark(post.id, post.savedByMe)
   const {
-    comments, isLoading: commentsLoading, count: commentCount, addComment,
+    comments, isLoading: commentsLoading, count: commentCount, addComment, deleteComment,
   } = useComments(post.id, post.commentCount ?? 0)
 
   // Load comments when modal opens
@@ -222,6 +224,18 @@ export function PostLightbox({ post, isOpen, onClose }: PostLightboxProps) {
                       </p>
                       <p style={{ color: "var(--t-ink-2)", fontSize: "11px", wordBreak: "break-word" }}>{comment.content}</p>
                     </div>
+                    {user?.id === comment.userId && (
+                      <button
+                        onClick={async () => {
+                          if (!confirm("Delete this reply?")) return
+                          await deleteComment(comment.id)
+                        }}
+                        aria-label="Delete reply"
+                        style={{ background: "none", border: "none", cursor: "pointer", color: "var(--t-ink-3)", padding: 2, display: "flex", alignItems: "center" }}
+                      >
+                        <Trash2 size={11} />
+                      </button>
+                    )}
                   </div>
                 ))}
               </div>
