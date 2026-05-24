@@ -1,7 +1,7 @@
 "use client"
 
 import { DashboardLayout } from "@/components/dashboard-layout"
-import { Search, Send, ArrowLeft, User, Circle, ImageIcon, Paperclip, UserPlus, X, ShieldAlert, Lock } from "lucide-react"
+import { Search, Send, ArrowLeft, User, UserPlus, X, ShieldAlert, Lock, Paperclip, ImageIcon } from "lucide-react"
 import { useState, useRef, useEffect } from "react"
 import { useParams } from "next/navigation"
 import { useSocket } from "@/hooks/use-socket"
@@ -23,11 +23,22 @@ function Avatar({ src, name, size = 40 }: { src?: string; name?: string; size?: 
         fontWeight: 600,
       }}
     >
-      {src ? (
-        <Image src={src} alt={name || ""} width={size} height={size} className="object-cover w-full h-full" />
-      ) : (
-        <span>{name?.[0]?.toUpperCase() ?? <User size={size * 0.45} />}</span>
-      )}
+      {src
+        ? <Image src={src} alt={name || ""} width={size} height={size} className="object-cover w-full h-full" />
+        : <span>{name?.[0]?.toUpperCase() ?? <User size={size * 0.45} />}</span>
+      }
+    </div>
+  )
+}
+
+function SkeletonRow() {
+  return (
+    <div className="animate-pulse" style={{ display: "flex", gap: 12, alignItems: "center", padding: "12px 14px", borderBottom: "1px solid var(--t-line)" }}>
+      <div style={{ width: 42, height: 42, borderRadius: "50%", background: "var(--t-surface-2)", flexShrink: 0 }} />
+      <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 7 }}>
+        <div style={{ height: 11, width: "55%", borderRadius: 4, background: "var(--t-surface-2)" }} />
+        <div style={{ height: 10, width: "75%", borderRadius: 4, background: "var(--t-surface-2)" }} />
+      </div>
     </div>
   )
 }
@@ -66,15 +77,11 @@ function NewMessageModal({
     u.userName?.toLowerCase().includes(search.toLowerCase())
   )
 
-  const handleSelect = async (followedUser: typeof following[0]) => {
+  const handleSelect = async (u: typeof following[0]) => {
     if (!isVerified || creating) return
-    setCreating(followedUser.userId)
+    setCreating(u.userId)
     try {
-      const conv = await createConversation([{
-        userId: followedUser.userId,
-        userName: followedUser.userName,
-        userAvatar: followedUser.userAvatar || "",
-      }])
+      const conv = await createConversation([{ userId: u.userId, userName: u.userName, userAvatar: u.userAvatar || "" }])
       onCreate(conv)
       onClose()
     } catch {
@@ -85,86 +92,66 @@ function NewMessageModal({
   }
 
   return (
-    <div
-      style={{
-        position: "fixed", inset: 0, zIndex: 50,
-        background: "rgba(0,0,0,.4)", backdropFilter: "blur(4px)",
-        display: "flex", alignItems: "center", justifyContent: "center", padding: 16,
-      }}
-      onClick={onClose}
-    >
-      <div
-        style={{
-          background: "var(--t-surface)", border: "1px solid var(--t-line)",
-          borderRadius: 16, width: "100%", maxWidth: 400, maxHeight: "80vh",
-          display: "flex", flexDirection: "column", overflow: "hidden",
-        }}
-        onClick={e => e.stopPropagation()}
-      >
-        <div style={{ padding: "14px 16px", borderBottom: "1px solid var(--t-line)", display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
-          <p style={{ fontSize: 15, fontWeight: 700, color: "var(--t-ink)" }}>New message</p>
-          <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--t-ink-3)", display: "flex" }}>
-            <X size={18} />
+    <div className="t-new-msg-modal-backdrop" onClick={onClose}>
+      <div className="t-new-msg-modal" onClick={e => e.stopPropagation()}>
+        <div className="t-new-msg-modal-head">
+          <span className="t-new-msg-modal-title">New message</span>
+          <button className="t-icon-btn-sm" onClick={onClose} style={{ border: "none", background: "none" }}>
+            <X size={16} />
           </button>
         </div>
 
         {!isVerified ? (
-          <div style={{ padding: 24, textAlign: "center", color: "var(--t-ink-3)" }}>
-            <ShieldAlert size={32} style={{ margin: "0 auto 12px", color: "var(--t-gold)" }} />
-            <p style={{ fontSize: 14, fontWeight: 600, color: "var(--t-ink)", marginBottom: 6 }}>Verification required</p>
-            <p style={{ fontSize: 13, lineHeight: 1.5 }}>You need to be verified to send messages.</p>
+          <div className="t-msg-empty" style={{ padding: "32px 24px" }}>
+            <div className="t-msg-empty-icon">
+              <ShieldAlert size={24} style={{ color: "var(--t-gold)" }} />
+            </div>
+            <strong>Verification required</strong>
+            <p>You need to be verified to send messages.</p>
           </div>
         ) : (
           <>
-            <div style={{ padding: "10px 16px", borderBottom: "1px solid var(--t-line)", flexShrink: 0 }}>
-              <div style={{ position: "relative" }}>
-                <Search size={14} style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "var(--t-ink-3)" }} />
+            <div className="t-new-msg-modal-search">
+              <div className="t-msg-search">
+                <Search size={14} />
                 <input
                   autoFocus
                   value={search}
                   onChange={e => setSearch(e.target.value)}
                   placeholder="Search people you follow…"
-                  style={{
-                    width: "100%", paddingLeft: 32, paddingRight: 12, height: 36,
-                    background: "var(--t-surface-2)", border: "1px solid var(--t-line)",
-                    borderRadius: 8, fontSize: 13, color: "var(--t-ink)", outline: "none", fontFamily: "inherit",
-                  }}
                 />
               </div>
             </div>
 
-            <div style={{ flex: 1, overflowY: "auto", minHeight: 0 }}>
+            <div className="t-new-msg-modal-list">
               {isLoading ? (
-                <div style={{ padding: 24, textAlign: "center", color: "var(--t-ink-3)", fontSize: 13 }}>Loading…</div>
+                [1, 2, 3].map(i => <SkeletonRow key={i} />)
               ) : filtered.length === 0 ? (
-                <div style={{ padding: 24, textAlign: "center", color: "var(--t-ink-3)" }}>
-                  <UserPlus size={28} style={{ margin: "0 auto 10px" }} />
-                  <p style={{ fontSize: 13, lineHeight: 1.5 }}>
-                    {following.length === 0 ? "Follow people to message them." : "No one matches your search."}
+                <div className="t-msg-empty">
+                  <div className="t-msg-empty-icon">
+                    <UserPlus size={22} />
+                  </div>
+                  <p>
+                    {following.length === 0
+                      ? "Follow people to message them."
+                      : "No one matches your search."}
                   </p>
                 </div>
               ) : (
                 filtered.map(u => (
                   <button
                     key={u.userId}
+                    className="t-new-msg-user"
                     onClick={() => handleSelect(u)}
                     disabled={creating === u.userId}
-                    style={{
-                      width: "100%", display: "flex", alignItems: "center", gap: 12,
-                      padding: "10px 16px", background: "none", border: "none",
-                      borderBottom: "1px solid var(--t-line)", cursor: "pointer",
-                      textAlign: "left", transition: "background .12s",
-                    }}
-                    onMouseEnter={e => (e.currentTarget.style.background = "var(--t-surface-2)")}
-                    onMouseLeave={e => (e.currentTarget.style.background = "none")}
                   >
                     <Avatar src={u.userAvatar} name={u.userName} size={38} />
                     <div>
-                      <p style={{ fontSize: 14, fontWeight: 600, color: "var(--t-ink)" }}>{u.userName}</p>
-                      {u.role && <p style={{ fontSize: 12, color: "var(--t-ink-3)", textTransform: "capitalize" }}>{u.role}</p>}
+                      <p className="t-new-msg-user-name">{u.userName}</p>
+                      {u.role && <p className="t-new-msg-user-role">{u.role}</p>}
                     </div>
                     {creating === u.userId && (
-                      <div style={{ marginLeft: "auto", width: 16, height: 16, borderRadius: "50%", border: "2px solid var(--t-line)", borderTopColor: "var(--t-gold)" }} className="animate-spin" />
+                      <div className="animate-spin" style={{ marginLeft: "auto", width: 16, height: 16, borderRadius: "50%", border: "2px solid var(--t-line)", borderTopColor: "var(--t-gold)" }} />
                     )}
                   </button>
                 ))
@@ -187,9 +174,9 @@ export default function MessagesPage() {
   const [showNewMsg, setShowNewMsg] = useState(false)
   const scrollRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
-  const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL || 'https://thimble-production.up.railway.app'
-  const websocketUrl = apiBase.replace(/^http/, 'ws') + '/ws'
 
+  const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL || "https://thimble-production.up.railway.app"
+  const websocketUrl = apiBase.replace(/^http/, "ws") + "/ws"
   const isVerified = user?.verificationStatus === "verified"
 
   const { conversations, isLoading: loadingConvs, createConversation, refresh } = useConversations(user?.id)
@@ -207,9 +194,7 @@ export default function MessagesPage() {
   })
 
   useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight
-    }
+    if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight
   }, [allMessages])
 
   useEffect(() => {
@@ -231,14 +216,7 @@ export default function MessagesPage() {
   return (
     <DashboardLayout role={role}>
       {!isVerified && (
-        <div
-          style={{
-            display: "flex", alignItems: "center", gap: 10, padding: "10px 14px",
-            background: "color-mix(in oklab, var(--t-gold) 12%, var(--t-surface))",
-            border: "1px solid color-mix(in oklab, var(--t-gold) 25%, var(--t-line))",
-            borderRadius: 10, marginBottom: 12, fontSize: 13, color: "var(--t-ink-2)",
-          }}
-        >
+        <div className="t-verify-banner">
           <Lock size={14} style={{ color: "var(--t-gold)", flexShrink: 0 }} />
           <span>
             <strong style={{ color: "var(--t-ink)" }}>Verification required</strong> — get verified to send and receive messages.
@@ -246,103 +224,75 @@ export default function MessagesPage() {
         </div>
       )}
 
-      <div className="t-messages" style={{ background: "var(--t-bg)" }}>
+      <div className="t-messages">
 
+        {/* ── Sidebar ── */}
         <div className={cn("t-msg-list", selectedId ? "hidden md:flex" : "flex")}>
-
-          <div style={{ padding: "14px 16px 10px", borderBottom: "1px solid var(--t-line)", flexShrink: 0 }}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
-              <h2 style={{ fontSize: 16, fontWeight: 700, letterSpacing: "-0.01em" }}>Messages</h2>
-              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-                  <Circle size={7} className={cn("fill-current", isConnected ? "text-emerald-400" : "text-neutral-400")} />
-                  <span style={{ fontSize: 10, color: "var(--t-ink-3)", textTransform: "uppercase", letterSpacing: "0.08em" }}>
-                    {isConnected ? "live" : "offline"}
-                  </span>
+          <div className="t-msg-list-head">
+            <div className="t-msg-list-title-row">
+              <span className="t-msg-list-title">Messages</span>
+              <div className="t-msg-list-actions">
+                <div className="t-conn-pill">
+                  <span className={cn("t-conn-dot", isConnected && "live")} />
+                  {isConnected ? "live" : "offline"}
                 </div>
                 <button
+                  className="t-icon-btn-sm"
                   onClick={() => setShowNewMsg(true)}
-                  title={isVerified ? "New message" : "Verification required to message"}
-                  style={{
-                    width: 28, height: 28, borderRadius: 8, border: "1px solid var(--t-line)",
-                    background: "var(--t-surface-2)", cursor: "pointer", color: "var(--t-ink-2)",
-                    display: "flex", alignItems: "center", justifyContent: "center",
-                    opacity: isVerified ? 1 : 0.5,
-                  }}
+                  title={isVerified ? "New message" : "Verification required"}
+                  disabled={!isVerified}
                 >
                   <UserPlus size={14} />
                 </button>
               </div>
             </div>
 
-            <div style={{ position: "relative" }}>
-              <Search size={14} style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "var(--t-ink-3)" }} />
+            <div className="t-msg-search">
+              <Search size={14} />
               <input
                 value={search}
                 onChange={e => setSearch(e.target.value)}
                 placeholder="Search…"
-                style={{
-                  width: "100%", paddingLeft: 30, paddingRight: 12, height: 34,
-                  background: "var(--t-surface-2)", border: "1px solid var(--t-line)",
-                  borderRadius: 8, fontSize: 13, color: "var(--t-ink)", outline: "none", fontFamily: "inherit",
-                }}
               />
             </div>
           </div>
 
-          <div style={{ flex: 1, overflowY: "auto", minHeight: 0 }}>
+          <div className="t-msg-list-scroll">
             {loadingConvs ? (
-              <div style={{ display: "flex", flexDirection: "column", gap: 12, padding: 16 }}>
-                {[1, 2, 3].map(i => (
-                  <div key={i} style={{ display: "flex", gap: 12, alignItems: "center" }} className="animate-pulse">
-                    <div style={{ width: 42, height: 42, borderRadius: "50%", background: "var(--t-surface-2)", flexShrink: 0 }} />
-                    <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 6 }}>
-                      <div style={{ height: 12, width: "60%", borderRadius: 4, background: "var(--t-surface-2)" }} />
-                      <div style={{ height: 10, width: "80%", borderRadius: 4, background: "var(--t-surface-2)" }} />
-                    </div>
-                  </div>
-                ))}
-              </div>
+              [1, 2, 3].map(i => <SkeletonRow key={i} />)
             ) : filtered.length === 0 ? (
-              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: 160, gap: 8, color: "var(--t-ink-3)" }}>
-                <User size={24} />
-                <p style={{ fontSize: 13 }}>No conversations yet</p>
+              <div className="t-msg-empty">
+                <div className="t-msg-empty-icon">
+                  <User size={22} />
+                </div>
+                <strong>No conversations yet</strong>
                 {isVerified && (
                   <button
                     onClick={() => setShowNewMsg(true)}
-                    style={{ fontSize: 12, color: "var(--t-gold-ink)", background: "none", border: "none", cursor: "pointer", fontFamily: "inherit", fontWeight: 500 }}
+                    style={{ fontSize: 13, color: "var(--t-gold-ink)", background: "none", border: "none", cursor: "pointer", fontFamily: "inherit", fontWeight: 500 }}
                   >
-                    Start one
+                    Start one →
                   </button>
                 )}
               </div>
             ) : (
               filtered.map(conv => {
                 const o = getOther(conv)
-                const isSelected = conv.id === selectedId
                 return (
                   <button
                     key={conv.id}
+                    className={cn("t-thread", conv.id === selectedId && "active")}
                     onClick={() => setSelectedId(conv.id)}
-                    style={{
-                      width: "100%", textAlign: "left", display: "flex", alignItems: "center", gap: 12,
-                      padding: "11px 16px", borderBottom: "1px solid var(--t-line)", background: "none", border: "none",
-                      borderLeft: isSelected ? `3px solid var(--t-gold)` : "3px solid transparent",
-                      backgroundColor: isSelected ? "var(--t-surface-2)" : "transparent",
-                      cursor: "pointer", transition: "background .12s",
-                    }}
                   >
                     <Avatar src={o?.userAvatar} name={o?.userName} size={42} />
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 2 }}>
-                        <p style={{ fontSize: 14, fontWeight: 600, color: "var(--t-ink)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                          {o?.userName || "Unknown"}
-                        </p>
-                        <span style={{ fontSize: 11, color: "var(--t-ink-3)", flexShrink: 0, marginLeft: 8 }}>
+                    <div className="t-thread-meta">
+                      <div className="t-thread-top">
+                        <span className="t-thread-name">{o?.userName || "Unknown"}</span>
+                        <span className="t-thread-time">
                           {conv.lastMessage ? formatTime(conv.lastMessage.timestamp) : formatTime(conv.updatedAt)}
                         </span>
                       </div>
-                      <p style={{ fontSize: 12, color: "var(--t-ink-3)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      <p className="t-thread-preview">
                         {conv.lastMessage?.content || "Start a conversation"}
                       </p>
                     </div>
@@ -353,167 +303,125 @@ export default function MessagesPage() {
           </div>
         </div>
 
-        <div
-          className={cn("flex-1 flex flex-col min-w-0", !selectedId ? "hidden md:flex" : "flex")}
-          style={{ background: "var(--t-bg)" }}
-        >
+        {/* ── Pane ── */}
+        <div className={cn("t-msg-pane", !selectedId ? "hidden md:flex" : "flex")}>
           {selectedConv ? (
             <>
-              <div
-                className="t-msg-pane-head"
-                style={{
-                  height: 60,
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 12,
-                  padding: "0 16px",
-                }}
-              >
+              {/* Header */}
+              <div className="t-msg-pane-head">
                 <button
+                  className={cn("t-icon-btn-sm md:hidden")}
                   onClick={() => setSelectedId(null)}
-                  className="md:hidden"
-                  style={{ color: "var(--t-ink-2)", background: "none", border: "none", cursor: "pointer", padding: 4, marginLeft: -4, display: "flex" }}
+                  style={{ border: "none", background: "none", marginLeft: -4 }}
                 >
                   <ArrowLeft size={20} />
                 </button>
                 <Avatar src={other?.userAvatar} name={other?.userName} size={36} />
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <p style={{ fontSize: 14, fontWeight: 600, color: "var(--t-ink)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                    {other?.userName || "Unknown"}
-                  </p>
-                  <p style={{ fontSize: 11, color: isTyping ? "var(--t-gold-ink)" : "var(--t-ink-3)" }}>
+                  <p className="t-msg-pane-name">{other?.userName || "Unknown"}</p>
+                  <p className={cn("t-msg-pane-sub", isTyping && "typing")}>
                     {isTyping ? "typing…" : isConnected ? "online" : "offline"}
                   </p>
                 </div>
               </div>
 
-              <div
-                ref={scrollRef}
-                className="t-msg-stream"
-                style={{
-                  flex: 1,
-                  overflowY: "auto",
-                  padding: "20px 16px",
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: 4,
-                  background: "var(--t-bg)",
-                  minHeight: 0,
-                }}
-              >
+              {/* Stream */}
+              <div ref={scrollRef} className="t-msg-stream">
                 {loadingMsgs ? (
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "center", flex: 1, color: "var(--t-ink-3)", fontSize: 13 }}>
-                    Loading…
+                  <div className="t-msg-empty" style={{ flex: 1 }}>
+                    <div className="animate-pulse" style={{ display: "flex", flexDirection: "column", gap: 12, width: "100%" }}>
+                      {[70, 50, 80, 60].map((w, i) => (
+                        <div key={i} style={{ display: "flex", justifyContent: i % 2 === 0 ? "flex-start" : "flex-end" }}>
+                          <div style={{ width: `${w}%`, height: 38, borderRadius: 14, background: "var(--t-surface-2)" }} />
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 ) : allMessages.length === 0 ? (
-                  <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", flex: 1, gap: 8, color: "var(--t-ink-3)" }}>
-                    <div style={{ width: 48, height: 48, borderRadius: "50%", background: "var(--t-surface-2)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                      <Send size={18} style={{ color: "var(--t-ink-3)" }} />
+                  <div className="t-msg-empty" style={{ flex: 1 }}>
+                    <div className="t-msg-empty-icon">
+                      <Send size={20} style={{ color: "var(--t-gold)" }} />
                     </div>
-                    <p style={{ fontSize: 13 }}>No messages yet — say hello!</p>
+                    <strong>Say hello!</strong>
+                    <p>This is the start of your conversation with {other?.userName}.</p>
                   </div>
                 ) : (
                   allMessages.map((msg, i) => {
                     const isMe = msg.userId === user?.id
-                    const prevMsg = allMessages[i - 1]
-                    const showAvatar = !isMe && msg.userId !== prevMsg?.userId
-                    const grouped = prevMsg && prevMsg.userId === msg.userId && msg.timestamp - prevMsg.timestamp < 60000
+                    const prev = allMessages[i - 1]
+                    const showAvatar = !isMe && msg.userId !== prev?.userId
+                    const grouped = prev && prev.userId === msg.userId && msg.timestamp - prev.timestamp < 60000
+                    const showTime = !grouped || i === allMessages.length - 1
 
                     return (
                       <div
                         key={`${msg.id}-${msg.timestamp}`}
-                        style={{ display: "flex", alignItems: "flex-end", gap: 8, justifyContent: isMe ? "flex-end" : "flex-start", marginTop: grouped ? 2 : 10 }}
+                        className={cn("t-msg-row", isMe ? "me" : "them", !grouped && "gap")}
                       >
                         {!isMe && (
-                          <div style={{ width: 28, flexShrink: 0 }}>
+                          <div className="t-msg-avatar-slot">
                             {showAvatar && <Avatar src={other?.userAvatar} name={other?.userName} size={28} />}
                           </div>
                         )}
-                        <div style={{ display: "flex", flexDirection: "column", alignItems: isMe ? "flex-end" : "flex-start", maxWidth: "68%" }}>
+                        <div className="t-msg-body">
                           {showAvatar && !isMe && (
-                            <span style={{ fontSize: 11, color: "var(--t-ink-3)", marginBottom: 3, paddingLeft: 2 }}>{msg.name}</span>
+                            <span className="t-msg-sender">{msg.name}</span>
                           )}
-                          <div
-                            className="t-bubble"
-                            style={{
-                              padding: "9px 13px",
-                              borderRadius: isMe ? "16px 16px 4px 16px" : "16px 16px 16px 4px",
-                              background: isMe ? "var(--t-ink)" : "var(--t-surface)",
-                              color: isMe ? "#ffffff" : "var(--t-ink)",
-                              border: isMe ? "none" : "1px solid var(--t-line)",
-                              fontSize: 14,
-                              lineHeight: 1.45,
-                              wordBreak: "break-word",
-                            }}
-                          >
+                          <div className={cn("t-bubble", isMe ? "me" : "them")}>
                             {msg.content}
                           </div>
-                          {(!grouped || i === allMessages.length - 1) && (
-                            <span style={{ fontSize: 10, color: "var(--t-ink-3)", marginTop: 3, paddingLeft: 2, paddingRight: 2 }}>
-                              {formatFullTime(msg.timestamp)}
-                            </span>
+                          {showTime && (
+                            <span className="t-bubble-time">{formatFullTime(msg.timestamp)}</span>
                           )}
                         </div>
                       </div>
                     )
                   })
                 )}
+
+                {/* Typing indicator */}
+                {isTyping && (
+                  <div className="t-msg-row them gap">
+                    <div className="t-msg-avatar-slot">
+                      <Avatar src={other?.userAvatar} name={other?.userName} size={28} />
+                    </div>
+                    <div className="t-typing-bubble">
+                      <span className="t-typing-dot" />
+                      <span className="t-typing-dot" />
+                      <span className="t-typing-dot" />
+                    </div>
+                  </div>
+                )}
               </div>
 
-              <div
-                className="t-msg-input"
-                style={{
-                  flexShrink: 0,
-                  display: "flex",
-                  gap: 7,
-                  alignItems: "center",
-                  padding: "11px 13px",
-                  borderTop: "1px solid var(--t-line)",
-                  background: "var(--t-surface)",
-                  width: "100%",
-                  minWidth: 0,
-                }}
-              >
+              {/* Input */}
+              <div className="t-msg-input">
                 {!isVerified ? (
-                  <div style={{ flex: 1, display: "flex", alignItems: "center", gap: 8, minWidth: 0, color: "var(--t-ink-3)", fontSize: 13 }}>
+                  <div className="t-msg-locked">
                     <Lock size={14} style={{ flexShrink: 0 }} />
                     Verify your account to send messages
                   </div>
                 ) : (
                   <>
-                    <button style={{ color: "var(--t-ink-3)", background: "none", border: "none", cursor: "pointer", padding: 4, display: "flex", flexShrink: 0 }}>
+                    <button className="t-icon-btn-sm" style={{ border: "none", background: "none", color: "var(--t-ink-3)" }} title="Attach file">
                       <Paperclip size={18} />
                     </button>
-                    <button style={{ color: "var(--t-ink-3)", background: "none", border: "none", cursor: "pointer", padding: 4, display: "flex", flexShrink: 0 }}>
+                    <button className="t-icon-btn-sm" style={{ border: "none", background: "none", color: "var(--t-ink-3)" }} title="Send image">
                       <ImageIcon size={18} />
                     </button>
                     <form onSubmit={e => { e.preventDefault(); handleSend() }} style={{ flex: 1, display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
                       <input
                         ref={inputRef}
+                        className="t-msg-input-field"
                         value={input}
                         onChange={e => { setInput(e.target.value); handleTyping() }}
                         placeholder={isConnected ? "Type a message…" : "Connecting…"}
                         disabled={!isConnected}
-                        style={{
-                          flex: 1, height: 40, padding: "0 14px", minWidth: 0,
-                          background: "var(--t-surface-2)", border: "1px solid var(--t-line)",
-                          borderRadius: 999, fontSize: 14, color: "var(--t-ink)",
-                          outline: "none", fontFamily: "inherit", transition: "border-color .15s",
-                        }}
-                        onFocus={e => (e.target.style.borderColor = "var(--t-gold)")}
-                        onBlur={e => (e.target.style.borderColor = "var(--t-line)")}
                       />
                       <button
                         type="submit"
+                        className={cn("t-msg-send", input.trim() && isConnected && "ready")}
                         disabled={!isConnected || !input.trim()}
-                        style={{
-                          width: 40, height: 40, borderRadius: "50%", flexShrink: 0,
-                          background: input.trim() && isConnected ? "var(--t-ink)" : "var(--t-surface-2)",
-                          color: input.trim() && isConnected ? "#ffffff" : "var(--t-ink-3)",
-                          border: "none", cursor: input.trim() && isConnected ? "pointer" : "default",
-                          display: "flex", alignItems: "center", justifyContent: "center",
-                          transition: "background .15s, color .15s",
-                        }}
                       >
                         <Send size={16} />
                       </button>
@@ -523,26 +431,26 @@ export default function MessagesPage() {
               </div>
             </>
           ) : (
-            <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 16, padding: 32, color: "var(--t-ink-3)" }}>
-              <div style={{ width: 72, height: 72, borderRadius: "50%", background: "var(--t-surface)", border: "1px solid var(--t-line)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            /* No conversation selected */
+            <div className="t-msg-empty" style={{ flex: 1 }}>
+              <div className="t-msg-empty-icon" style={{ width: 72, height: 72 }}>
                 <Send size={28} style={{ color: "var(--t-gold)" }} />
               </div>
-              <div style={{ textAlign: "center" }}>
-                <p style={{ fontSize: 16, fontWeight: 600, color: "var(--t-ink)", marginBottom: 6 }}>Your messages</p>
-                <p style={{ fontSize: 13, maxWidth: 260, lineHeight: 1.5 }}>
-                  {isVerified
-                    ? "Select a conversation or start a new one."
-                    : "Verify your account to access messaging."}
-                </p>
-              </div>
+              <strong style={{ fontSize: 16 }}>Your messages</strong>
+              <p>
+                {isVerified
+                  ? "Select a conversation or start a new one."
+                  : "Verify your account to access messaging."}
+              </p>
               {isVerified && (
                 <button
                   onClick={() => setShowNewMsg(true)}
                   style={{
                     display: "inline-flex", alignItems: "center", gap: 7,
-                    height: 36, padding: "0 14px", borderRadius: 9,
-                    background: "var(--t-ink)", color: "#ffffff",
-                    border: "none", cursor: "pointer", fontFamily: "inherit", fontSize: 13, fontWeight: 500,
+                    height: 36, padding: "0 16px", borderRadius: 9,
+                    background: "var(--t-ink)", color: "#fff",
+                    border: "none", cursor: "pointer", fontFamily: "inherit",
+                    fontSize: 13, fontWeight: 500, marginTop: 4,
                   }}
                 >
                   <UserPlus size={15} />
@@ -559,7 +467,7 @@ export default function MessagesPage() {
           currentUser={user ? { id: user.id, fullName: user.fullName, avatar: user.avatar } : null}
           isVerified={isVerified}
           onClose={() => setShowNewMsg(false)}
-          onCreate={conv => { setSelectedId(conv.id); refresh(); }}
+          onCreate={conv => { setSelectedId(conv.id); refresh() }}
           createConversation={createConversation}
         />
       )}
