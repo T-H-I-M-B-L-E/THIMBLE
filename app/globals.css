@@ -701,6 +701,116 @@
   .t-post-image { max-width: 100%; max-height: 280px; }
   .t-post-image img { max-height: 280px; }
 }
+
+/* Letterboxed media carousel — used by PostCard + PostLightbox. */
+.t-post-media {
+  position: relative;
+  margin: 8px auto 0;
+  max-width: 420px;
+  width: 100%;
+  background: var(--t-surface-2);
+  border: 1px solid var(--t-line);
+  border-radius: 16px;
+  overflow: hidden;
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+}
+/* Larger variant for the lightbox modal. */
+.t-post-media--lb {
+  max-width: 100%;
+  margin: 0;
+  border-radius: 0;
+  border: 0;
+  background: var(--t-surface-2);
+  cursor: default;
+}
+
+/* Fixed-aspect stage so post height stays consistent. Image inside is
+   contain-fit so portrait/landscape/square are all shown in full. */
+.t-post-media-stage {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 4 / 5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.t-post-media--lb .t-post-media-stage {
+  aspect-ratio: auto;
+  height: 100%;
+  min-height: 0;
+}
+.t-post-media-img {
+  position: absolute;
+  inset: 0;
+  width: 100%; height: 100%;
+  display: block;
+  background: var(--t-surface-2);
+}
+.t-post-media--lb .t-post-media-img { position: static; height: auto; max-height: 100%; }
+
+/* Arrows — only appear when there's more than one image. Hidden until
+   hover on desktop; always visible on touch (no hover state available). */
+.t-post-media-arrow {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 32px; height: 32px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  border: 0; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  opacity: 0;
+  transition: opacity .15s, background .15s;
+  z-index: 2;
+}
+.t-post-media:hover .t-post-media-arrow { opacity: 1; }
+.t-post-media-arrow:hover { background: rgba(0, 0, 0, 0.75); }
+.t-post-media-arrow-prev { left: 10px; }
+.t-post-media-arrow-next { right: 10px; }
+@media (hover: none) {
+  .t-post-media-arrow { opacity: 0.7; }
+}
+
+/* Dot indicators — centered along the bottom edge. */
+.t-post-media-dots {
+  position: absolute;
+  bottom: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 5px;
+  padding: 5px 8px;
+  background: rgba(0, 0, 0, 0.35);
+  border-radius: 999px;
+  backdrop-filter: blur(6px);
+  z-index: 2;
+}
+.t-post-media-dot {
+  width: 5px; height: 5px; border-radius: 50%;
+  background: rgba(255, 255, 255, 0.55);
+  transition: background .15s, transform .15s;
+}
+.t-post-media-dot.on {
+  background: #fff;
+  transform: scale(1.25);
+}
+
+/* Count pill — top-right corner, only when multiple images. */
+.t-post-media-count {
+  position: absolute;
+  top: 10px; right: 10px;
+  padding: 3px 9px;
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  z-index: 2;
+}
 .t-post-image:hover img { transform: scale(1.02); }
 
 .t-post-actions {

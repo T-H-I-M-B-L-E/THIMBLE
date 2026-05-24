@@ -25,6 +25,7 @@ import type { Comment } from "@/hooks/use-social";
 import { useUsers } from "@/hooks/use-users";
 import { Avatar } from "@/components/avatar";
 import { VerifiedBadge } from "@/components/verified-badge";
+import { PostMedia } from "@/components/post-media";
 
 export interface PostData {
   id: number | string;
@@ -33,6 +34,8 @@ export interface PostData {
   authorAvatar: string;
   authorVerified?: boolean;
   imageUrl: string;
+  /** Optional multi-image carousel. Falls back to [imageUrl] when absent. */
+  images?: string[];
   description: string;
   likes: number;
   commentCount?: number;
@@ -246,15 +249,12 @@ export function PostCard({ post, currentUserId, onDelete }: PostCardProps) {
           </p>
         )}
 
-        {post.imageUrl && (
-          <button className="t-post-image" aria-label="View post" type="button">
-            <img
-              src={post.imageUrl}
-              alt={post.description || "Post"}
-              loading="lazy"
-            />
-          </button>
-        )}
+        {(post.images?.length ?? 0) > 0 || post.imageUrl ? (
+          <PostMedia
+            images={post.images?.length ? post.images : [post.imageUrl]}
+            alt={post.description || "Post"}
+          />
+        ) : null}
 
         <div className="t-post-actions">
           <button

@@ -8,6 +8,7 @@ import { useAuth } from "@/lib/useAuth"
 import { useNotify } from "@/components/notify-provider"
 import { Avatar } from "@/components/avatar"
 import { VerifiedBadge } from "@/components/verified-badge"
+import { PostMedia } from "@/components/post-media"
 
 interface PostLightboxProps {
   post: PostData
@@ -119,18 +120,14 @@ export function PostLightbox({ post, isOpen, onClose }: PostLightboxProps) {
             alignItems: "center",
             justifyContent: "center",
             background: "var(--t-surface-2)",
-            overflow: "auto",
+            overflow: "hidden",
           }}
         >
-          {post.imageUrl && (
-            <img
-              src={post.imageUrl}
+          {((post.images?.length ?? 0) > 0 || post.imageUrl) && (
+            <PostMedia
+              images={post.images?.length ? post.images : [post.imageUrl]}
               alt={post.description || "Post"}
-              style={{
-                maxWidth: "100%",
-                maxHeight: "100%",
-                objectFit: "contain",
-              }}
+              variant="lightbox"
             />
           )}
         </div>
