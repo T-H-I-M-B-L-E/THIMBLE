@@ -18,6 +18,7 @@ import {
   useLike,
   useComments,
   useFollow,
+  useBookmark,
   prefetchComments,
 } from "@/hooks/use-social";
 import type { Comment } from "@/hooks/use-social";
@@ -104,10 +105,10 @@ export function PostCard({ post, currentUserId, onDelete }: PostCardProps) {
     isSelf,
     toggle: toggleFollow,
   } = useFollow(post.userId, currentUserId);
+  const { saved: bookmarked, toggle: toggleBookmark } = useBookmark(post.id, post.savedByMe);
 
   const [commentInput, setCommentInput] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const [bookmarked, setBookmarked] = useState(false);
   const [shareCopied, setShareCopied] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -292,7 +293,7 @@ export function PostCard({ post, currentUserId, onDelete }: PostCardProps) {
 
           <button
             className={`t-action ml-auto ${bookmarked ? "on" : ""}`}
-            onClick={() => setBookmarked((b) => !b)}
+            onClick={toggleBookmark}
             aria-label="Bookmark"
           >
             <Bookmark
