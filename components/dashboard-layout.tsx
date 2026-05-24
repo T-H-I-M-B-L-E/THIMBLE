@@ -10,8 +10,9 @@ import { BanWall } from "./ban-wall"
 import { CreatePostModal } from "./create-post-modal"
 import { BottomNav } from "./bottom-nav"
 import { NotificationCenter } from "./notification-center"
+import { SearchBar } from "./search-bar"
 import { useState, useEffect, useRef } from "react"
-import { Home, Briefcase, MessageSquare, User, Search, Settings, LogOut } from "lucide-react"
+import { Home, Briefcase, MessageSquare, User, Settings, LogOut } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { RightRail } from "./right-rail"
 
@@ -74,15 +75,11 @@ export function DashboardLayout({ children, role, showRail = false, fullBleed = 
       {/* Floating glass top bar */}
       <header className="t-topbar">
         <div className="t-topbar-inner">
-          <Link href="/" className="t-brand" aria-label="Thimble home">
+          <Link href="/" className="t-brand" aria-label="Tvimble home">
             <span className="t-brand-mark" aria-hidden="true" />
-            <span className="t-brand-name">thimble</span>
+            <span className="t-brand-name">TVIMBLE</span>
           </Link>
-          <div className="t-search" role="search">
-            <Search className="t-search-ico" size={16} />
-            <input placeholder="Search people, gigs, tags…" aria-label="Search" />
-            <span className="t-search-kbd">⌘K</span>
-          </div>
+          <SearchBar role={role} />
           <div className="t-topbar-right">
             <NotificationCenter userId={user?.id} />
 

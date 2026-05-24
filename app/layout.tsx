@@ -9,7 +9,7 @@ import { headers } from "next/headers";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "THIMBLE - Fashion Creative Platform",
+  title: "TVIMBLE - Fashion Creative Platform",
   description:
     "Where fashion designers, models, and creatives showcase their work and collaborate",
   generator: "v0.app",

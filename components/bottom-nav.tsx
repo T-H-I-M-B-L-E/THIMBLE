@@ -26,11 +26,9 @@ const DEFAULT_ITEMS: PillNavItem[] = [
 ]
 
 /**
- * Floating slim pill nav — icons only, 2+2 split around a centered FAB.
- *
- * The center column is just a sized spacer that the FAB anchors to,
- * keeping the FAB at the true geometric center of the pill regardless
- * of icon count.
+ * Floating slim pill nav. Layout: 2 icons | Post button | 2 icons.
+ * Post button is inline (not a floating FAB) so it aligns with the
+ * other items while still standing out via dark fill.
  */
 export function BottomNav({
   items = DEFAULT_ITEMS,
@@ -69,19 +67,22 @@ export function BottomNav({
     <nav className="t-bottomnav" aria-label="Primary">
       <div className="t-bn-pill">
         <div className="t-bn-side">{left.map(renderIcon)}</div>
-        <div className="t-bn-center" aria-hidden="true" />
-        <div className="t-bn-side">{right.map(renderIcon)}</div>
 
-        {onCreate && (
+        {onCreate ? (
           <button
-            className="t-bn-fab"
+            className="t-bn-post"
             type="button"
             onClick={onCreate}
             aria-label={createLabel}
           >
-            <Plus size={20} strokeWidth={2.4} />
+            <Plus size={16} strokeWidth={2.4} />
+            <span>Post</span>
           </button>
+        ) : (
+          <div className="t-bn-center" aria-hidden="true" />
         )}
+
+        <div className="t-bn-side">{right.map(renderIcon)}</div>
       </div>
     </nav>
   )

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react"
 import Image from "next/image"
 import Link from "next/link"
 import { useStore } from "@/lib/store"
+import { useFollow } from "@/hooks/use-social"
 
 interface SuggestedUser {
   id: string
@@ -64,56 +65,12 @@ export function RightRail() {
           <div className="t-rail-h">People you might know</div>
           <ul className="t-suggest">
             {suggestions.map((person) => (
-              <li key={person.id}>
-                <Link href={`/dashboard/${user?.role ?? "model"}/profile/${person.id}`}>
-                  {person.avatarUrl ? (
-                    <Image
-                      src={person.avatarUrl}
-                      alt={person.fullName}
-                      width={32}
-                      height={32}
-                      className="t-avatar-sm"
-                      style={{ borderRadius: "50%" }}
-                    />
-                  ) : (
-                    <div
-                      className="t-avatar-sm"
-                      style={{
-                        width: 32,
-                        height: 32,
-                        borderRadius: "50%",
-                        background: "var(--t-muted, #e5e5e5)",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        fontSize: 14,
-                        fontWeight: 600,
-                      }}
-                    >
-                      {person.fullName[0]}
-                    </div>
-                  )}
-                </Link>
-                <div className="t-suggest-meta">
-                  <div className="t-strong" style={{ fontSize: "13px" }}>{person.fullName}</div>
-                  <div className="t-muted-xs">
-                    {person.role}{person.location ? ` · ${person.location}` : ""}
-                  </div>
-                </div>
-                <button
-                  style={{
-                    marginLeft: "auto",
-                    fontSize: "12px",
-                    fontWeight: 500,
-                    color: "var(--t-gold-ink)",
-                    background: "none",
-                    border: 0,
-                    cursor: "pointer",
-                  }}
-                >
-                  Follow
-                </button>
-              </li>
+              <SuggestionRow
+                key={person.id}
+                person={person}
+                profileHref={`/dashboard/${user?.role ?? "model"}/profile/${person.id}`}
+                currentUserId={user?.id}
+              />
             ))}
           </ul>
         </div>
@@ -140,8 +97,88 @@ export function RightRail() {
         <span>·</span>
         <span>Terms</span>
         <span>·</span>
-        <span>© Thimble</span>
+        <span>© Tvimble</span>
       </div>
     </aside>
+  )
+}
+
+function SuggestionRow({
+  person,
+  profileHref,
+  currentUserId,
+}: {
+  person: SuggestedUser
+  profileHref: string
+  currentUserId?: string
+}) {
+  const { isFollowing, toggle, pending, isSelf } = useFollow(person.id, currentUserId)
+
+  return (
+    <li>
+      <Link href={profileHref} aria-label={`${person.fullName} profile`}>
+        {person.avatarUrl ? (
+          <Image
+            src={person.avatarUrl}
+            alt={person.fullName}
+            width={32}
+            height={32}
+            className="t-avatar-sm"
+            style={{ borderRadius: "50%" }}
+          />
+        ) : (
+          <div
+            className="t-avatar-sm"
+            style={{
+              width: 32,
+              height: 32,
+              borderRadius: "50%",
+              background: "var(--t-surface-2)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              fontSize: 14,
+              fontWeight: 600,
+              color: "var(--t-ink)",
+            }}
+          >
+            {person.fullName[0]}
+          </div>
+        )}
+      </Link>
+      <Link
+        href={profileHref}
+        className="t-suggest-meta"
+        style={{ textDecoration: "none", color: "inherit", minWidth: 0 }}
+      >
+        <div className="t-strong" style={{ fontSize: "13px" }}>{person.fullName}</div>
+        <div className="t-muted-xs">
+          {person.role}{person.location ? ` · ${person.location}` : ""}
+        </div>
+      </Link>
+      {!isSelf && (
+        <button
+          type="button"
+          onClick={toggle}
+          disabled={pending}
+          style={{
+            marginLeft: "auto",
+            fontSize: "12px",
+            fontWeight: 600,
+            padding: "5px 11px",
+            borderRadius: 999,
+            color: isFollowing ? "var(--t-ink-2)" : "#fff",
+            background: isFollowing ? "var(--t-surface-2)" : "var(--t-ink)",
+            border: isFollowing ? "1px solid var(--t-line)" : "1px solid var(--t-ink)",
+            cursor: pending ? "default" : "pointer",
+            opacity: pending ? 0.6 : 1,
+            fontFamily: "inherit",
+            transition: "background .15s, color .15s",
+          }}
+        >
+          {isFollowing ? "Following" : "Follow"}
+        </button>
+      )}
+    </li>
   )
 }
