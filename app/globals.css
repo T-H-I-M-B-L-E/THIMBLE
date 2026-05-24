@@ -1863,8 +1863,13 @@ body {
   .t-shell.has-rail {
     grid-template-columns: minmax(0, 1fr) var(--t-rail-w) !important;
     gap: 28px !important;
-    max-width: 1180px;
+    /* Cap grows on laptop+ so the main column can breathe instead of
+       hitting its 720px max and leaving wide empty margins. */
+    max-width: 1280px;
   }
+}
+@media (min-width: 1440px) {
+  .t-shell.has-rail { max-width: 1400px; }
 }
 /* Full-bleed mode: used by messages so it can fill the shell edge-to-edge */
 .t-shell--full-bleed {
@@ -1876,10 +1881,20 @@ body {
 }
 .t-sidenav { display: none !important; }
 .t-main {
-  max-width: 720px;
+  /* Fluid max-width: 720 on small laptops, scales up to ~920 on 16"+
+     screens. Keeps reading width comfortable but reclaims dead space. */
+  max-width: clamp(720px, 78vw, 920px);
   width: 100%;
   margin: 0 auto;
   padding: 24px 0 160px !important;
+}
+/* When no rail is shown, let the main column claim more room since the
+   right side would otherwise be empty. */
+.t-shell:not(.has-rail) .t-main {
+  max-width: clamp(720px, 65vw, 1040px);
+}
+@media (max-width: 880px) {
+  .t-main { max-width: 100% !important; }
 }
 @media (max-width: 639px) {
   .t-main { padding: 16px 0 150px !important; }
