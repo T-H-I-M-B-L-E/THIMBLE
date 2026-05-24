@@ -202,7 +202,7 @@
   border-bottom: 1px solid var(--t-line);
 }
 .t-topbar-inner {
-  max-width: 1440px; margin: 0 auto; padding: 10px 16px;
+  width: 100%; margin: 0 auto; padding: 10px 16px;
   display: flex; align-items: center; gap: 12px;
 }
 @media (min-width: 640px) { .t-topbar-inner { padding: 10px 24px; gap: 18px; } }
@@ -1863,13 +1863,9 @@ body {
   .t-shell.has-rail {
     grid-template-columns: minmax(0, 1fr) var(--t-rail-w) !important;
     gap: 28px !important;
-    /* Cap grows on laptop+ so the main column can breathe instead of
-       hitting its 720px max and leaving wide empty margins. */
-    max-width: 1280px;
+    /* No max-width cap — fills the viewport. Main column grows fluidly
+       via clamp() below, so we use available space instead of a hard cap. */
   }
-}
-@media (min-width: 1440px) {
-  .t-shell.has-rail { max-width: 1400px; }
 }
 /* Full-bleed mode: used by messages so it can fill the shell edge-to-edge */
 .t-shell--full-bleed {
@@ -1881,17 +1877,16 @@ body {
 }
 .t-sidenav { display: none !important; }
 .t-main {
-  /* Fluid max-width: 720 on small laptops, scales up to ~920 on 16"+
-     screens. Keeps reading width comfortable but reclaims dead space. */
-  max-width: clamp(720px, 78vw, 920px);
+  /* Fill the column. The grid in .t-shell.has-rail allocates minmax(0,1fr)
+     so the main column expands to whatever space the rail doesn't claim. */
   width: 100%;
   margin: 0 auto;
   padding: 24px 0 160px !important;
 }
-/* When no rail is shown, let the main column claim more room since the
-   right side would otherwise be empty. */
+/* When no rail is shown the main column would stretch absurdly wide on
+   ultrawides — cap it for readability but keep it generous on laptops. */
 .t-shell:not(.has-rail) .t-main {
-  max-width: clamp(720px, 65vw, 1040px);
+  max-width: 1100px;
 }
 @media (max-width: 880px) {
   .t-main { max-width: 100% !important; }

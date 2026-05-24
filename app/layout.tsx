@@ -57,11 +57,7 @@ export default async function RootLayout({
             {!isAdmin && <UserSync />}
             {!isAdmin && <WelcomeOverlay />}
             {!isAdmin ? (
-              <div className="container">
-                <div id="main-content" className="content-area">
-                  {children}
-                </div>
-              </div>
+              <div id="main-content">{children}</div>
             ) : (
               <>{children}</>
             )}
