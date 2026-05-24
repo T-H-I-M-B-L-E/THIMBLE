@@ -163,3 +163,65 @@ func ResetPassword(ctx context.Context, email, code, newPassword string) *Servic
 	}
 	return nil
 }
+
+// ChangePassword updates the password for an authenticated user after
+// verifying their current password.
+func ChangePassword(ctx context.Context, userID, currentPassword, newPassword string) *ServiceError {
+	if len(newPassword) < 8 {
+		return NewError(400, "weak_password", "new password must be at least 8 characters")
+	}
+	hash, err := repositories.GetUserPasswordHash(ctx, userID)
+	if err != nil {
+		return NewError(404, "user_not_found", "user not found")
+	}
+	if bcrypt.CompareHashAndPassword([]byte(hash), []byte(currentPassword)) != nil {
+		return NewError(401, "invalid_password", "current password is incorrect")
+	}
+	newHash, err := bcrypt.GenerateFromPassword([]byte(newPassword), bcrypt.DefaultCost)
+	if err != nil {
+		return NewError(500, "hash_failed", "failed to update password")
+	}
+	if err := repositories.UpdatePasswordByID(ctx, userID, string(newHash)); err != nil {
+		return NewError(500, "db_failed", "failed to update password")
+	}
+	return nil
+}
+
+// ChangeEmail updates the email for an authenticated user after verifying
+// their current password. Returns email_taken if the new address is in use.
+func ChangeEmail(ctx context.Context, userID, currentPassword, newEmail string) *ServiceError {
+	if newEmail == "" {
+		return NewError(400, "invalid_email", "new email is required")
+	}
+	hash, err := repositories.GetUserPasswordHash(ctx, userID)
+	if err != nil {
+		return NewError(404, "user_not_found", "user not found")
+	}
+	if bcrypt.CompareHashAndPassword([]byte(hash), []byte(currentPassword)) != nil {
+		return NewError(401, "invalid_password", "password is incorrect")
+	}
+	if repositories.EmailExists(ctx, newEmail) {
+		return NewError(409, "email_taken", "that email is already registered")
+	}
+	if err := repositories.UpdateEmail(ctx, userID, newEmail); err != nil {
+		return NewError(500, "db_failed", "failed to update email")
+	}
+	return nil
+}
+
+// DeleteAccount removes a user's account after verifying their password.
+// All related rows (posts, follows, comments, etc.) are removed via ON
+// DELETE CASCADE foreign keys.
+func DeleteAccount(ctx context.Context, userID, currentPassword string) *ServiceError {
+	hash, err := repositories.GetUserPasswordHash(ctx, userID)
+	if err != nil {
+		return NewError(404, "user_not_found", "user not found")
+	}
+	if bcrypt.CompareHashAndPassword([]byte(hash), []byte(currentPassword)) != nil {
+		return NewError(401, "invalid_password", "password is incorrect")
+	}
+	if err := repositories.DeleteUserByID(ctx, userID); err != nil {
+		return NewError(500, "db_failed", "failed to delete account")
+	}
+	return nil
+}

@@ -185,11 +185,11 @@ export default function ProfilePage() {
             {/* Actions */}
             <div style={{ display: "flex", gap: "8px" }}>
               <button
-                onClick={() => setIsEditModalOpen(true)}
+                onClick={() => router.push(`/dashboard/${role}/settings`)}
                 style={{ background: "var(--t-surface-2)", border: "1px solid var(--t-line)", color: "var(--t-ink)", padding: "8px 14px", borderRadius: "9px", fontSize: "13px", fontWeight: 500, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: "6px", fontFamily: "inherit" }}
               >
                 <Settings size={13} />
-                Edit
+                Settings
               </button>
               {!user?.isVerified && (
                 <button

@@ -104,6 +104,61 @@ func ResetPassword(c *fiber.Ctx) error {
 	return c.Status(200).JSON(fiber.Map{"success": true})
 }
 
+func ChangePassword(c *fiber.Ctx) error {
+	userId, ok := c.Locals("userId").(string)
+	if !ok || userId == "" {
+		return c.Status(401).JSON(fiber.Map{"error": "unauthorized"})
+	}
+	var req struct {
+		CurrentPassword string `json:"currentPassword"`
+		NewPassword     string `json:"newPassword"`
+	}
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(400).JSON(fiber.Map{"error": "invalid request body"})
+	}
+	if err := services.ChangePassword(c.Context(), userId, req.CurrentPassword, req.NewPassword); err != nil {
+		return respondError(c, err)
+	}
+	return c.JSON(fiber.Map{"success": true})
+}
+
+func ChangeEmail(c *fiber.Ctx) error {
+	userId, ok := c.Locals("userId").(string)
+	if !ok || userId == "" {
+		return c.Status(401).JSON(fiber.Map{"error": "unauthorized"})
+	}
+	var req struct {
+		CurrentPassword string `json:"currentPassword"`
+		NewEmail        string `json:"newEmail"`
+	}
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(400).JSON(fiber.Map{"error": "invalid request body"})
+	}
+	if err := services.ChangeEmail(c.Context(), userId, req.CurrentPassword, req.NewEmail); err != nil {
+		return respondError(c, err)
+	}
+	return c.JSON(fiber.Map{"success": true})
+}
+
+func DeleteAccount(c *fiber.Ctx) error {
+	userId, ok := c.Locals("userId").(string)
+	if !ok || userId == "" {
+		return c.Status(401).JSON(fiber.Map{"error": "unauthorized"})
+	}
+	var req struct {
+		CurrentPassword string `json:"currentPassword"`
+	}
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(400).JSON(fiber.Map{"error": "invalid request body"})
+	}
+	if err := services.DeleteAccount(c.Context(), userId, req.CurrentPassword); err != nil {
+		return respondError(c, err)
+	}
+	// Clear the auth cookie so the client logs out.
+	c.ClearCookie("auth_token")
+	return c.JSON(fiber.Map{"success": true})
+}
+
 // MakeAdmin is the bootstrap endpoint that grants admin to a user.
 // It is gated by ADMIN_BOOTSTRAP_SECRET — when the env var is unset the
 // route returns 404 to hide its existence.

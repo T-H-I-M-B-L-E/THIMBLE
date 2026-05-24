@@ -119,6 +119,53 @@ func RecordLogin(ctx context.Context, userId string) {
 		"UPDATE users SET last_login_at = NOW(), total_logins = total_logins + 1 WHERE id = $1", userId)
 }
 
+// GetUserPasswordHash returns the bcrypt hash stored for a user.
+func GetUserPasswordHash(ctx context.Context, userID string) (string, error) {
+	var hash string
+	err := db.Pool.QueryRow(ctx,
+		"SELECT password_hash FROM users WHERE id = $1", userID).Scan(&hash)
+	return hash, err
+}
+
+// UpdatePasswordByID swaps a user's password hash.
+func UpdatePasswordByID(ctx context.Context, userID, passwordHash string) error {
+	_, err := db.Pool.Exec(ctx,
+		"UPDATE users SET password_hash = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2",
+		passwordHash, userID)
+	return err
+}
+
+// UpdateEmail swaps a user's email. Returns ErrEmailTaken if another row owns it.
+func UpdateEmail(ctx context.Context, userID, newEmail string) error {
+	_, err := db.Pool.Exec(ctx,
+		"UPDATE users SET email = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2",
+		newEmail, userID)
+	return err
+}
+
+// DeleteUserByID permanently removes a user row and all rows that
+// reference it via ON DELETE CASCADE foreign keys.
+func DeleteUserByID(ctx context.Context, userID string) error {
+	_, err := db.Pool.Exec(ctx, "DELETE FROM users WHERE id = $1", userID)
+	return err
+}
+
+// GetEmailPrefs returns the user's notification preferences as raw JSON.
+func GetEmailPrefs(ctx context.Context, userID string) ([]byte, error) {
+	var prefs []byte
+	err := db.Pool.QueryRow(ctx,
+		"SELECT email_prefs FROM users WHERE id = $1", userID).Scan(&prefs)
+	return prefs, err
+}
+
+// UpdateEmailPrefs writes a JSON object of notification preferences.
+func UpdateEmailPrefs(ctx context.Context, userID string, prefs []byte) error {
+	_, err := db.Pool.Exec(ctx,
+		"UPDATE users SET email_prefs = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2",
+		prefs, userID)
+	return err
+}
+
 func UpdatePasswordByEmail(ctx context.Context, email, passwordHash string) (int64, error) {
 	result, err := db.Pool.Exec(ctx,
 		"UPDATE users SET password_hash = $1, updated_at = CURRENT_TIMESTAMP WHERE email = $2",

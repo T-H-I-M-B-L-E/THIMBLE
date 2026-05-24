@@ -60,6 +60,11 @@ func registerRoutes(app *fiber.App, authLimiter fiber.Handler) {
 	app.Post("/auth/logout", handlers.Logout)
 	app.Post("/auth/forgot-password", authLimiter, handlers.ForgotPassword)
 	app.Post("/auth/reset-password", authLimiter, handlers.ResetPassword)
+	app.Post("/auth/change-password", middleware.RequireJWT, handlers.ChangePassword)
+	app.Post("/auth/change-email", middleware.RequireJWT, handlers.ChangeEmail)
+	app.Delete("/auth/account", middleware.RequireJWT, handlers.DeleteAccount)
+	app.Get("/api/settings/email-prefs", middleware.RequireJWT, handlers.GetEmailPrefs)
+	app.Patch("/api/settings/email-prefs", middleware.RequireJWT, handlers.UpdateEmailPrefs)
 	app.Post("/auth/make-admin", handlers.MakeAdmin)
 
 	// ── WebSocket ticket ──────────────────────────────────────────────────────

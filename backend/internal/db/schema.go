@@ -135,6 +135,8 @@ func EnsureSchema(ctx context.Context) {
 		)
 	`)
 
+	Pool.Exec(ctx, `ALTER TABLE users ADD COLUMN IF NOT EXISTS email_prefs JSONB NOT NULL DEFAULT '{"likes":true,"comments":true,"follows":true,"product_updates":true}'::jsonb`)
+
 	Pool.Exec(ctx, `ALTER TABLE users ADD COLUMN IF NOT EXISTS is_banned BOOLEAN NOT NULL DEFAULT FALSE`)
 	Pool.Exec(ctx, `ALTER TABLE users ADD COLUMN IF NOT EXISTS banned_until TIMESTAMPTZ`)
 	Pool.Exec(ctx, `ALTER TABLE users ADD COLUMN IF NOT EXISTS ban_message TEXT NOT NULL DEFAULT ''`)
