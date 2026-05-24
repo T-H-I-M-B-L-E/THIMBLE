@@ -8,6 +8,7 @@ import {
   MessageCircle,
   Share2,
   Bookmark,
+  Trash2,
 } from "lucide-react";
 import type { PostData } from "@/components/post-card";
 import { useLike, useComments, useBookmark, prefetchComments } from "@/hooks/use-social";
@@ -45,6 +46,26 @@ export default function PostDetailPage() {
     addComment,
   } = useComments(post?.id ?? 0, post?.commentCount ?? 0);
   const { saved: bookmarked, toggle: toggleBookmark } = useBookmark(post?.id ?? 0, post?.savedByMe);
+
+  const isOwn = !!user && !!post && user.id === post.userId;
+
+  const handleDelete = async () => {
+    if (!post) return;
+    if (!confirm("Delete this post? This can't be undone.")) return;
+    try {
+      const res = await fetch(`/api/posts/${post.id}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      if (res.ok) {
+        router.push(`/dashboard/${user?.role ?? "designer"}/feed`);
+      } else {
+        alert("Could not delete from server.");
+      }
+    } catch {
+      alert("Network error.");
+    }
+  };
 
   const handleShare = async () => {
     const url = `${window.location.origin}/post/${postId}`;
@@ -573,6 +594,28 @@ export default function PostDetailPage() {
                 />
                 {bookmarked ? "Saved" : "Save"}
               </button>
+
+              {isOwn && (
+                <button
+                  onClick={handleDelete}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 8,
+                    padding: "10px 12px",
+                    background: "var(--t-surface-2)",
+                    color: "#c44",
+                    border: "1px solid var(--t-line)",
+                    borderRadius: 8,
+                    cursor: "pointer",
+                    fontSize: 13,
+                    fontWeight: 500,
+                  }}
+                >
+                  <Trash2 size={16} strokeWidth={1.75} />
+                  Delete
+                </button>
+              )}
             </div>
           </div>
         </div>
