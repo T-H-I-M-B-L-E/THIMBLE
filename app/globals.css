@@ -747,6 +747,104 @@
   padding: 24px 0 10px;
 }
 
+/* Global notify system (toast stack + confirm modal) */
+.t-toast-stack {
+  position: fixed; top: 24px; right: 24px;
+  display: flex; flex-direction: column; gap: 10px;
+  z-index: 2000; pointer-events: none;
+  max-width: calc(100vw - 32px);
+}
+.t-toast-card {
+  display: flex; align-items: center; gap: 10px;
+  padding: 12px 14px;
+  background: var(--t-surface);
+  border: 1px solid var(--t-line);
+  border-radius: 12px;
+  box-shadow: 0 8px 24px rgba(0,0,0,.12);
+  font-size: 13px; font-weight: 500;
+  color: var(--t-ink);
+  min-width: 240px; max-width: 360px;
+  pointer-events: auto;
+  animation: t-toast-slide-in .25s var(--motion-spring) both;
+}
+.t-toast-icon {
+  display: flex; align-items: center;
+  flex-shrink: 0;
+}
+.t-toast-success .t-toast-icon { color: #1f9d55; }
+.t-toast-error .t-toast-icon { color: #d33; }
+.t-toast-info .t-toast-icon { color: var(--t-ink-2); }
+.t-toast-msg { flex: 1; line-height: 1.4; word-break: break-word; }
+.t-toast-close {
+  background: none; border: none; cursor: pointer;
+  color: var(--t-ink-3); padding: 2px;
+  display: flex; align-items: center;
+}
+.t-toast-close:hover { color: var(--t-ink); }
+@keyframes t-toast-slide-in {
+  from { opacity: 0; transform: translateX(20px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+.t-confirm-backdrop {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,.5);
+  z-index: 2100;
+  display: flex; align-items: center; justify-content: center;
+  padding: 20px;
+  animation: t-fade-in .15s ease-out both;
+}
+.t-confirm-card {
+  background: var(--t-surface);
+  border: 1px solid var(--t-line);
+  border-radius: 16px;
+  padding: 24px;
+  max-width: 400px; width: 100%;
+  box-shadow: 0 20px 60px rgba(0,0,0,.3);
+  animation: t-confirm-pop .2s var(--motion-spring) both;
+}
+.t-confirm-title {
+  font-size: 17px; font-weight: 600;
+  color: var(--t-ink); margin: 0 0 8px;
+}
+.t-confirm-msg {
+  font-size: 14px; color: var(--t-ink-2);
+  line-height: 1.5; margin: 0 0 20px;
+}
+.t-confirm-actions {
+  display: flex; gap: 8px; justify-content: flex-end;
+}
+.t-confirm-cancel, .t-confirm-primary, .t-confirm-danger {
+  padding: 9px 16px; border-radius: 9px;
+  font-size: 13px; font-weight: 500;
+  cursor: pointer; font-family: inherit;
+  border: 1px solid var(--t-line);
+  transition: background .15s, border-color .15s;
+}
+.t-confirm-cancel {
+  background: var(--t-surface-2);
+  color: var(--t-ink);
+}
+.t-confirm-cancel:hover { background: var(--t-line); }
+.t-confirm-primary {
+  background: var(--t-ink); color: var(--t-bg);
+  border-color: var(--t-ink);
+}
+.t-confirm-primary:hover { opacity: .9; }
+.t-confirm-danger {
+  background: #d33; color: #fff;
+  border-color: #d33;
+}
+.t-confirm-danger:hover { background: #b22; border-color: #b22; }
+@keyframes t-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes t-confirm-pop {
+  from { opacity: 0; transform: scale(.95); }
+  to { opacity: 1; transform: scale(1); }
+}
+
 /* Toast for optimistic-post errors */
 .t-toast {
   position: fixed; left: 50%; bottom: 96px;

@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { CheckCircle2, XCircle, ExternalLink, Loader2 } from 'lucide-react'
+import { useNotify } from '@/components/notify-provider'
 
 interface VerificationRequest {
   id: number
@@ -42,6 +43,7 @@ function timeAgo(iso: string) {
 
 export default function AdminVerificationPage() {
   const router = useRouter()
+  const notify = useNotify()
   const [requests, setRequests] = useState<VerificationRequest[]>([])
   const [filter, setFilter] = useState<'pending' | 'approved' | 'rejected' | 'all'>('pending')
   const [loading, setLoading] = useState(true)
@@ -82,7 +84,7 @@ export default function AdminVerificationPage() {
       // Re-sort if on a filtered view
       if (filter !== 'all') load()
     } catch {
-      alert('Failed to update request')
+      notify.error('Failed to update request')
     } finally {
       setReviewing(null)
     }

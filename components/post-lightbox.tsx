@@ -5,6 +5,7 @@ import { X, Heart, MessageCircle, Share2, Bookmark, Trash2 } from "lucide-react"
 import type { PostData } from "@/components/post-card"
 import { useLike, useComments, useBookmark, prefetchComments } from "@/hooks/use-social"
 import { useAuth } from "@/lib/useAuth"
+import { useNotify } from "@/components/notify-provider"
 import { Avatar } from "@/components/avatar"
 import { VerifiedBadge } from "@/components/verified-badge"
 
@@ -20,6 +21,7 @@ export function PostLightbox({ post, isOpen, onClose }: PostLightboxProps) {
   const [expandCaption, setExpandCaption] = useState(false)
 
   const { user } = useAuth()
+  const notify = useNotify()
   const { count: likeCount, liked, toggle: toggleLike } = useLike(post.id, post.likes, post.likedByMe)
   const { saved: bookmarked, toggle: toggleBookmark } = useBookmark(post.id, post.savedByMe)
   const {
@@ -227,7 +229,12 @@ export function PostLightbox({ post, isOpen, onClose }: PostLightboxProps) {
                     {user?.id === comment.userId && (
                       <button
                         onClick={async () => {
-                          if (!confirm("Delete this reply?")) return
+                          const ok = await notify.confirm({
+                            title: "Delete this reply?",
+                            confirmLabel: "Delete",
+                            destructive: true,
+                          })
+                          if (!ok) return
                           await deleteComment(comment.id)
                         }}
                         aria-label="Delete reply"

@@ -1,6 +1,7 @@
 "use client"
 
 import { useAuth } from "@/lib/useAuth"
+import { useNotify } from "@/components/notify-provider"
 import { DashboardLayout } from "@/components/dashboard-layout"
 import Image from "next/image"
 import { useRouter } from "next/navigation"
@@ -22,6 +23,7 @@ export default function ProfilePage() {
   const params = useParams()
   const role = params.role as string
   const { user, isLoading } = useAuth()
+  const notify = useNotify()
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
   const [isVerifyModalOpen, setIsVerifyModalOpen] = useState(false)
   const [userPosts, setUserPosts] = useState<any[]>([])
@@ -73,7 +75,13 @@ export default function ProfilePage() {
   }
 
   const handleDeletePost = async (postId: number | string) => {
-    if (!confirm("Remove this piece from your portfolio?")) return
+    const ok = await notify.confirm({
+      title: "Remove this piece?",
+      message: "Remove from your portfolio. This can't be undone.",
+      confirmLabel: "Remove",
+      destructive: true,
+    })
+    if (!ok) return
 
     try {
       const res = await fetch(`/api/posts/${postId}`, {
@@ -83,11 +91,11 @@ export default function ProfilePage() {
       if (res.ok) {
         setUserPosts(userPosts.filter(p => String(p.id) !== String(postId)))
       } else {
-        alert("Could not delete from server.")
+        notify.error("Could not delete from server.")
       }
     } catch (err) {
       console.error("Failed to delete post:", err)
-      alert("Network error. Is the backend server running?")
+      notify.error("Network error. Is the backend server running?")
     }
   }
 

@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Analytics } from "@vercel/analytics/next";
 import { ThemeProvider } from "@/lib/theme-context";
+import { NotifyProvider } from "@/components/notify-provider";
 import { UserSync } from "@/components/user-sync";
 import { WelcomeOverlay } from "@/components/welcome-overlay";
 import { GrainientBackground } from "@/components/grainient-background";
@@ -52,17 +53,19 @@ export default async function RootLayout({
       <body className="antialiased" suppressHydrationWarning>
         {!isAdmin && <GrainientBackground />}
         <ThemeProvider>
-          {!isAdmin && <UserSync />}
-          {!isAdmin && <WelcomeOverlay />}
-          {!isAdmin ? (
-            <div className="container">
-              <div id="main-content" className="content-area">
-                {children}
+          <NotifyProvider>
+            {!isAdmin && <UserSync />}
+            {!isAdmin && <WelcomeOverlay />}
+            {!isAdmin ? (
+              <div className="container">
+                <div id="main-content" className="content-area">
+                  {children}
+                </div>
               </div>
-            </div>
-          ) : (
-            <>{children}</>
-          )}
+            ) : (
+              <>{children}</>
+            )}
+          </NotifyProvider>
         </ThemeProvider>
         {process.env.NODE_ENV === "production" && <Analytics />}
       </body>

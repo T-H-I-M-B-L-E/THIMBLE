@@ -13,6 +13,7 @@ import {
 import type { PostData } from "@/components/post-card";
 import { useLike, useComments, useBookmark, prefetchComments } from "@/hooks/use-social";
 import { useAuth } from "@/lib/useAuth";
+import { useNotify } from "@/components/notify-provider";
 import { Avatar } from "@/components/avatar";
 import { VerifiedBadge } from "@/components/verified-badge";
 
@@ -25,6 +26,7 @@ export default function PostDetailPage() {
   const params = useParams();
   const postId = params.postId as string;
   const { user } = useAuth();
+  const notify = useNotify();
 
   const [post, setPost] = useState<PostDetail | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -52,7 +54,13 @@ export default function PostDetailPage() {
 
   const handleDelete = async () => {
     if (!post) return;
-    if (!confirm("Delete this post? This can't be undone.")) return;
+    const ok = await notify.confirm({
+      title: "Delete this post?",
+      message: "This can't be undone.",
+      confirmLabel: "Delete",
+      destructive: true,
+    });
+    if (!ok) return;
     try {
       const res = await fetch(`/api/posts/${post.id}`, {
         method: "DELETE",
@@ -61,10 +69,10 @@ export default function PostDetailPage() {
       if (res.ok) {
         router.push(`/dashboard/${user?.role ?? "designer"}/feed`);
       } else {
-        alert("Could not delete from server.");
+        notify.error("Could not delete from server.");
       }
     } catch {
-      alert("Network error.");
+      notify.error("Network error.");
     }
   };
 
@@ -394,7 +402,12 @@ export default function PostDetailPage() {
                             {user?.id === comment.userId && (
                               <button
                                 onClick={async () => {
-                                  if (!confirm("Delete this reply?")) return;
+                                  const ok = await notify.confirm({
+                                    title: "Delete this reply?",
+                                    confirmLabel: "Delete",
+                                    destructive: true,
+                                  });
+                                  if (!ok) return;
                                   await deleteComment(comment.id);
                                 }}
                                 aria-label="Delete reply"

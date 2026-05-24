@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Suspense } from 'react'
+import { useNotify } from '@/components/notify-provider'
 
 interface AdminUser {
   id: string
@@ -141,6 +142,7 @@ function BanModalUI({ modal, onClose, onSave }: {
 function UsersTable() {
   const router = useRouter()
   const searchParams = useSearchParams()
+  const notify = useNotify()
 
   const [users, setUsers] = useState<AdminUser[]>([])
   const [loading, setLoading] = useState(true)
@@ -185,7 +187,13 @@ function UsersTable() {
   }
 
   const deleteUser = async (id: string, name: string) => {
-    if (!confirm(`Permanently delete ${name}? This cannot be undone.`)) return
+    const ok = await notify.confirm({
+      title: `Delete ${name}?`,
+      message: "This permanently removes the user. This cannot be undone.",
+      confirmLabel: "Delete",
+      destructive: true,
+    })
+    if (!ok) return
     setActionLoading(id)
     try {
       await fetch(`/api/admin/users/${id}`, { method: 'DELETE', credentials: 'include' })
@@ -324,8 +332,15 @@ function UsersTable() {
                     <td className="px-4 py-3">
                       <div className="flex gap-2 flex-wrap">
                         <button
-                          onClick={() => {
-                            if (u.isVerified && !confirm(`Revoke ${u.fullName}'s verification badge?`)) return
+                          onClick={async () => {
+                            if (u.isVerified) {
+                              const ok = await notify.confirm({
+                                title: `Revoke ${u.fullName}'s verification badge?`,
+                                confirmLabel: "Revoke",
+                                destructive: true,
+                              })
+                              if (!ok) return
+                            }
                             updateUser(u.id, { isVerified: !u.isVerified })
                           }}
                           disabled={actionLoading === u.id}

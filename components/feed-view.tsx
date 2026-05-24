@@ -8,6 +8,7 @@ import { PostCard } from "@/components/post-card"
 import type { PostData } from "@/components/post-card"
 import { InlineComposer } from "@/components/inline-composer"
 import { useFollowing } from "@/hooks/use-social"
+import { useNotify } from "@/components/notify-provider"
 import { getCached, setCached, isFresh } from "@/lib/swr-cache"
 
 const FEED_KEY = "feed:posts"
@@ -20,6 +21,7 @@ export function FeedView() {
   const [activeFilter, setActiveFilter] = useState("For you")
   const [toast, setToast] = useState<string | null>(null)
   const { following } = useFollowing(user?.id)
+  const notify = useNotify()
 
   const visiblePosts = (() => {
     if (activeFilter === "Following") {
@@ -54,7 +56,13 @@ export function FeedView() {
   }
 
   const handleDelete = async (postId: number | string) => {
-    if (!confirm("Are you sure you want to delete this post?")) return
+    const ok = await notify.confirm({
+      title: "Delete this post?",
+      message: "This can't be undone.",
+      confirmLabel: "Delete",
+      destructive: true,
+    })
+    if (!ok) return
     try {
       const res = await fetch(`/api/posts/${postId}`, {
         method: "DELETE",
@@ -69,10 +77,10 @@ export function FeedView() {
         removeDesignPost(String(postId))
       } else {
         const error = await res.json().catch(() => ({}))
-        alert("Failed to delete: " + (error.error || "Unknown error"))
+        notify.error("Failed to delete: " + (error.error || "Unknown error"))
       }
     } catch {
-      alert("Network error. Please try again.")
+      notify.error("Network error. Please try again.")
     }
   }
 
