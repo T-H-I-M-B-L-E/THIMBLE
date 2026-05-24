@@ -36,6 +36,7 @@ export interface PostData {
   likes: number;
   commentCount?: number;
   likedByMe?: boolean;
+  savedByMe?: boolean;
   createdAt: string;
   taggedUsers?: string[];
 }

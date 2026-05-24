@@ -165,6 +165,18 @@ func EnsureSchema(ctx context.Context) {
 	Pool.Exec(ctx, `CREATE INDEX IF NOT EXISTS idx_notifications_user_id ON notifications(user_id)`)
 	Pool.Exec(ctx, `CREATE INDEX IF NOT EXISTS idx_notifications_user_created ON notifications(user_id, created_at DESC)`)
 
+	Pool.Exec(ctx, `
+		CREATE TABLE IF NOT EXISTS post_saves (
+			id         BIGSERIAL PRIMARY KEY,
+			post_id    BIGINT NOT NULL REFERENCES posts(id) ON DELETE CASCADE,
+			user_id    TEXT NOT NULL,
+			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+			UNIQUE(post_id, user_id)
+		)
+	`)
+	Pool.Exec(ctx, `CREATE INDEX IF NOT EXISTS idx_post_saves_user_id ON post_saves(user_id)`)
+	Pool.Exec(ctx, `CREATE INDEX IF NOT EXISTS idx_post_saves_post_id ON post_saves(post_id)`)
+
 	// Hot-path indexes for foreign-key lookups
 	Pool.Exec(ctx, `CREATE INDEX IF NOT EXISTS idx_post_likes_post_id ON post_likes(post_id)`)
 	Pool.Exec(ctx, `CREATE INDEX IF NOT EXISTS idx_post_likes_user_id ON post_likes(user_id)`)

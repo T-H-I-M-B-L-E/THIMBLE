@@ -10,7 +10,7 @@ import {
   Bookmark,
 } from "lucide-react";
 import type { PostData } from "@/components/post-card";
-import { useLike, useComments, prefetchComments } from "@/hooks/use-social";
+import { useLike, useComments, useBookmark, prefetchComments } from "@/hooks/use-social";
 import { useAuth } from "@/lib/useAuth";
 import { Avatar } from "@/components/avatar";
 import { VerifiedBadge } from "@/components/verified-badge";
@@ -29,7 +29,6 @@ export default function PostDetailPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [commentInput, setCommentInput] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const [bookmarked, setBookmarked] = useState(false);
   const [shareCopied, setShareCopied] = useState(false);
 
   // Hooks must be called unconditionally — use safe defaults when post is null
@@ -44,6 +43,7 @@ export default function PostDetailPage() {
     count: commentCount,
     addComment,
   } = useComments(post?.id ?? 0, post?.commentCount ?? 0);
+  const { saved: bookmarked, toggle: toggleBookmark } = useBookmark(post?.id ?? 0, post?.savedByMe);
 
   const handleShare = async () => {
     const url = `${window.location.origin}/post/${postId}`;
@@ -547,7 +547,7 @@ export default function PostDetailPage() {
               </button>
 
               <button
-                onClick={() => setBookmarked((b) => !b)}
+                onClick={toggleBookmark}
                 style={{
                   display: "flex",
                   alignItems: "center",

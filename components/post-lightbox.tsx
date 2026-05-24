@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react"
 import { X, Heart, MessageCircle, Share2, Bookmark } from "lucide-react"
 import type { PostData } from "@/components/post-card"
-import { useLike, useComments, prefetchComments } from "@/hooks/use-social"
+import { useLike, useComments, useBookmark, prefetchComments } from "@/hooks/use-social"
 import { Avatar } from "@/components/avatar"
 import { VerifiedBadge } from "@/components/verified-badge"
 
@@ -16,10 +16,10 @@ interface PostLightboxProps {
 export function PostLightbox({ post, isOpen, onClose }: PostLightboxProps) {
   const [commentInput, setCommentInput] = useState("")
   const [submitting, setSubmitting] = useState(false)
-  const [bookmarked, setBookmarked] = useState(false)
   const [expandCaption, setExpandCaption] = useState(false)
 
   const { count: likeCount, liked, toggle: toggleLike } = useLike(post.id, post.likes, post.likedByMe)
+  const { saved: bookmarked, toggle: toggleBookmark } = useBookmark(post.id, post.savedByMe)
   const {
     comments, isLoading: commentsLoading, count: commentCount, addComment,
   } = useComments(post.id, post.commentCount ?? 0)
@@ -292,7 +292,7 @@ export function PostLightbox({ post, isOpen, onClose }: PostLightboxProps) {
                 <Share2 size={14} strokeWidth={1.75} />
               </button>
               <button
-                onClick={() => setBookmarked(b => !b)}
+                onClick={toggleBookmark}
                 style={{
                   flex: 1,
                   padding: "8px",

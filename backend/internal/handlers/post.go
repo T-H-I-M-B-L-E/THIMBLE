@@ -104,6 +104,32 @@ func CreatePostComment(c *fiber.Ctx) error {
 	return c.Status(201).JSON(cm)
 }
 
+func SavePost(ctx *fiber.Ctx) error   { return togglePostSave(ctx, true) }
+func UnsavePost(ctx *fiber.Ctx) error { return togglePostSave(ctx, false) }
+
+func togglePostSave(c *fiber.Ctx, save bool) error {
+	userId, ok := c.Locals("userId").(string)
+	if !ok || userId == "" {
+		return c.Status(401).JSON(fiber.Map{"error": "unauthorized"})
+	}
+	if err := services.SetPostSave(c.Context(), userId, c.Params("id"), save); err != nil {
+		return respondError(c, err)
+	}
+	return c.JSON(fiber.Map{"saved": save})
+}
+
+func GetSavedPosts(c *fiber.Ctx) error {
+	userId, ok := c.Locals("userId").(string)
+	if !ok || userId == "" {
+		return c.Status(401).JSON(fiber.Map{"error": "unauthorized"})
+	}
+	posts, err := services.ListSavedPosts(c.Context(), userId)
+	if err != nil {
+		return respondError(c, err)
+	}
+	return c.JSON(posts)
+}
+
 // optionalCallerID returns the user id if the request carries a valid
 // token (header or cookie), otherwise empty string. Used by routes that
 // are public but personalise on auth.

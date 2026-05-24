@@ -13,6 +13,7 @@ type Post struct {
 	Likes          int       `json:"likes"`
 	CommentCount   int       `json:"commentCount"`
 	LikedByMe      bool      `json:"likedByMe"`
+	SavedByMe      bool      `json:"savedByMe"`
 	TaggedUsers    []string  `json:"taggedUsers"`
 	CreatedAt      time.Time `json:"createdAt"`
 }

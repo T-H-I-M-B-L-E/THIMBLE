@@ -141,6 +141,33 @@ export function useComments(postId: string | number, initialCount = 0) {
   return { comments, isLoading, isOpen, count, toggle, close, addComment }
 }
 
+// ── Bookmarks ────────────────────────────────────────────────────────────────
+
+export function useBookmark(postId: string | number, initialSaved = false) {
+  const [saved, setSaved] = useState(initialSaved)
+  const [pending, setPending] = useState(false)
+
+  const toggle = useCallback(async () => {
+    if (pending) return
+    const next = !saved
+    setSaved(next)
+    setPending(true)
+    try {
+      const res = await fetch(`/api/posts/${postId}/saves`, {
+        method: next ? 'POST' : 'DELETE',
+        credentials: 'include',
+      })
+      if (!res.ok) throw new Error('Failed')
+    } catch {
+      setSaved(!next)
+    } finally {
+      setPending(false)
+    }
+  }, [postId, saved, pending])
+
+  return { saved, toggle, pending }
+}
+
 // ── Follow ───────────────────────────────────────────────────────────────────
 
 const followKey = (currentId: string, targetId: string) =>

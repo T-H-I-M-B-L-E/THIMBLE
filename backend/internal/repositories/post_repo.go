@@ -27,7 +27,8 @@ func ListPosts(ctx context.Context, callerID, beforeID, filterUserID string, lim
 			       COALESCE(u.is_verified, FALSE) AS author_verified,
 			       p.image_url, p.description, p.likes, p.tagged_users, p.created_at,
 			       (SELECT COUNT(*) FROM post_comments pc WHERE pc.post_id = p.id) AS comment_count,
-			       CASE WHEN $1 <> '' THEN EXISTS(SELECT 1 FROM post_likes pl WHERE pl.post_id = p.id AND pl.user_id = $1) ELSE FALSE END AS liked_by_me
+			       CASE WHEN $1 <> '' THEN EXISTS(SELECT 1 FROM post_likes pl WHERE pl.post_id = p.id AND pl.user_id = $1) ELSE FALSE END AS liked_by_me,
+			       CASE WHEN $1 <> '' THEN EXISTS(SELECT 1 FROM post_saves ps WHERE ps.post_id = p.id AND ps.user_id = $1) ELSE FALSE END AS saved_by_me
 			FROM posts p
 			LEFT JOIN users u ON u.id = p.user_id
 			WHERE 1=1`
@@ -63,6 +64,7 @@ func ListPosts(ctx context.Context, callerID, beforeID, filterUserID string, lim
 				       p.image_url, p.description, p.likes, p.tagged_users, p.created_at,
 				       (SELECT COUNT(*) FROM post_comments pc WHERE pc.post_id = p.id) AS comment_count,
 				       CASE WHEN $1 <> '' THEN EXISTS(SELECT 1 FROM post_likes pl WHERE pl.post_id = p.id AND pl.user_id = $1) ELSE FALSE END AS liked_by_me,
+				       CASE WHEN $1 <> '' THEN EXISTS(SELECT 1 FROM post_saves ps WHERE ps.post_id = p.id AND ps.user_id = $1) ELSE FALSE END AS saved_by_me,
 				       (
 				           (p.likes * 3)
 				         + (SELECT COUNT(*) FROM post_comments pc WHERE pc.post_id = p.id) * 5
@@ -88,7 +90,7 @@ func ListPosts(ctx context.Context, callerID, beforeID, filterUserID string, lim
 			)
 			SELECT id, user_id, author_name, author_avatar, author_verified,
 			       image_url, description, likes, tagged_users, created_at,
-			       comment_count, liked_by_me
+			       comment_count, liked_by_me, saved_by_me
 			FROM ranked
 			ORDER BY score DESC, id DESC
 			LIMIT %d`, limit)
@@ -104,7 +106,7 @@ func ListPosts(ctx context.Context, callerID, beforeID, filterUserID string, lim
 	for rows.Next() {
 		var p models.Post
 		var taggedJSON []byte
-		if err := rows.Scan(&p.Id, &p.UserId, &p.AuthorName, &p.AuthorAvatar, &p.AuthorVerified, &p.ImageUrl, &p.Description, &p.Likes, &taggedJSON, &p.CreatedAt, &p.CommentCount, &p.LikedByMe); err == nil {
+		if err := rows.Scan(&p.Id, &p.UserId, &p.AuthorName, &p.AuthorAvatar, &p.AuthorVerified, &p.ImageUrl, &p.Description, &p.Likes, &taggedJSON, &p.CreatedAt, &p.CommentCount, &p.LikedByMe, &p.SavedByMe); err == nil {
 			json.Unmarshal(taggedJSON, &p.TaggedUsers)
 			posts = append(posts, p)
 		}
@@ -263,4 +265,65 @@ func TrendingTags(ctx context.Context) ([]models.TagCount, error) {
 		tags = []models.TagCount{}
 	}
 	return tags, nil
+}
+
+func SetPostSave(ctx context.Context, userID, postID string, save bool) error {
+	if save {
+		_, err := db.Pool.Exec(ctx,
+			`INSERT INTO post_saves (post_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`,
+			postID, userID)
+		return err
+	}
+	_, err := db.Pool.Exec(ctx,
+		`DELETE FROM post_saves WHERE post_id = $1 AND user_id = $2`,
+		postID, userID)
+	return err
+}
+
+func IsPostSaved(ctx context.Context, userID, postID string) (bool, error) {
+	var saved bool
+	err := db.Pool.QueryRow(ctx,
+		`SELECT EXISTS(SELECT 1 FROM post_saves WHERE post_id = $1 AND user_id = $2)`,
+		postID, userID).Scan(&saved)
+	return saved, err
+}
+
+func ListSavedPosts(ctx context.Context, userID string) ([]models.Post, error) {
+	rows, err := db.Pool.Query(ctx, `
+		SELECT p.id, p.user_id,
+		       COALESCE(u.full_name, p.author_name) AS author_name,
+		       COALESCE(u.avatar_url, p.author_avatar) AS author_avatar,
+		       COALESCE(u.is_verified, FALSE) AS author_verified,
+		       p.image_url, p.description, p.likes, p.tagged_users, p.created_at,
+		       (SELECT COUNT(*) FROM post_comments pc WHERE pc.post_id = p.id) AS comment_count,
+		       EXISTS(SELECT 1 FROM post_likes pl WHERE pl.post_id = p.id AND pl.user_id = $1) AS liked_by_me,
+		       TRUE AS saved_by_me
+		FROM post_saves ps
+		JOIN posts p ON p.id = ps.post_id
+		LEFT JOIN users u ON u.id = p.user_id
+		WHERE ps.user_id = $1
+		ORDER BY ps.created_at DESC`, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var posts []models.Post
+	for rows.Next() {
+		var p models.Post
+		var tagsJSON []byte
+		rows.Scan(&p.Id, &p.UserId, &p.AuthorName, &p.AuthorAvatar, &p.AuthorVerified,
+			&p.ImageUrl, &p.Description, &p.Likes, &tagsJSON, &p.CreatedAt,
+			&p.CommentCount, &p.LikedByMe, &p.SavedByMe)
+		if len(tagsJSON) > 0 {
+			json.Unmarshal(tagsJSON, &p.TaggedUsers)
+		}
+		if p.TaggedUsers == nil {
+			p.TaggedUsers = []string{}
+		}
+		posts = append(posts, p)
+	}
+	if posts == nil {
+		posts = []models.Post{}
+	}
+	return posts, nil
 }

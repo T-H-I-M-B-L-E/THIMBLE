@@ -25,7 +25,9 @@ export default function ProfilePage() {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
   const [isVerifyModalOpen, setIsVerifyModalOpen] = useState(false)
   const [userPosts, setUserPosts] = useState<any[]>([])
+  const [savedPosts, setSavedPosts] = useState<any[]>([])
   const [isLoadingPosts, setIsLoadingPosts] = useState(true)
+  const [isLoadingSaved, setIsLoadingSaved] = useState(false)
   const [activeTab, setActiveTab] = useState("posts")
   const [selectedPost, setSelectedPost] = useState<PostData | null>(null)
   const { following, isLoading: loadingFollowing } = useFollowing(user?.id)
@@ -35,6 +37,18 @@ export default function ProfilePage() {
       fetchUserPosts()
     }
   }, [isLoading, user])
+
+  const fetchSavedPosts = async () => {
+    setIsLoadingSaved(true)
+    try {
+      const res = await fetch("/api/posts/saved", { credentials: "include" })
+      if (res.ok) setSavedPosts(await res.json())
+    } catch {
+      setSavedPosts([])
+    } finally {
+      setIsLoadingSaved(false)
+    }
+  }
 
   const fetchUserPosts = async () => {
     try {
@@ -196,11 +210,14 @@ export default function ProfilePage() {
 
         {/* Tabs */}
         <div className="t-profile-tabs">
-          {["posts", "following"].map((tab) => (
+          {["posts", "saved", "following"].map((tab) => (
             <button
               key={tab}
               className={`t-tab ${activeTab === tab ? "on" : ""}`}
-              onClick={() => setActiveTab(tab)}
+              onClick={() => {
+                setActiveTab(tab)
+                if (tab === "saved" && savedPosts.length === 0 && !isLoadingSaved) fetchSavedPosts()
+              }}
             >
               {tab}
             </button>
@@ -237,6 +254,37 @@ export default function ProfilePage() {
                     style={{ padding: 0, border: "none", background: "none", cursor: "pointer" }}
                   >
                     <img src={post.imageUrl} alt={post.description || "Work"} />
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Saved Posts */}
+        {activeTab === "saved" && (
+          <div style={{ marginTop: "20px" }}>
+            {isLoadingSaved ? (
+              <div style={{ display: "flex", justifyContent: "center", padding: "80px 0" }}>
+                <div className="animate-spin rounded-full h-12 w-12 border-t-2" style={{ borderColor: "var(--t-gold)" }}></div>
+              </div>
+            ) : savedPosts.length === 0 ? (
+              <div style={{ textAlign: "center", padding: "60px 16px", border: "2px dashed var(--t-line)", borderRadius: "12px" }}>
+                <p style={{ color: "var(--t-ink-2)" }}>No saved posts yet</p>
+              </div>
+            ) : (
+              <div className="t-profile-grid">
+                {savedPosts.map((post) => (
+                  <button
+                    key={post.id}
+                    className="t-grid-item"
+                    onClick={() => {
+                      prefetchComments(post.id)
+                      setSelectedPost({ ...post, savedByMe: true })
+                    }}
+                    style={{ padding: 0, border: "none", background: "none", cursor: "pointer" }}
+                  >
+                    <img src={post.imageUrl} alt={post.description || "Saved"} />
                   </button>
                 ))}
               </div>

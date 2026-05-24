@@ -100,3 +100,26 @@ func TrendingTags(ctx context.Context) ([]models.TagCount, *ServiceError) {
 	}
 	return tags, nil
 }
+
+func SetPostSave(ctx context.Context, userID, postID string, save bool) *ServiceError {
+	if err := repositories.SetPostSave(ctx, userID, postID, save); err != nil {
+		return NewError(500, "db_failed", "failed to update save")
+	}
+	return nil
+}
+
+func IsPostSaved(ctx context.Context, userID, postID string) (bool, *ServiceError) {
+	saved, err := repositories.IsPostSaved(ctx, userID, postID)
+	if err != nil {
+		return false, NewError(500, "db_failed", "failed to check save status")
+	}
+	return saved, nil
+}
+
+func ListSavedPosts(ctx context.Context, userID string) ([]models.Post, *ServiceError) {
+	posts, err := repositories.ListSavedPosts(ctx, userID)
+	if err != nil {
+		return nil, NewError(500, "db_failed", "failed to fetch saved posts")
+	}
+	return posts, nil
+}
