@@ -29,8 +29,28 @@ func GetPost(ctx context.Context, callerID, postID string) (*models.Post, *Servi
 	return post, nil
 }
 
+// MaxImagesPerPost caps multi-image posts. Keep small enough to feel
+// curated and to bound feed media bytes.
+const MaxImagesPerPost = 6
+
 func CreatePost(ctx context.Context, userId string, p *models.Post) *ServiceError {
-	hasImage := strings.TrimSpace(p.ImageUrl) != ""
+	// Normalize images: drop empties, dedupe trailing slashes, enforce cap.
+	clean := make([]string, 0, len(p.Images))
+	seen := map[string]bool{}
+	for _, u := range p.Images {
+		u = strings.TrimSpace(u)
+		if u == "" || seen[u] {
+			continue
+		}
+		seen[u] = true
+		clean = append(clean, u)
+	}
+	p.Images = clean
+	if len(p.Images) > MaxImagesPerPost {
+		return NewError(400, "too_many_images", "a post can contain at most 6 images")
+	}
+
+	hasImage := strings.TrimSpace(p.ImageUrl) != "" || len(p.Images) > 0
 	hasText := strings.TrimSpace(p.Description) != ""
 	if !hasImage && !hasText {
 		return NewError(400, "empty_post", "post must include an image or a caption")

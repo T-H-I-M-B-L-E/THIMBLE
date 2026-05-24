@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
-import { Users, ImageIcon, X, Loader2, ArrowLeft, Camera, Type } from "lucide-react"
+import { Users, ImageIcon, X, Loader2, ArrowLeft, Camera, Type, Plus } from "lucide-react"
 import Image from "next/image"
 import { AnimatePresence, motion } from "framer-motion"
 import { uploadFile } from "@/lib/upload"
@@ -21,14 +21,18 @@ interface CreatePostModalProps {
 
 type Mode = "choose" | "photo" | "text"
 
+const MAX_IMAGES = 6
+
 export function CreatePostModal({ isOpen, onClose, onSuccess, user }: CreatePostModalProps) {
   const [mode, setMode] = useState<Mode>("choose")
   const [caption, setCaption] = useState("")
-  const [imageUrl, setImageUrl] = useState("")
+  const [images, setImages] = useState<string[]>([])
+  // Uploads in progress, keyed by a temporary id. Allows the slot to show a
+  // spinner without blocking the user from queueing more uploads in parallel.
+  const [uploading, setUploading] = useState<{ id: string; progress: number }[]>([])
   const [taggedIds, setTaggedIds] = useState<string[]>([])
   const [tagSearch, setTagSearch] = useState("")
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [uploadProgress, setUploadProgress] = useState(0)
   const [error, setError] = useState<string | null>(null)
 
   const { users, isLoading: usersLoading } = useUsers()
@@ -39,10 +43,10 @@ export function CreatePostModal({ isOpen, onClose, onSuccess, user }: CreatePost
     if (!isOpen) {
       setMode("choose")
       setCaption("")
-      setImageUrl("")
+      setImages([])
+      setUploading([])
       setTaggedIds([])
       setTagSearch("")
-      setUploadProgress(0)
       setError(null)
     }
   }, [isOpen])
@@ -61,23 +65,44 @@ export function CreatePostModal({ isOpen, onClose, onSuccess, user }: CreatePost
       .slice(0, 8)
   }, [users, tagSearch, taggedIds, user?.id])
 
-  const canSubmit = !isSubmitting && (
-    (mode === "photo" && imageUrl !== "") ||
+  const canSubmit = !isSubmitting && uploading.length === 0 && (
+    (mode === "photo" && images.length > 0) ||
     (mode === "text"  && caption.trim() !== "")
   )
 
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-    try {
-      setError(null)
-      const url = await uploadFile(file, p => setUploadProgress(p), "posts")
-      setImageUrl(url)
-    } catch (err) {
-      console.error(err)
-      setError("Upload failed. Try again.")
-      setUploadProgress(0)
+  // Handle one or many files. Each file gets its own progress slot so the
+  // user can pick all 6 at once without waiting between selections.
+  const handleFilesPicked = async (fileList: FileList | null) => {
+    if (!fileList || fileList.length === 0) return
+    setError(null)
+
+    const remainingSlots = MAX_IMAGES - images.length - uploading.length
+    const files = Array.from(fileList).slice(0, remainingSlots)
+    if (files.length < fileList.length) {
+      setError(`You can upload up to ${MAX_IMAGES} images per post.`)
     }
+
+    await Promise.all(files.map(async file => {
+      const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+      setUploading(u => [...u, { id, progress: 0 }])
+      try {
+        const url = await uploadFile(
+          file,
+          p => setUploading(u => u.map(x => x.id === id ? { ...x, progress: p } : x)),
+          "posts",
+        )
+        setImages(arr => arr.length < MAX_IMAGES ? [...arr, url] : arr)
+      } catch (err) {
+        console.error(err)
+        setError("One or more uploads failed. Try again.")
+      } finally {
+        setUploading(u => u.filter(x => x.id !== id))
+      }
+    }))
+  }
+
+  const removeImage = (index: number) => {
+    setImages(arr => arr.filter((_, i) => i !== index))
   }
 
   const toggleTag = (id: string) => {
@@ -101,7 +126,8 @@ export function CreatePostModal({ isOpen, onClose, onSuccess, user }: CreatePost
         userId: user.id,
         authorName: user.fullName || "User",
         authorAvatar: user.avatar || "",
-        imageUrl: mode === "photo" ? imageUrl : "",
+        imageUrl: mode === "photo" && images.length > 0 ? images[0] : "",
+        images: mode === "photo" ? images : [],
         description: caption.trim(),
         taggedUsers: taggedIds,
       }
@@ -198,56 +224,13 @@ export function CreatePostModal({ isOpen, onClose, onSuccess, user }: CreatePost
                 onSubmit={handleSubmit}
                 className="h-full overflow-y-auto p-5 flex flex-col gap-5"
               >
-                {/* Photo upload — primary */}
-                <div className="flex flex-col gap-2">
-                  <Label className="text-xs font-medium" style={{ color: "var(--t-ink-2)" }}>
-                    Photo
-                  </Label>
-                  {!imageUrl && uploadProgress === 0 ? (
-                    <label
-                      style={dropzoneStyle}
-                      onMouseEnter={hoverIn}
-                      onMouseLeave={hoverOut}
-                    >
-                      <span style={{
-                        width: 56, height: 56, borderRadius: 999,
-                        background: "#1d1d1f", color: "#fff",
-                        display: "inline-flex", alignItems: "center", justifyContent: "center",
-                        boxShadow: "0 6px 16px rgba(0,0,0,.18)",
-                      }}>
-                        <ImageIcon size={22} />
-                      </span>
-                      <span style={{ fontSize: 14, fontWeight: 600, color: "var(--t-ink)" }}>
-                        Tap to upload
-                      </span>
-                      <span style={{ fontSize: 12, color: "var(--t-ink-3)" }}>
-                        JPG, PNG · up to 10 MB
-                      </span>
-                      <input type="file" accept="image/*" onChange={handleFileChange} style={{ display: "none" }} />
-                    </label>
-                  ) : uploadProgress > 0 && uploadProgress < 100 ? (
-                    <div style={uploadingStyle}>
-                      <div style={progressTrackStyle}>
-                        <div style={{ ...progressBarStyle, width: `${uploadProgress}%` }} />
-                      </div>
-                      <span style={{ fontSize: 11, color: "var(--t-ink-3)" }}>
-                        Uploading… {uploadProgress}%
-                      </span>
-                    </div>
-                  ) : (
-                    <div style={imagePreviewStyle}>
-                      <Image src={imageUrl} alt="Preview" fill style={{ objectFit: "cover" }} />
-                      <button
-                        type="button"
-                        onClick={() => { setImageUrl(""); setUploadProgress(0) }}
-                        aria-label="Remove photo"
-                        style={removeBtnStyle}
-                      >
-                        <X size={14} />
-                      </button>
-                    </div>
-                  )}
-                </div>
+                {/* Photo upload — supports up to 6 images */}
+                <PhotoGrid
+                  images={images}
+                  uploading={uploading}
+                  onFilesPicked={handleFilesPicked}
+                  onRemove={removeImage}
+                />
 
                 {/* Caption — optional for photo mode */}
                 <CaptionField
@@ -371,6 +354,118 @@ function ChoiceCard({
         {description}
       </span>
     </button>
+  )
+}
+
+function PhotoGrid({
+  images,
+  uploading,
+  onFilesPicked,
+  onRemove,
+}: {
+  images: string[]
+  uploading: { id: string; progress: number }[]
+  onFilesPicked: (files: FileList | null) => void
+  onRemove: (index: number) => void
+}) {
+  const remaining = MAX_IMAGES - images.length - uploading.length
+  // First slot when empty: full-width dropzone for affordance. Once any
+  // image exists we switch to the compact grid + "+" tile.
+  const empty = images.length === 0 && uploading.length === 0
+
+  return (
+    <div className="flex flex-col gap-2">
+      <Label className="text-xs font-medium" style={{ color: "var(--t-ink-2)" }}>
+        Photos <span style={{ color: "var(--t-ink-3)", fontWeight: 400 }}>(up to {MAX_IMAGES})</span>
+      </Label>
+
+      {empty ? (
+        <label
+          style={dropzoneStyle}
+          onMouseEnter={hoverIn}
+          onMouseLeave={hoverOut}
+        >
+          <span style={{
+            width: 56, height: 56, borderRadius: 999,
+            background: "#1d1d1f", color: "#fff",
+            display: "inline-flex", alignItems: "center", justifyContent: "center",
+            boxShadow: "0 6px 16px rgba(0,0,0,.18)",
+          }}>
+            <ImageIcon size={22} />
+          </span>
+          <span style={{ fontSize: 14, fontWeight: 600, color: "var(--t-ink)" }}>
+            Tap to upload
+          </span>
+          <span style={{ fontSize: 12, color: "var(--t-ink-3)" }}>
+            JPG, PNG · up to 10 MB each · up to {MAX_IMAGES} images
+          </span>
+          <input
+            type="file"
+            accept="image/*"
+            multiple
+            onChange={e => onFilesPicked(e.target.files)}
+            style={{ display: "none" }}
+          />
+        </label>
+      ) : (
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(3, 1fr)",
+            gap: 8,
+          }}
+        >
+          {images.map((url, i) => (
+            <div key={url + i} style={photoTileStyle}>
+              <Image src={url} alt={`Image ${i + 1}`} fill style={{ objectFit: "cover" }} />
+              <button
+                type="button"
+                onClick={() => onRemove(i)}
+                aria-label={`Remove image ${i + 1}`}
+                style={tileRemoveStyle}
+              >
+                <X size={12} />
+              </button>
+              {i === 0 && (
+                <span style={tileBadgeStyle}>Cover</span>
+              )}
+            </div>
+          ))}
+
+          {uploading.map(u => (
+            <div key={u.id} style={photoTileStyle}>
+              <div style={{
+                position: "absolute", inset: 0,
+                display: "flex", flexDirection: "column",
+                alignItems: "center", justifyContent: "center", gap: 6,
+                background: "var(--t-surface-2)",
+              }}>
+                <Loader2 size={18} className="animate-spin" style={{ color: "var(--t-ink-2)" }} />
+                <span style={{ fontSize: 10, color: "var(--t-ink-3)", fontWeight: 600 }}>
+                  {u.progress}%
+                </span>
+              </div>
+            </div>
+          ))}
+
+          {remaining > 0 && (
+            <label style={addTileStyle}>
+              <Plus size={20} style={{ color: "var(--t-ink-2)" }} />
+              <span style={{ fontSize: 10, color: "var(--t-ink-3)", marginTop: 4, fontWeight: 600 }}>
+                Add more
+              </span>
+              <input
+                type="file"
+                accept="image/*"
+                multiple
+                onChange={e => { onFilesPicked(e.target.files); e.target.value = "" }}
+                style={{ display: "none" }}
+              />
+            </label>
+          )}
+        </div>
+      )}
+    </div>
   )
 }
 
@@ -647,4 +742,45 @@ const removeBtnStyle: React.CSSProperties = {
   border: 0, cursor: "pointer",
   backdropFilter: "blur(10px)", WebkitBackdropFilter: "blur(10px)",
   display: "flex", alignItems: "center", justifyContent: "center",
+}
+
+const photoTileStyle: React.CSSProperties = {
+  position: "relative",
+  aspectRatio: "1 / 1",
+  borderRadius: 12,
+  overflow: "hidden",
+  background: "var(--t-surface-2)",
+  border: "1px solid rgba(29,29,31,0.06)",
+}
+
+const tileRemoveStyle: React.CSSProperties = {
+  position: "absolute", top: 6, right: 6,
+  width: 22, height: 22, borderRadius: "50%",
+  background: "rgba(20,16,40,0.65)", color: "#fff",
+  border: 0, cursor: "pointer",
+  backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)",
+  display: "flex", alignItems: "center", justifyContent: "center",
+  zIndex: 2,
+}
+
+const tileBadgeStyle: React.CSSProperties = {
+  position: "absolute", bottom: 6, left: 6,
+  padding: "2px 7px", borderRadius: 999,
+  background: "rgba(20,16,40,0.65)", color: "#fff",
+  fontSize: 10, fontWeight: 600, letterSpacing: "0.02em",
+  zIndex: 2,
+}
+
+const addTileStyle: React.CSSProperties = {
+  position: "relative",
+  aspectRatio: "1 / 1",
+  borderRadius: 12,
+  border: "2px dashed rgba(29,29,31,0.20)",
+  background: "rgba(255,255,255,0.45)",
+  display: "flex",
+  flexDirection: "column",
+  alignItems: "center",
+  justifyContent: "center",
+  cursor: "pointer",
+  transition: "background .15s, border-color .15s",
 }

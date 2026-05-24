@@ -37,6 +37,9 @@ func EnsureSchema(ctx context.Context) {
 		)
 	`, "posts")
 	Pool.Exec(ctx, `ALTER TABLE posts ADD COLUMN IF NOT EXISTS comments INT NOT NULL DEFAULT 0`)
+	// Multi-image support. images[0] mirrors image_url so older code paths
+	// that read image_url keep working.
+	Pool.Exec(ctx, `ALTER TABLE posts ADD COLUMN IF NOT EXISTS images JSONB NOT NULL DEFAULT '[]'`)
 
 	mustExec(ctx, `
 		CREATE TABLE IF NOT EXISTS post_likes (

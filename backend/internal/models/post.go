@@ -9,6 +9,7 @@ type Post struct {
 	AuthorAvatar   string    `json:"authorAvatar"`
 	AuthorVerified bool      `json:"authorVerified"`
 	ImageUrl       string    `json:"imageUrl"`
+	Images         []string  `json:"images"`
 	Description    string    `json:"description"`
 	Likes          int       `json:"likes"`
 	CommentCount   int       `json:"commentCount"`
