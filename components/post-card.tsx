@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import { useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import {
@@ -26,6 +25,8 @@ import { useUsers } from "@/hooks/use-users";
 import { Avatar } from "@/components/avatar";
 import { VerifiedBadge } from "@/components/verified-badge";
 import { PostMedia } from "@/components/post-media";
+import { TextPost } from "@/components/text-post";
+import { PostCaption } from "@/components/post-caption";
 
 export interface PostData {
   id: number | string;
@@ -230,7 +231,21 @@ export function PostCard({ post, currentUserId, onDelete }: PostCardProps) {
           )}
         </header>
 
-        {post.description && <p className="t-post-text">{post.description}</p>}
+        {/* Body: either a quote-style text card OR an image (with caption beneath).
+            Text-only posts render distinctly so they don't masquerade as media. */}
+        {(post.images?.length ?? 0) > 0 || post.imageUrl ? (
+          <>
+            <PostMedia
+              images={post.images?.length ? post.images : [post.imageUrl]}
+              alt={post.description || "Post"}
+            />
+            {post.description && (
+              <PostCaption text={post.description} authorName={post.authorName} />
+            )}
+          </>
+        ) : post.description ? (
+          <TextPost text={post.description} />
+        ) : null}
 
         {taggedDisplay.length > 0 && (
           <p className="t-post-tagged">
@@ -248,13 +263,6 @@ export function PostCard({ post, currentUserId, onDelete }: PostCardProps) {
             ))}
           </p>
         )}
-
-        {(post.images?.length ?? 0) > 0 || post.imageUrl ? (
-          <PostMedia
-            images={post.images?.length ? post.images : [post.imageUrl]}
-            alt={post.description || "Post"}
-          />
-        ) : null}
 
         <div className="t-post-actions">
           <button

@@ -10,12 +10,40 @@ interface PostMediaProps {
   /** Optional click handler — typically opens the lightbox. */
   onClick?: () => void
   /**
-   * Containment strategy. "contain" (default) letterboxes the image so
-   * its full orientation is preserved; "cover" smart-crops to fill.
+   * Containment strategy. "cover" (default) center-crops to fill the
+   * snapped aspect ratio, Instagram-style. "contain" preserves the full
+   * image with letterbox bars — used by the lightbox.
    */
   fit?: "contain" | "cover"
   /** Larger size when used in lightbox vs feed. */
   variant?: "feed" | "lightbox"
+}
+
+// Instagram's three supported aspect ratios for feed media.
+const ASPECTS = {
+  portrait: 4 / 5,        // 0.80
+  square: 1,              // 1.00
+  landscape: 1.91,        // 1.91
+} as const
+
+/**
+ * Pick the closest Instagram-spec aspect ratio for a given image. We
+ * commit to one ratio per *carousel* (the first image's ratio) so the
+ * frame doesn't jump as the user swipes through.
+ */
+function snapAspect(width: number, height: number): number {
+  if (!width || !height) return ASPECTS.square
+  const ratio = width / height
+  // Distance from each canonical ratio
+  const d = {
+    portrait: Math.abs(ratio - ASPECTS.portrait),
+    square: Math.abs(ratio - ASPECTS.square),
+    landscape: Math.abs(ratio - ASPECTS.landscape),
+  }
+  const min = Math.min(d.portrait, d.square, d.landscape)
+  if (min === d.portrait) return ASPECTS.portrait
+  if (min === d.landscape) return ASPECTS.landscape
+  return ASPECTS.square
 }
 
 /**
@@ -33,11 +61,12 @@ export function PostMedia({
   images,
   alt = "Post",
   onClick,
-  fit = "contain",
+  fit,
   variant = "feed",
 }: PostMediaProps) {
   const cleaned = images.filter(Boolean)
   const [index, setIndex] = useState(0)
+  const [aspect, setAspect] = useState<number>(ASPECTS.square)
   const touchStartX = useRef<number | null>(null)
   const touchEndX = useRef<number | null>(null)
 
@@ -46,7 +75,23 @@ export function PostMedia({
     if (index >= cleaned.length) setIndex(0)
   }, [cleaned.length, index])
 
+  // Probe the FIRST image's natural dimensions and snap to the closest
+  // canonical aspect. We lock the frame to that aspect for the whole
+  // carousel so swiping doesn't make the layout jump.
+  useEffect(() => {
+    if (variant === "lightbox") return
+    const first = cleaned[0]
+    if (!first) return
+    const img = new Image()
+    img.onload = () => setAspect(snapAspect(img.naturalWidth, img.naturalHeight))
+    img.src = first
+  }, [cleaned[0], variant])
+
   if (cleaned.length === 0) return null
+
+  // Default fit: cover in feed (uniform frame), contain in lightbox.
+  const resolvedFit: "cover" | "contain" =
+    fit ?? (variant === "lightbox" ? "contain" : "cover")
 
   const hasMany = cleaned.length > 1
   const go = (dir: -1 | 1, e?: React.MouseEvent) => {
@@ -79,13 +124,17 @@ export function PostMedia({
       role={onClick ? "button" : undefined}
       aria-label={onClick ? "View post" : undefined}
     >
-      <div className="t-post-media-stage">
+      <div
+        className="t-post-media-stage"
+        style={variant === "lightbox" ? undefined : { aspectRatio: aspect }}
+      >
         <img
           src={cleaned[index]}
           alt={`${alt}${hasMany ? ` (${index + 1} of ${cleaned.length})` : ""}`}
           className="t-post-media-img"
-          style={{ objectFit: fit }}
+          style={{ objectFit: resolvedFit }}
           loading="lazy"
+          decoding="async"
         />
       </div>
 

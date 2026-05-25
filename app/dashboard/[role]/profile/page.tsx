@@ -260,8 +260,13 @@ export default function ProfilePage() {
                       setSelectedPost(post)
                     }}
                     style={{ padding: 0, border: "none", background: "none", cursor: "pointer" }}
+                    aria-label={post.description || "Open post"}
                   >
-                    <img src={post.imageUrl} alt={post.description || "Work"} />
+                    {post.imageUrl ? (
+                      <img src={post.imageUrl} alt={post.description || "Work"} loading="lazy" />
+                    ) : (
+                      <span className="t-grid-text">{post.description}</span>
+                    )}
                   </button>
                 ))}
               </div>
@@ -291,8 +296,13 @@ export default function ProfilePage() {
                       setSelectedPost({ ...post, savedByMe: true })
                     }}
                     style={{ padding: 0, border: "none", background: "none", cursor: "pointer" }}
+                    aria-label={post.description || "Open saved post"}
                   >
-                    <img src={post.imageUrl} alt={post.description || "Saved"} />
+                    {post.imageUrl ? (
+                      <img src={post.imageUrl} alt={post.description || "Saved"} loading="lazy" />
+                    ) : (
+                      <span className="t-grid-text">{post.description}</span>
+                    )}
                   </button>
                 ))}
               </div>
