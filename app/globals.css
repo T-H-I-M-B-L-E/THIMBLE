@@ -1744,7 +1744,7 @@
   display: flex;
   flex-direction: column;
   gap: 10px;
-  padding: 14px 14px 10px;
+  padding: 16px 14px 14px;
   border-bottom: 1px solid var(--t-line);
   flex-shrink: 0;
 }
@@ -1752,11 +1752,12 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 8px;
 }
 .t-msg-list-title {
-  font-size: 16px;
+  font-size: 18px;
   font-weight: 700;
-  letter-spacing: -0.01em;
+  letter-spacing: -0.015em;
   color: var(--t-ink);
 }
 .t-msg-list-actions { display: flex; align-items: center; gap: 8px; }
@@ -1823,56 +1824,145 @@
 .t-msg-search input:focus { border-color: var(--t-gold); }
 .t-msg-search input::placeholder { color: var(--t-ink-3); }
 
-/* Thread row */
+/* Prominent "New message" button — sits right above the conversation
+   list inside the sidebar head. */
+.t-msg-new-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  height: 38px;
+  padding: 0 12px;
+  margin-top: 10px;
+  border-radius: 9px;
+  background: var(--t-ink);
+  color: #fff;
+  border: 0;
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  box-shadow: 0 1px 2px rgba(0,0,0,.08);
+  transition: filter .15s, transform .12s, box-shadow .15s;
+}
+.t-msg-new-btn:hover {
+  filter: brightness(1.08);
+  box-shadow: 0 3px 8px rgba(0,0,0,.12);
+}
+.t-msg-new-btn:active { transform: scale(0.98); }
+.t-msg-new-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  filter: none;
+}
+
+/* Thread row — Instagram/WhatsApp-ish layout with calm chrome. */
 .t-thread {
   display: flex;
   align-items: center;
-  gap: 11px;
-  padding: 11px 14px;
-  border-bottom: 1px solid var(--t-line);
-  border-left: 3px solid transparent;
+  gap: 12px;
+  padding: 12px 14px;
   background: none;
+  border: 0;
+  border-bottom: 1px solid var(--t-line);
   width: 100%;
   text-align: left;
   cursor: pointer;
-  transition: background .12s, border-color .12s;
+  font-family: inherit;
+  transition: background .12s;
+  position: relative;
 }
+.t-thread:last-child { border-bottom: 0; }
 .t-thread:hover { background: var(--t-surface-2); }
 .t-thread.active {
-  background: color-mix(in oklab, var(--t-gold) 6%, var(--t-surface));
-  border-left-color: var(--t-gold);
-  padding-left: 11px;
+  background: var(--t-surface-2);
 }
-.t-thread-meta { flex: 1; min-width: 0; }
+.t-thread.active::before {
+  /* Subtle left accent — no jitter from a border-left toggle. */
+  content: "";
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  width: 3px;
+  background: var(--t-gold);
+  border-radius: 0 2px 2px 0;
+}
+.t-thread-meta { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .t-thread-top {
   display: flex;
-  align-items: center;
+  align-items: baseline;
   justify-content: space-between;
-  margin-bottom: 2px;
+  gap: 8px;
 }
 .t-thread-name {
   font-size: 14px;
   font-weight: 600;
   color: var(--t-ink);
+  letter-spacing: -0.005em;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  flex: 1;
+  min-width: 0;
 }
-.t-thread-time { font-size: 11px; color: var(--t-ink-3); flex-shrink: 0; margin-left: 6px; }
+.t-thread-time {
+  font-size: 11px;
+  color: var(--t-ink-3);
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+}
 .t-thread-preview {
-  font-size: 12px;
+  font-size: 13px;
   color: var(--t-ink-3);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  line-height: 1.35;
 }
-.t-thread.unread .t-thread-name { font-weight: 700; }
-.t-thread.unread .t-thread-preview { color: var(--t-ink-2); }
+.t-thread.unread .t-thread-name { color: var(--t-ink); font-weight: 700; }
+.t-thread.unread .t-thread-preview { color: var(--t-ink-2); font-weight: 500; }
 .t-unread-dot {
   width: 8px; height: 8px;
   border-radius: 50%;
   background: var(--t-gold);
   flex-shrink: 0;
+}
+
+/* Thread row skeleton — matches the real row dimensions so the
+   loading state doesn't cause layout shift when the data arrives. */
+.t-thread-skeleton {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--t-line);
+}
+.t-thread-skeleton-av {
+  width: 42px; height: 42px;
+  border-radius: 50%;
+  background: var(--t-surface-2);
+  flex-shrink: 0;
+}
+.t-thread-skeleton-meta {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+.t-thread-skeleton-line {
+  height: 10px;
+  border-radius: 4px;
+  background: var(--t-surface-2);
+}
+
+/* "Chat exists" tag in the new-message picker. Slightly stronger than
+   the "Not following" tag so it reads as actionable info. */
+.t-new-msg-tag--existing {
+  color: var(--t-gold-ink);
+  background: var(--t-gold-soft);
+  border-color: color-mix(in oklab, var(--t-gold) 24%, var(--t-line));
 }
 
 /* Empty / loading states */

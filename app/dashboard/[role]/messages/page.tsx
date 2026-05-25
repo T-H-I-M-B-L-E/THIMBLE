@@ -33,13 +33,13 @@ function Avatar({ src, name, size = 40 }: { src?: string; name?: string; size?: 
   )
 }
 
-function SkeletonRow() {
+function SkeletonRow({ widthPct = 65 }: { widthPct?: number }) {
   return (
-    <div className="animate-pulse" style={{ display: "flex", gap: 12, alignItems: "center", padding: "12px 14px", borderBottom: "1px solid var(--t-line)" }}>
-      <div style={{ width: 42, height: 42, borderRadius: "50%", background: "var(--t-surface-2)", flexShrink: 0 }} />
-      <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 7 }}>
-        <div style={{ height: 11, width: "55%", borderRadius: 4, background: "var(--t-surface-2)" }} />
-        <div style={{ height: 10, width: "75%", borderRadius: 4, background: "var(--t-surface-2)" }} />
+    <div className="t-thread-skeleton animate-pulse">
+      <div className="t-thread-skeleton-av" />
+      <div className="t-thread-skeleton-meta">
+        <div className="t-thread-skeleton-line" style={{ width: `${widthPct}%` }} />
+        <div className="t-thread-skeleton-line" style={{ width: `${Math.max(40, widthPct + 10)}%`, opacity: 0.7 }} />
       </div>
     </div>
   )
@@ -69,12 +69,16 @@ interface DirectoryUser {
 function NewMessageModal({
   currentUser,
   isVerified,
+  existingConversations,
   onClose,
   onCreate,
   createConversation,
 }: {
   currentUser: { id: string; fullName: string; avatar?: string } | null
   isVerified: boolean
+  /** Caller's existing conversations, used to skip duplicate creation and
+      route the user straight back to a chat they already had open. */
+  existingConversations: { id: number; participants: { userId: string }[] }[]
   onClose: () => void
   onCreate: (conv: { id: number }) => void
   createConversation: (participants: { userId: string; userName: string; userAvatar: string }[]) => Promise<{ id: number }>
@@ -99,6 +103,20 @@ function NewMessageModal({
 
   const followingIds = useMemo(() => new Set(following.map(f => f.userId)), [following])
 
+  // Set of userIds we already have a 1:1 chat with. Used to surface a
+  // "Chat exists" hint in the row so the user knows clicking will route
+  // back to that conversation rather than start a fresh thread.
+  const existingChatPartnerIds = useMemo(() => {
+    if (!currentUser?.id) return new Set<string>()
+    const ids = new Set<string>()
+    for (const conv of existingConversations) {
+      for (const p of conv.participants) {
+        if (p.userId !== currentUser.id) ids.add(p.userId)
+      }
+    }
+    return ids
+  }, [existingConversations, currentUser?.id])
+
   // Surface results from the full directory. With a search query → show
   // everyone matching. Empty query → just show the people you follow as
   // a quick-pick list.
@@ -122,6 +140,17 @@ function NewMessageModal({
 
   const handleSelect = async (u: DirectoryUser) => {
     if (!isVerified || creating) return
+    // If a 1:1 conversation with this user already exists, just open it
+    // — never create a duplicate row.
+    const existing = existingConversations.find(c =>
+      c.participants.some(p => p.userId === u.id) &&
+      c.participants.some(p => p.userId === currentUser?.id),
+    )
+    if (existing) {
+      onCreate({ id: existing.id })
+      onClose()
+      return
+    }
     setCreating(u.id)
     try {
       const conv = await createConversation([{ userId: u.id, userName: u.fullName, userAvatar: u.avatarUrl || "" }])
@@ -200,11 +229,15 @@ function NewMessageModal({
                         {u.role}
                       </p>
                     </div>
-                    {!followingIds.has(u.id) && (
+                    {existingChatPartnerIds.has(u.id) ? (
+                      <span className="t-new-msg-tag t-new-msg-tag--existing" title="You already have a chat with this person">
+                        Chat exists
+                      </span>
+                    ) : !followingIds.has(u.id) ? (
                       <span className="t-new-msg-tag" title="You don't follow this person">
                         Not following
                       </span>
-                    )}
+                    ) : null}
                     {creating === u.id && (
                       <div className="animate-spin" style={{ marginLeft: "auto", width: 16, height: 16, borderRadius: "50%", border: "2px solid var(--t-line)", borderTopColor: "var(--t-gold)" }} />
                     )}
@@ -472,19 +505,9 @@ export default function MessagesPage() {
           <div className="t-msg-list-head">
             <div className="t-msg-list-title-row">
               <span className="t-msg-list-title">Messages</span>
-              <div className="t-msg-list-actions">
-                <div className="t-conn-pill">
-                  <span className={cn("t-conn-dot", isConnected && "live")} />
-                  {isConnected ? "live" : "offline"}
-                </div>
-                <button
-                  className="t-icon-btn-sm"
-                  onClick={() => setShowNewMsg(true)}
-                  title={isVerified ? "New message" : "Verification required"}
-                  disabled={!isVerified}
-                >
-                  <UserPlus size={14} />
-                </button>
+              <div className="t-conn-pill">
+                <span className={cn("t-conn-dot", isConnected && "live")} />
+                {isConnected ? "live" : "offline"}
               </div>
             </div>
 
@@ -493,14 +516,28 @@ export default function MessagesPage() {
               <input
                 value={search}
                 onChange={e => setSearch(e.target.value)}
-                placeholder="Search…"
+                placeholder="Search chats…"
               />
             </div>
+
+            {/* Primary action — start a new message. Sits right above
+                the conversation list so it's the first thing the eye
+                hits after the search. */}
+            <button
+              type="button"
+              className="t-msg-new-btn"
+              onClick={() => setShowNewMsg(true)}
+              disabled={!isVerified}
+              title={isVerified ? "Start a new message" : "Verification required"}
+            >
+              <UserPlus size={15} />
+              <span>New message</span>
+            </button>
           </div>
 
           <div className="t-msg-list-scroll">
             {loadingConvs ? (
-              [1, 2, 3].map(i => <SkeletonRow key={i} />)
+              [70, 55, 75, 50, 65].map((w, i) => <SkeletonRow key={i} widthPct={w} />)
             ) : filtered.length === 0 ? (
               <div className="t-msg-empty">
                 <div className="t-msg-empty-icon">
@@ -800,6 +837,7 @@ export default function MessagesPage() {
         <NewMessageModal
           currentUser={user ? { id: user.id, fullName: user.fullName, avatar: user.avatar } : null}
           isVerified={isVerified}
+          existingConversations={conversations}
           onClose={() => setShowNewMsg(false)}
           onCreate={conv => { setSelectedId(conv.id); refresh() }}
           createConversation={createConversation}
