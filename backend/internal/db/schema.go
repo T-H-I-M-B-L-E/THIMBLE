@@ -155,6 +155,10 @@ func EnsureSchema(ctx context.Context) {
 			created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
 		)
 	`)
+	// Soft-delete column: when set, the message is hidden from THAT user's
+	// view but still visible to the other participant. WhatsApp-style
+	// "delete for me".
+	Pool.Exec(ctx, `ALTER TABLE conversation_messages ADD COLUMN IF NOT EXISTS deleted_by_user_id TEXT`)
 
 	Pool.Exec(ctx, `
 		CREATE TABLE IF NOT EXISTS notifications (

@@ -37,7 +37,30 @@ func CreateConversation(c *fiber.Ctx) error {
 }
 
 func GetConversationMessages(c *fiber.Ctx) error {
-	return c.JSON(services.GetConversationMessages(c.Context(), c.Params("id")))
+	userId, _ := c.Locals("userId").(string)
+	return c.JSON(services.GetConversationMessages(c.Context(), c.Params("id"), userId))
+}
+
+func DeleteConversationMessage(c *fiber.Ctx) error {
+	userId, ok := c.Locals("userId").(string)
+	if !ok || userId == "" {
+		return c.Status(401).JSON(fiber.Map{"error": "unauthorized"})
+	}
+	if err := services.DeleteMessageForUser(c.Context(), c.Params("msgId"), userId); err != nil {
+		return respondError(c, err)
+	}
+	return c.SendStatus(204)
+}
+
+func RestoreConversationMessage(c *fiber.Ctx) error {
+	userId, ok := c.Locals("userId").(string)
+	if !ok || userId == "" {
+		return c.Status(401).JSON(fiber.Map{"error": "unauthorized"})
+	}
+	if err := services.RestoreMessageForUser(c.Context(), c.Params("msgId"), userId); err != nil {
+		return respondError(c, err)
+	}
+	return c.SendStatus(204)
 }
 
 // ConversationWS is the per-conversation WebSocket entrypoint. The

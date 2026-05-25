@@ -1,7 +1,7 @@
 "use client"
 
 import { DashboardLayout } from "@/components/dashboard-layout"
-import { Search, Send, ArrowLeft, User, UserPlus, X, ShieldAlert, Lock, Paperclip, ImageIcon } from "lucide-react"
+import { Search, Send, ArrowLeft, User, UserPlus, X, ShieldAlert, Lock, Paperclip, ImageIcon, Trash2, Check } from "lucide-react"
 import { useState, useRef, useEffect, useMemo } from "react"
 import { useParams } from "next/navigation"
 import { useSocket } from "@/hooks/use-socket"
@@ -239,7 +239,73 @@ export default function MessagesPage() {
     websocketUrl, selectedId, user
   )
 
-  const allMessages = [...apiMessages, ...wsMessages].sort((a, b) => a.timestamp - b.timestamp)
+  // Locally hidden messages — delete-for-me has fired but the backend
+  // round-trip / undo window are still in play. Kept as state so the UI
+  // updates instantly; persisted server-side via DELETE in the background.
+  const [hiddenMsgIds, setHiddenMsgIds] = useState<Set<number | string>>(new Set())
+
+  // Pending delete that's still within the 3.5s undo window. Cleared
+  // when the user undoes or when the toast times out.
+  const [pendingDelete, setPendingDelete] = useState<{
+    msgId: number | string
+    timeoutId: ReturnType<typeof setTimeout>
+  } | null>(null)
+
+  const allMessages = [...apiMessages, ...wsMessages]
+    .filter(m => m.id == null || !hiddenMsgIds.has(m.id))
+    .sort((a, b) => a.timestamp - b.timestamp)
+
+  // Reset undo state when switching conversations so a stale toast
+  // doesn't leak into the next thread.
+  useEffect(() => {
+    if (pendingDelete) clearTimeout(pendingDelete.timeoutId)
+    setPendingDelete(null)
+    setHiddenMsgIds(new Set())
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedId])
+
+  const handleDeleteMessage = (msgId: number | string) => {
+    if (!selectedId) return
+    // Optimistic hide immediately.
+    setHiddenMsgIds(prev => new Set(prev).add(msgId))
+    // Cancel any previous pending undo.
+    if (pendingDelete) clearTimeout(pendingDelete.timeoutId)
+
+    // Fire the delete in the background.
+    fetch(`/api/conversations/${selectedId}/messages/${msgId}`, {
+      method: "DELETE",
+      credentials: "include",
+    }).catch(() => {})
+
+    // Start a 3.5s window for undo.
+    const timeoutId = setTimeout(() => {
+      setPendingDelete(current => current?.msgId === msgId ? null : current)
+    }, 3500)
+    setPendingDelete({ msgId, timeoutId })
+  }
+
+  const handleUndoDelete = async () => {
+    if (!pendingDelete || !selectedId) return
+    const { msgId, timeoutId } = pendingDelete
+    clearTimeout(timeoutId)
+    setPendingDelete(null)
+    // Restore visually first.
+    setHiddenMsgIds(prev => {
+      const next = new Set(prev)
+      next.delete(msgId)
+      return next
+    })
+    // Tell the server.
+    try {
+      await fetch(`/api/conversations/${selectedId}/messages/${msgId}/restore`, {
+        method: "POST",
+        credentials: "include",
+      })
+    } catch {
+      // If restore failed for some reason, re-hide so UI stays honest.
+      setHiddenMsgIds(prev => new Set(prev).add(msgId))
+    }
+  }
 
   const filtered = conversations.filter(c => {
     const other = c.participants.find(p => p.userId !== user?.id)
@@ -441,16 +507,56 @@ export default function MessagesPage() {
                           {showAvatar && !isMe && (
                             <span className="t-msg-sender">{msg.name}</span>
                           )}
-                          <div className={cn("t-bubble", isMe ? "me" : "them")}>
-                            {msg.content}
+                          <div className="t-bubble-wrap">
+                            <div className={cn("t-bubble", isMe ? "me" : "them")}>
+                              {msg.content}
+                            </div>
+                            {isMe && msg.id != null && (
+                              <button
+                                type="button"
+                                className="t-bubble-delete"
+                                onClick={() => handleDeleteMessage(msg.id!)}
+                                aria-label="Delete message"
+                                title="Delete message"
+                              >
+                                <Trash2 size={13} />
+                              </button>
+                            )}
                           </div>
                           {showTime && (
-                            <span className="t-bubble-time">{formatFullTime(msg.timestamp)}</span>
+                            <span className="t-bubble-time">
+                              {formatFullTime(msg.timestamp)}
+                              {isMe && msg.id != null && (
+                                <Check
+                                  size={12}
+                                  className="t-bubble-status"
+                                  aria-label="Sent"
+                                />
+                              )}
+                            </span>
                           )}
                         </div>
                       </div>
                     )
                   })
+                )}
+
+                {/* Undo toast — appears for 3.5s after a delete. */}
+                {pendingDelete && (
+                  <div
+                    className="t-msg-undo-toast"
+                    role="status"
+                    aria-live="polite"
+                  >
+                    <span>Message deleted</span>
+                    <button
+                      type="button"
+                      onClick={handleUndoDelete}
+                      className="t-msg-undo-btn"
+                    >
+                      Undo
+                    </button>
+                  </div>
                 )}
 
                 {/* Typing indicator */}

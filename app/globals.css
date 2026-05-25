@@ -1599,6 +1599,85 @@
   font-style: italic;
 }
 
+/* Message bubble + adjacent delete button. Hover reveals delete on own
+   messages; mobile shows it on tap (always faintly visible). */
+.t-bubble-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+}
+.t-msg-row.me .t-bubble-wrap {
+  flex-direction: row-reverse;
+}
+.t-bubble-delete {
+  background: none;
+  border: 0;
+  padding: 4px;
+  border-radius: 50%;
+  cursor: pointer;
+  color: var(--t-ink-3);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity .15s, color .15s, background .15s;
+  flex-shrink: 0;
+}
+.t-bubble-wrap:hover .t-bubble-delete { opacity: 1; }
+.t-bubble-delete:hover {
+  color: #c33;
+  background: rgba(204, 51, 51, 0.08);
+}
+@media (hover: none) {
+  /* On touch devices reveal the trash quietly so it's still reachable. */
+  .t-bubble-delete { opacity: 0.55; }
+}
+
+/* Sent-state check icon next to time. */
+.t-bubble-status {
+  margin-left: 4px;
+  color: var(--t-ink-3);
+  vertical-align: -1px;
+}
+
+/* Floating undo toast that lives at the bottom of the message stream. */
+.t-msg-undo-toast {
+  position: sticky;
+  bottom: 8px;
+  align-self: center;
+  display: inline-flex;
+  align-items: center;
+  gap: 14px;
+  padding: 10px 14px 10px 16px;
+  border-radius: 999px;
+  background: rgba(20, 16, 40, 0.92);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 500;
+  box-shadow: 0 12px 28px rgba(0,0,0,.28), 0 4px 10px rgba(0,0,0,.18);
+  z-index: 5;
+  animation: t-msg-undo-in .2s var(--motion-spring) both;
+  margin: 8px auto;
+  pointer-events: auto;
+}
+.t-msg-undo-btn {
+  background: none;
+  border: 0;
+  color: #f0c14b;
+  font: inherit;
+  font-weight: 600;
+  font-size: 13px;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  padding: 0;
+}
+.t-msg-undo-btn:hover { color: #ffd76a; }
+@keyframes t-msg-undo-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
 /* Sidebar list */
 .t-msg-list {
   display: flex;

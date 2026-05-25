@@ -84,6 +84,8 @@ func registerRoutes(app *fiber.App, authLimiter fiber.Handler) {
 	app.Get("/api/conversations", middleware.RequireJWT, handlers.ListConversations)
 	app.Post("/api/conversations", middleware.RequireJWT, handlers.CreateConversation)
 	app.Get("/api/conversations/:id/messages", middleware.RequireJWT, handlers.GetConversationMessages)
+	app.Delete("/api/conversations/:id/messages/:msgId", middleware.RequireJWT, handlers.DeleteConversationMessage)
+	app.Post("/api/conversations/:id/messages/:msgId/restore", middleware.RequireJWT, handlers.RestoreConversationMessage)
 
 	// ── Admin chat ────────────────────────────────────────────────────────────
 	app.Get("/admin/chat/history", middleware.RequireJWT, middleware.RequireAdmin, handlers.AdminChatHistory)

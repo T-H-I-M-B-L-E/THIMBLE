@@ -88,9 +88,15 @@ func GetUserNameAndAvatarForConv(ctx context.Context, userId string) (name, avat
 	return
 }
 
-func GetConversationMessages(ctx context.Context, convId string) ([]models.ConvMessage, error) {
-	rows, err := db.Pool.Query(ctx,
-		"SELECT id, conversation_id, user_id, name, content, timestamp FROM conversation_messages WHERE conversation_id = $1 ORDER BY timestamp ASC LIMIT 100", convId)
+// GetConversationMessages returns the chat history for a conversation,
+// hiding any messages the calling user has soft-deleted ("delete for me").
+func GetConversationMessages(ctx context.Context, convId, callerID string) ([]models.ConvMessage, error) {
+	rows, err := db.Pool.Query(ctx, `
+		SELECT id, conversation_id, user_id, name, content, timestamp
+		FROM conversation_messages
+		WHERE conversation_id = $1
+		  AND (deleted_by_user_id IS NULL OR deleted_by_user_id <> $2)
+		ORDER BY timestamp ASC LIMIT 200`, convId, callerID)
 	if err != nil {
 		return nil, err
 	}
@@ -105,6 +111,30 @@ func GetConversationMessages(ctx context.Context, convId string) ([]models.ConvM
 		msgs = []models.ConvMessage{}
 	}
 	return msgs, nil
+}
+
+// SoftDeleteMessageForUser hides a message from a specific user's view.
+// Only the message author may delete; if a stranger tries, returns 0 rows.
+func SoftDeleteMessageForUser(ctx context.Context, msgID, userID string) (int64, error) {
+	tag, err := db.Pool.Exec(ctx,
+		`UPDATE conversation_messages
+		   SET deleted_by_user_id = $2
+		 WHERE id = $1 AND user_id = $2`,
+		msgID, userID)
+	if err != nil {
+		return 0, err
+	}
+	return tag.RowsAffected(), nil
+}
+
+// RestoreMessageForUser is the undo path — clear the deleted marker.
+func RestoreMessageForUser(ctx context.Context, msgID, userID string) error {
+	_, err := db.Pool.Exec(ctx,
+		`UPDATE conversation_messages
+		   SET deleted_by_user_id = NULL
+		 WHERE id = $1 AND user_id = $2 AND deleted_by_user_id = $2`,
+		msgID, userID)
+	return err
 }
 
 // InsertConvMessage writes a chat message and returns the assigned id.

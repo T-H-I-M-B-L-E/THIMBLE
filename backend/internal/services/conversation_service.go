@@ -50,12 +50,35 @@ func CreateConversation(ctx context.Context, userId string, participants []model
 	return convId, nil
 }
 
-func GetConversationMessages(ctx context.Context, convId string) []models.ConvMessage {
-	msgs, err := repositories.GetConversationMessages(ctx, convId)
+// GetConversationMessages returns chat history, hiding messages the
+// caller has soft-deleted via "delete for me".
+func GetConversationMessages(ctx context.Context, convId, callerID string) []models.ConvMessage {
+	msgs, err := repositories.GetConversationMessages(ctx, convId, callerID)
 	if err != nil {
 		return []models.ConvMessage{}
 	}
 	return msgs
+}
+
+// DeleteMessageForUser performs a soft delete. Returns NewError(404)
+// when the caller doesn't own the message or it doesn't exist.
+func DeleteMessageForUser(ctx context.Context, msgID, userID string) *ServiceError {
+	rows, err := repositories.SoftDeleteMessageForUser(ctx, msgID, userID)
+	if err != nil {
+		return NewError(500, "db_failed", "failed to delete message")
+	}
+	if rows == 0 {
+		return NewError(404, "not_found", "message not found or not yours")
+	}
+	return nil
+}
+
+// RestoreMessageForUser is the undo path for DeleteMessageForUser.
+func RestoreMessageForUser(ctx context.Context, msgID, userID string) *ServiceError {
+	if err := repositories.RestoreMessageForUser(ctx, msgID, userID); err != nil {
+		return NewError(500, "db_failed", "failed to restore message")
+	}
+	return nil
 }
 
 // HandleConversationWS drives one WS connection: registers it in the
