@@ -127,6 +127,23 @@ func EnsureSchema(ctx context.Context) {
 			UNIQUE(conversation_id, user_id)
 		)
 	`)
+	// "Delete chat for me" — hide the conversation from this participant's
+	// inbox without touching the other side. When the conversation receives
+	// new messages, the flag is cleared so the chat resurfaces.
+	Pool.Exec(ctx, `ALTER TABLE conversation_participants ADD COLUMN IF NOT EXISTS hidden_at TIMESTAMPTZ`)
+
+	// User-to-user blocks. blocker_id chose to mute and hide blocked_id.
+	// Effects ripple through feed/profile/follows/messages/suggestions.
+	Pool.Exec(ctx, `
+		CREATE TABLE IF NOT EXISTS blocks (
+			blocker_id  TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+			blocked_id  TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+			created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+			PRIMARY KEY (blocker_id, blocked_id)
+		)
+	`)
+	Pool.Exec(ctx, `CREATE INDEX IF NOT EXISTS idx_blocks_blocker ON blocks(blocker_id)`)
+	Pool.Exec(ctx, `CREATE INDEX IF NOT EXISTS idx_blocks_blocked ON blocks(blocked_id)`)
 	Pool.Exec(ctx, `
 		CREATE TABLE IF NOT EXISTS admin_chat_messages (
 			id         BIGSERIAL PRIMARY KEY,

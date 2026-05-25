@@ -33,7 +33,11 @@ func ListPosts(ctx context.Context, callerID, beforeID, filterUserID string, lim
 			       CASE WHEN $1 <> '' THEN EXISTS(SELECT 1 FROM post_saves ps WHERE ps.post_id = p.id AND ps.user_id = $1) ELSE FALSE END AS saved_by_me
 			FROM posts p
 			LEFT JOIN users u ON u.id = p.user_id
-			WHERE 1=1`
+			WHERE ($1 = '' OR NOT EXISTS (
+			    SELECT 1 FROM blocks b
+			    WHERE (b.blocker_id = $1 AND b.blocked_id = p.user_id)
+			       OR (b.blocker_id = p.user_id AND b.blocked_id = $1)
+			))`
 
 		argIdx := 2
 		if beforeID != "" {
@@ -75,15 +79,16 @@ func ListPosts(ctx context.Context, callerID, beforeID, filterUserID string, lim
 				         + (random() * 4)
 				       ) AS score
 				FROM posts p
-				LEFT JOIN users u ON u.id = p.user_id`
+				LEFT JOIN users u ON u.id = p.user_id
+				WHERE ($1 = '' OR NOT EXISTS (
+				    SELECT 1 FROM blocks b
+				    WHERE (b.blocker_id = $1 AND b.blocked_id = p.user_id)
+				       OR (b.blocker_id = p.user_id AND b.blocked_id = $1)
+				))`
 
 		argIdx := 2
 		if beforeID != "" {
-			// Cursor: exclude posts whose id is in the already-seen set.
-			// Simple approach: treat beforeID as the last post id seen and
-			// fall back to score-based ordering (score ties broken by id DESC).
-			query += fmt.Sprintf(`
-				WHERE p.id < $%d`, argIdx)
+			query += fmt.Sprintf(` AND p.id < $%d`, argIdx)
 			args = append(args, beforeID)
 			argIdx++
 		}

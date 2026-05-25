@@ -41,6 +41,19 @@ func GetConversationMessages(c *fiber.Ctx) error {
 	return c.JSON(services.GetConversationMessages(c.Context(), c.Params("id"), userId))
 }
 
+// DeleteConversation hides the entire chat for the caller. WhatsApp's
+// "Delete chat" — the other side still has the messages.
+func DeleteConversation(c *fiber.Ctx) error {
+	userId, ok := c.Locals("userId").(string)
+	if !ok || userId == "" {
+		return c.Status(401).JSON(fiber.Map{"error": "unauthorized"})
+	}
+	if err := services.HideConversationForUser(c.Context(), c.Params("id"), userId); err != nil {
+		return respondError(c, err)
+	}
+	return c.SendStatus(204)
+}
+
 func DeleteConversationMessage(c *fiber.Ctx) error {
 	userId, ok := c.Locals("userId").(string)
 	if !ok || userId == "" {

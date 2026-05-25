@@ -1,9 +1,10 @@
 "use client"
 
 import { DashboardLayout } from "@/components/dashboard-layout"
-import { Search, Send, ArrowLeft, User, UserPlus, X, ShieldAlert, Lock, Paperclip, ImageIcon, Trash2, Check, CheckCheck } from "lucide-react"
+import { Search, Send, ArrowLeft, User, UserPlus, X, ShieldAlert, Lock, Paperclip, ImageIcon, Trash2, Check, CheckCheck, MoreVertical, UserX } from "lucide-react"
 import { useState, useRef, useEffect, useMemo } from "react"
-import { useParams } from "next/navigation"
+import { useParams, useRouter } from "next/navigation"
+import { useNotify } from "@/components/notify-provider"
 import { useSocket } from "@/hooks/use-socket"
 import { useConversations, useMessages } from "@/hooks/use-conversations"
 import { useFollowing } from "@/hooks/use-social"
@@ -220,13 +221,17 @@ function NewMessageModal({
 export default function MessagesPage() {
   const params = useParams()
   const role = params.role as string
+  const router = useRouter()
+  const notify = useNotify()
   const { user } = useStore()
   const [selectedId, setSelectedId] = useState<number | null>(null)
   const [input, setInput] = useState("")
   const [search, setSearch] = useState("")
   const [showNewMsg, setShowNewMsg] = useState(false)
+  const [menuOpen, setMenuOpen] = useState(false)
   const scrollRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
+  const menuRef = useRef<HTMLDivElement>(null)
 
   const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL || "https://thimble-production.up.railway.app"
   const websocketUrl = apiBase.replace(/^http/, "ws") + "/ws"
@@ -352,6 +357,69 @@ export default function MessagesPage() {
 
   const getOther = (conv: typeof selectedConv) =>
     conv?.participants.find(p => p.userId !== user?.id)
+
+  // Close the 3-dot menu on outside click / Escape.
+  useEffect(() => {
+    if (!menuOpen) return
+    const onClick = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuOpen(false)
+    }
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setMenuOpen(false) }
+    document.addEventListener("mousedown", onClick)
+    document.addEventListener("keydown", onKey)
+    return () => {
+      document.removeEventListener("mousedown", onClick)
+      document.removeEventListener("keydown", onKey)
+    }
+  }, [menuOpen])
+
+  const handleViewProfile = () => {
+    setMenuOpen(false)
+    if (!other?.userId) return
+    router.push(`/dashboard/${role}/profile/${other.userId}`)
+  }
+
+  const handleBlockUser = async () => {
+    setMenuOpen(false)
+    if (!other?.userId) return
+    const ok = await notify.confirm({
+      title: `Block ${other.userName}?`,
+      message: "They won't be able to message you, follow you, or see your profile and posts. The conversation will disappear from your inbox.",
+      confirmLabel: "Block",
+      destructive: true,
+    })
+    if (!ok) return
+    try {
+      const res = await fetch(`/api/blocks/${other.userId}`, { method: "POST", credentials: "include" })
+      if (!res.ok && res.status !== 204) throw new Error("Failed")
+      notify.success(`${other.userName} has been blocked.`)
+      setSelectedId(null)
+      refresh()
+    } catch {
+      notify.error("Could not block. Try again.")
+    }
+  }
+
+  const handleDeleteChat = async () => {
+    setMenuOpen(false)
+    if (!selectedId) return
+    const ok = await notify.confirm({
+      title: "Delete chat?",
+      message: "This conversation will disappear from your inbox. The other person will still see your messages on their side.",
+      confirmLabel: "Delete",
+      destructive: true,
+    })
+    if (!ok) return
+    try {
+      const res = await fetch(`/api/conversations/${selectedId}`, { method: "DELETE", credentials: "include" })
+      if (!res.ok && res.status !== 204) throw new Error("Failed")
+      notify.success("Chat deleted.")
+      setSelectedId(null)
+      refresh()
+    } catch {
+      notify.error("Could not delete. Try again.")
+    }
+  }
 
   const handleSend = () => {
     if (!input.trim() || !isConnected || !isVerified) return
@@ -492,6 +560,38 @@ export default function MessagesPage() {
                   <p className={cn("t-msg-pane-sub", isTyping && "typing")}>
                     {isTyping ? "typing…" : isConnected ? "online" : "offline"}
                   </p>
+                </div>
+
+                {/* 3-dot menu: view profile / block / delete chat */}
+                <div className="t-msg-menu" ref={menuRef}>
+                  <button
+                    type="button"
+                    className="t-icon-btn-sm"
+                    onClick={() => setMenuOpen(o => !o)}
+                    aria-label="Conversation menu"
+                    aria-haspopup="menu"
+                    aria-expanded={menuOpen}
+                    style={{ border: "none", background: "none" }}
+                  >
+                    <MoreVertical size={18} />
+                  </button>
+                  {menuOpen && (
+                    <div role="menu" className="t-msg-menu-dropdown">
+                      <button role="menuitem" className="t-msg-menu-item" onClick={handleViewProfile}>
+                        <User size={14} />
+                        View profile
+                      </button>
+                      <button role="menuitem" className="t-msg-menu-item t-msg-menu-item--danger" onClick={handleBlockUser}>
+                        <UserX size={14} />
+                        Block {other?.userName?.split(" ")[0] || "user"}
+                      </button>
+                      <div className="t-msg-menu-divider" />
+                      <button role="menuitem" className="t-msg-menu-item t-msg-menu-item--danger" onClick={handleDeleteChat}>
+                        <Trash2 size={14} />
+                        Delete chat
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
 

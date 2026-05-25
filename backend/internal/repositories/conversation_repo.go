@@ -9,11 +9,25 @@ import (
 )
 
 func ListConversations(ctx context.Context, userId string) ([]models.Conversation, error) {
+	// Hide:
+	//   1. conversations the caller has "deleted for me" (hidden_at set)
+	//      AND no new message arrived since (updated_at < hidden_at).
+	//   2. conversations whose other participant is blocked in either
+	//      direction.
 	rows, err := db.Pool.Query(ctx, `
 		SELECT c.id, c.updated_at
 		FROM conversations c
 		JOIN conversation_participants cp ON cp.conversation_id = c.id
 		WHERE cp.user_id = $1
+		  AND (cp.hidden_at IS NULL OR c.updated_at > cp.hidden_at)
+		  AND NOT EXISTS (
+		    SELECT 1
+		    FROM conversation_participants other
+		    JOIN blocks b
+		      ON (b.blocker_id = $1 AND b.blocked_id = other.user_id)
+		      OR (b.blocker_id = other.user_id AND b.blocked_id = $1)
+		    WHERE other.conversation_id = c.id AND other.user_id <> $1
+		  )
 		ORDER BY c.updated_at DESC`, userId)
 	if err != nil {
 		return nil, err
@@ -174,6 +188,20 @@ func MarkRead(ctx context.Context, convID int, readerID string) ([]int, error) {
 		updated = append(updated, id)
 	}
 	return updated, nil
+}
+
+// HideConversationForUser marks the conversation hidden for a single
+// participant. Returns rowsAffected so the caller can detect non-members.
+func HideConversationForUser(ctx context.Context, convID, userID string) (int64, error) {
+	tag, err := db.Pool.Exec(ctx,
+		`UPDATE conversation_participants
+		    SET hidden_at = NOW()
+		  WHERE conversation_id = $1 AND user_id = $2`,
+		convID, userID)
+	if err != nil {
+		return 0, err
+	}
+	return tag.RowsAffected(), nil
 }
 
 // SoftDeleteMessageForUser hides a message from a specific user's view.

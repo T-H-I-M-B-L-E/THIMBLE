@@ -111,6 +111,11 @@ func SuggestUsers(ctx context.Context, userId string) ([]SuggestedUser, error) {
 		 FROM users
 		 WHERE id != $1
 		   AND id NOT IN (SELECT following_id FROM follows WHERE follower_id = $1)
+		   AND NOT EXISTS (
+		     SELECT 1 FROM blocks b
+		     WHERE (b.blocker_id = $1 AND b.blocked_id = users.id)
+		        OR (b.blocker_id = users.id AND b.blocked_id = $1)
+		   )
 		 ORDER BY followers DESC
 		 LIMIT 5`, userId)
 	if err != nil {

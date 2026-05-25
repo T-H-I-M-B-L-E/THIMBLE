@@ -81,6 +81,21 @@ func RestoreMessageForUser(ctx context.Context, msgID, userID string) *ServiceEr
 	return nil
 }
 
+// HideConversationForUser is the "delete for me" path. The other
+// participant still sees the chat; sending a new message will resurface
+// it on this user's side because ListConversations only hides chats
+// where updated_at <= hidden_at.
+func HideConversationForUser(ctx context.Context, convID, userID string) *ServiceError {
+	rows, err := repositories.HideConversationForUser(ctx, convID, userID)
+	if err != nil {
+		return NewError(500, "db_failed", "failed to delete conversation")
+	}
+	if rows == 0 {
+		return NewError(404, "not_found", "conversation not found")
+	}
+	return nil
+}
+
 // MarkConversationRead stamps read_at on every message addressed to
 // readerID in the conversation. Returns the IDs that were freshly read.
 // Used by the REST mark-read endpoint and (separately) by the WS
