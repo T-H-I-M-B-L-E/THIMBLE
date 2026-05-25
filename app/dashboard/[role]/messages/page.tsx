@@ -3,6 +3,7 @@
 import { DashboardLayout } from "@/components/dashboard-layout"
 import { Search, Send, ArrowLeft, User, UserPlus, X, ShieldAlert, Lock, Paperclip, ImageIcon, Trash2, Check, CheckCheck, MoreVertical, UserX } from "lucide-react"
 import { useState, useRef, useEffect, useMemo } from "react"
+import { createPortal } from "react-dom"
 import { useParams, useRouter } from "next/navigation"
 import { useNotify } from "@/components/notify-provider"
 import { useSocket } from "@/hooks/use-socket"
@@ -232,12 +233,14 @@ export default function MessagesPage() {
   const scrollRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const menuRef = useRef<HTMLDivElement>(null)
+  const menuBtnRef = useRef<HTMLButtonElement>(null)
+  const [menuAnchor, setMenuAnchor] = useState<{ top: number; right: number } | null>(null)
 
   const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL || "https://thimble-production.up.railway.app"
   const websocketUrl = apiBase.replace(/^http/, "ws") + "/ws"
   const isVerified = user?.verificationStatus === "verified"
 
-  const { conversations, isLoading: loadingConvs, createConversation, refresh } = useConversations(user?.id)
+  const { conversations, setConversations, isLoading: loadingConvs, createConversation, refresh } = useConversations(user?.id)
   const selectedConv = conversations.find(c => c.id === selectedId)
   const { messages: apiMessages, isLoading: loadingMsgs, setMessages: setApiMessages } = useMessages(selectedId, user?.id)
 
@@ -381,21 +384,30 @@ export default function MessagesPage() {
 
   const handleBlockUser = async () => {
     setMenuOpen(false)
-    if (!other?.userId) return
+    if (!other?.userId || !selectedId) return
+    const blockedUserId = other.userId
+    const blockedName = other.userName
+    const convIdToRemove = selectedId
     const ok = await notify.confirm({
-      title: `Block ${other.userName}?`,
+      title: `Block ${blockedName}?`,
       message: "They won't be able to message you, follow you, or see your profile and posts. The conversation will disappear from your inbox.",
       confirmLabel: "Block",
       destructive: true,
     })
     if (!ok) return
+    // Optimistic: drop the row from the list + clear selection right away.
+    const prevConversations = conversations
+    setConversations(prev => prev.filter(c => c.id !== convIdToRemove))
+    setSelectedId(null)
     try {
-      const res = await fetch(`/api/blocks/${other.userId}`, { method: "POST", credentials: "include" })
+      const res = await fetch(`/api/blocks/${blockedUserId}`, { method: "POST", credentials: "include" })
       if (!res.ok && res.status !== 204) throw new Error("Failed")
-      notify.success(`${other.userName} has been blocked.`)
-      setSelectedId(null)
+      notify.success(`${blockedName} has been blocked.`)
+      // Refetch in the background to catch any other conversations also
+      // affected by the block (group chats, etc.) and to sync state.
       refresh()
     } catch {
+      setConversations(prevConversations)
       notify.error("Could not block. Try again.")
     }
   }
@@ -403,6 +415,7 @@ export default function MessagesPage() {
   const handleDeleteChat = async () => {
     setMenuOpen(false)
     if (!selectedId) return
+    const convIdToRemove = selectedId
     const ok = await notify.confirm({
       title: "Delete chat?",
       message: "This conversation will disappear from your inbox. The other person will still see your messages on their side.",
@@ -410,13 +423,16 @@ export default function MessagesPage() {
       destructive: true,
     })
     if (!ok) return
+    // Optimistic removal — the row vanishes instantly.
+    const prevConversations = conversations
+    setConversations(prev => prev.filter(c => c.id !== convIdToRemove))
+    setSelectedId(null)
     try {
-      const res = await fetch(`/api/conversations/${selectedId}`, { method: "DELETE", credentials: "include" })
+      const res = await fetch(`/api/conversations/${convIdToRemove}`, { method: "DELETE", credentials: "include" })
       if (!res.ok && res.status !== 204) throw new Error("Failed")
       notify.success("Chat deleted.")
-      setSelectedId(null)
-      refresh()
     } catch {
+      setConversations(prevConversations)
       notify.error("Could not delete. Try again.")
     }
   }
@@ -563,11 +579,22 @@ export default function MessagesPage() {
                 </div>
 
                 {/* 3-dot menu: view profile / block / delete chat */}
-                <div className="t-msg-menu" ref={menuRef}>
+                <div className="t-msg-menu">
                   <button
+                    ref={menuBtnRef}
                     type="button"
                     className="t-icon-btn-sm"
-                    onClick={() => setMenuOpen(o => !o)}
+                    onClick={() => {
+                      if (menuOpen) { setMenuOpen(false); return }
+                      const rect = menuBtnRef.current?.getBoundingClientRect()
+                      if (rect) {
+                        setMenuAnchor({
+                          top: rect.bottom + 6,
+                          right: window.innerWidth - rect.right,
+                        })
+                      }
+                      setMenuOpen(true)
+                    }}
                     aria-label="Conversation menu"
                     aria-haspopup="menu"
                     aria-expanded={menuOpen}
@@ -575,23 +602,6 @@ export default function MessagesPage() {
                   >
                     <MoreVertical size={18} />
                   </button>
-                  {menuOpen && (
-                    <div role="menu" className="t-msg-menu-dropdown">
-                      <button role="menuitem" className="t-msg-menu-item" onClick={handleViewProfile}>
-                        <User size={14} />
-                        View profile
-                      </button>
-                      <button role="menuitem" className="t-msg-menu-item t-msg-menu-item--danger" onClick={handleBlockUser}>
-                        <UserX size={14} />
-                        Block {other?.userName?.split(" ")[0] || "user"}
-                      </button>
-                      <div className="t-msg-menu-divider" />
-                      <button role="menuitem" className="t-msg-menu-item t-msg-menu-item--danger" onClick={handleDeleteChat}>
-                        <Trash2 size={14} />
-                        Delete chat
-                      </button>
-                    </div>
-                  )}
                 </div>
               </div>
 
@@ -794,6 +804,33 @@ export default function MessagesPage() {
           onCreate={conv => { setSelectedId(conv.id); refresh() }}
           createConversation={createConversation}
         />
+      )}
+
+      {/* Conversation menu dropdown — portalled so it escapes the
+          .t-messages overflow: hidden clip. Anchored to the button via
+          measured viewport coords. */}
+      {menuOpen && menuAnchor && typeof document !== "undefined" && createPortal(
+        <div
+          ref={menuRef}
+          role="menu"
+          className="t-msg-menu-dropdown"
+          style={{ top: menuAnchor.top, right: menuAnchor.right }}
+        >
+          <button role="menuitem" className="t-msg-menu-item" onClick={handleViewProfile}>
+            <User size={14} />
+            View profile
+          </button>
+          <button role="menuitem" className="t-msg-menu-item t-msg-menu-item--danger" onClick={handleBlockUser}>
+            <UserX size={14} />
+            Block {other?.userName?.split(" ")[0] || "user"}
+          </button>
+          <div className="t-msg-menu-divider" />
+          <button role="menuitem" className="t-msg-menu-item t-msg-menu-item--danger" onClick={handleDeleteChat}>
+            <Trash2 size={14} />
+            Delete chat
+          </button>
+        </div>,
+        document.body
       )}
     </DashboardLayout>
   )

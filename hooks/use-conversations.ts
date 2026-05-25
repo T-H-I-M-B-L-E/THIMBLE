@@ -74,7 +74,7 @@ export function useConversations(userId: string | undefined) {
     fetchConversations()
   }, [userId])
 
-  return { conversations, isLoading, error, refresh: fetchConversations, createConversation }
+  return { conversations, setConversations, isLoading, error, refresh: fetchConversations, createConversation }
 }
 
 export function useMessages(conversationId: number | null, userId: string | undefined) {
