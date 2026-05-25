@@ -18,6 +18,10 @@ export interface Message {
   name: string
   content: string
   timestamp: number
+  /** ms-epoch — set once recipient's socket has received the message. */
+  deliveredAt?: number | null
+  /** ms-epoch — set once recipient has the conversation open. */
+  readAt?: number | null
 }
 
 export interface Conversation {

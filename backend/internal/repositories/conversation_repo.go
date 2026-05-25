@@ -90,9 +90,11 @@ func GetUserNameAndAvatarForConv(ctx context.Context, userId string) (name, avat
 
 // GetConversationMessages returns the chat history for a conversation,
 // hiding any messages the calling user has soft-deleted ("delete for me").
+// Receipt timestamps are returned as nullable ms-epoch values.
 func GetConversationMessages(ctx context.Context, convId, callerID string) ([]models.ConvMessage, error) {
 	rows, err := db.Pool.Query(ctx, `
-		SELECT id, conversation_id, user_id, name, content, timestamp
+		SELECT id, conversation_id, user_id, name, content, timestamp,
+		       delivered_at, read_at
 		FROM conversation_messages
 		WHERE conversation_id = $1
 		  AND (deleted_by_user_id IS NULL OR deleted_by_user_id <> $2)
@@ -104,13 +106,74 @@ func GetConversationMessages(ctx context.Context, convId, callerID string) ([]mo
 	var msgs []models.ConvMessage
 	for rows.Next() {
 		var m models.ConvMessage
-		rows.Scan(&m.ID, &m.ConversationID, &m.UserID, &m.Name, &m.Content, &m.Timestamp)
+		var delivered, read *time.Time
+		rows.Scan(&m.ID, &m.ConversationID, &m.UserID, &m.Name, &m.Content, &m.Timestamp, &delivered, &read)
+		if delivered != nil {
+			ms := delivered.UnixMilli()
+			m.DeliveredAt = &ms
+		}
+		if read != nil {
+			ms := read.UnixMilli()
+			m.ReadAt = &ms
+		}
 		msgs = append(msgs, m)
 	}
 	if msgs == nil {
 		msgs = []models.ConvMessage{}
 	}
 	return msgs, nil
+}
+
+// MarkDelivered stamps delivered_at on the given messages (if currently null)
+// and returns the IDs that were actually updated, so the sender's receipt UI
+// can flip only those bubbles.
+func MarkDelivered(ctx context.Context, convID int, msgIDs []int, recipientID string) ([]int, error) {
+	if len(msgIDs) == 0 {
+		return nil, nil
+	}
+	rows, err := db.Pool.Query(ctx, `
+		UPDATE conversation_messages
+		   SET delivered_at = NOW()
+		 WHERE conversation_id = $1
+		   AND id = ANY($2::bigint[])
+		   AND user_id <> $3        -- only mark messages sent TO this user
+		   AND delivered_at IS NULL
+		RETURNING id`, convID, msgIDs, recipientID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var updated []int
+	for rows.Next() {
+		var id int
+		rows.Scan(&id)
+		updated = append(updated, id)
+	}
+	return updated, nil
+}
+
+// MarkRead stamps read_at on all messages addressed TO `readerID` in the
+// conversation that aren't already read. Returns the affected IDs.
+func MarkRead(ctx context.Context, convID int, readerID string) ([]int, error) {
+	rows, err := db.Pool.Query(ctx, `
+		UPDATE conversation_messages
+		   SET read_at = NOW(),
+		       delivered_at = COALESCE(delivered_at, NOW())
+		 WHERE conversation_id = $1
+		   AND user_id <> $2
+		   AND read_at IS NULL
+		RETURNING id`, convID, readerID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var updated []int
+	for rows.Next() {
+		var id int
+		rows.Scan(&id)
+		updated = append(updated, id)
+	}
+	return updated, nil
 }
 
 // SoftDeleteMessageForUser hides a message from a specific user's view.

@@ -52,6 +52,26 @@ func DeleteConversationMessage(c *fiber.Ctx) error {
 	return c.SendStatus(204)
 }
 
+// MarkConversationRead marks every incoming message in the conversation
+// as read by the caller. Returns the affected ids so the client can flip
+// state for messages the user just opened.
+func MarkConversationRead(c *fiber.Ctx) error {
+	userId, ok := c.Locals("userId").(string)
+	if !ok || userId == "" {
+		return c.Status(401).JSON(fiber.Map{"error": "unauthorized"})
+	}
+	var convId int
+	fmt.Sscanf(c.Params("id"), "%d", &convId)
+	if convId == 0 {
+		return c.Status(400).JSON(fiber.Map{"error": "invalid conversation id"})
+	}
+	ids, err := services.MarkConversationRead(c.Context(), convId, userId)
+	if err != nil {
+		return respondError(c, err)
+	}
+	return c.JSON(fiber.Map{"messageIds": ids})
+}
+
 func RestoreConversationMessage(c *fiber.Ctx) error {
 	userId, ok := c.Locals("userId").(string)
 	if !ok || userId == "" {

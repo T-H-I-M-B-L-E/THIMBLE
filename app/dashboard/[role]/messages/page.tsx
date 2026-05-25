@@ -1,7 +1,7 @@
 "use client"
 
 import { DashboardLayout } from "@/components/dashboard-layout"
-import { Search, Send, ArrowLeft, User, UserPlus, X, ShieldAlert, Lock, Paperclip, ImageIcon, Trash2, Check } from "lucide-react"
+import { Search, Send, ArrowLeft, User, UserPlus, X, ShieldAlert, Lock, Paperclip, ImageIcon, Trash2, Check, CheckCheck } from "lucide-react"
 import { useState, useRef, useEffect, useMemo } from "react"
 import { useParams } from "next/navigation"
 import { useSocket } from "@/hooks/use-socket"
@@ -234,9 +234,25 @@ export default function MessagesPage() {
 
   const { conversations, isLoading: loadingConvs, createConversation, refresh } = useConversations(user?.id)
   const selectedConv = conversations.find(c => c.id === selectedId)
-  const { messages: apiMessages, isLoading: loadingMsgs } = useMessages(selectedId, user?.id)
-  const { messages: wsMessages, sendMessage, isConnected, typingUsers, handleTyping } = useSocket(
-    websocketUrl, selectedId, user
+  const { messages: apiMessages, isLoading: loadingMsgs, setMessages: setApiMessages } = useMessages(selectedId, user?.id)
+
+  // Apply receipt updates to historical (REST-loaded) messages too, not
+  // just to the live wsMessages buffer.
+  const handleReceipt = (ev: { type: "delivered" | "read"; messageIds: number[]; timestamp: number }) => {
+    const ids = new Set(ev.messageIds)
+    setApiMessages(prev => prev.map(m => {
+      if (!ids.has(m.id)) return m
+      if (ev.type === "delivered") return { ...m, deliveredAt: m.deliveredAt ?? ev.timestamp }
+      return {
+        ...m,
+        readAt: m.readAt ?? ev.timestamp,
+        deliveredAt: m.deliveredAt ?? ev.timestamp,
+      }
+    }))
+  }
+
+  const { messages: wsMessages, sendMessage, isConnected, typingUsers, handleTyping, sendReadReceipt } = useSocket(
+    websocketUrl, selectedId, user, handleReceipt,
   )
 
   // Locally hidden messages — delete-for-me has fired but the backend
@@ -319,6 +335,20 @@ export default function MessagesPage() {
   useEffect(() => {
     if (selectedId) inputRef.current?.focus()
   }, [selectedId])
+
+  // When the conversation is open, mark incoming messages as read.
+  // The REST call catches the initial-load case (messages already in DB).
+  // The WS read receipt makes it instant for messages that arrive while
+  // the user is viewing. Fires on every change so new arrivals get
+  // stamped right away.
+  useEffect(() => {
+    if (!selectedId) return
+    fetch(`/api/conversations/${selectedId}/read`, {
+      method: "POST",
+      credentials: "include",
+    }).catch(() => {})
+    if (isConnected) sendReadReceipt()
+  }, [selectedId, isConnected, apiMessages.length, wsMessages.length, sendReadReceipt])
 
   const getOther = (conv: typeof selectedConv) =>
     conv?.participants.find(p => p.userId !== user?.id)
@@ -527,11 +557,25 @@ export default function MessagesPage() {
                             <span className="t-bubble-time">
                               {formatFullTime(msg.timestamp)}
                               {isMe && msg.id != null && (
-                                <Check
-                                  size={12}
-                                  className="t-bubble-status"
-                                  aria-label="Sent"
-                                />
+                                msg.readAt ? (
+                                  <CheckCheck
+                                    size={13}
+                                    className="t-bubble-status read"
+                                    aria-label="Read"
+                                  />
+                                ) : msg.deliveredAt ? (
+                                  <CheckCheck
+                                    size={13}
+                                    className="t-bubble-status"
+                                    aria-label="Delivered"
+                                  />
+                                ) : (
+                                  <Check
+                                    size={12}
+                                    className="t-bubble-status"
+                                    aria-label="Sent"
+                                  />
+                                )
                               )}
                             </span>
                           )}

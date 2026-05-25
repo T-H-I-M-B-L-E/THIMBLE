@@ -9,6 +9,10 @@ export interface ChatMessage {
   name: string
   content: string
   timestamp: number
+  /** ms-epoch — recipient's socket received the message. */
+  deliveredAt?: number | null
+  /** ms-epoch — recipient opened the conversation. */
+  readAt?: number | null
 }
 
 export interface TypingEvent {
@@ -19,16 +23,30 @@ export interface TypingEvent {
   isTyping: boolean
 }
 
+export interface ReceiptEvent {
+  type: "delivered" | "read"
+  conversationId: number
+  messageIds: number[]
+  timestamp: number
+}
+
 export function useSocket(
   url: string | null,
   conversationId: number | null,
-  user: { id: string; fullName: string } | null
+  user: { id: string; fullName: string } | null,
+  /** Fired when a delivered/read receipt arrives. Use to flip state in
+      other message stores (e.g. historical REST-loaded messages). */
+  onReceipt?: (ev: ReceiptEvent) => void
 ) {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [isConnected, setIsConnected] = useState(false)
   const [typingUsers, setTypingUsers] = useState<Map<string, string>>(new Map())
   const socketRef = useRef<WebSocket | null>(null)
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  // Mirror onReceipt into a ref so the WS effect doesn't reconnect when
+  // the consumer redefines the callback on every render.
+  const onReceiptRef = useRef(onReceipt)
+  useEffect(() => { onReceiptRef.current = onReceipt }, [onReceipt])
 
   useEffect(() => {
     setMessages([])
@@ -85,6 +103,23 @@ export function useSocket(
                 else m.delete(e.userId)
                 return m
               })
+              return
+            }
+            if (data.type === "delivered" || data.type === "read") {
+              const e = data as ReceiptEvent
+              const ids = new Set(e.messageIds)
+              setMessages(prev => prev.map(m => {
+                if (m.id == null || !ids.has(m.id)) return m
+                if (e.type === "delivered") {
+                  return { ...m, deliveredAt: m.deliveredAt ?? e.timestamp }
+                }
+                return {
+                  ...m,
+                  readAt: m.readAt ?? e.timestamp,
+                  deliveredAt: m.deliveredAt ?? e.timestamp,
+                }
+              }))
+              onReceiptRef.current?.(e)
               return
             }
             const msg = data as ChatMessage
@@ -161,6 +196,18 @@ export function useSocket(
     }
   }, [user, conversationId, sendTypingIndicator])
 
+  // Fire a "read" receipt over the socket so the sender's UI flips
+   // to read instantly. Safe to call frequently; the server filters
+   // already-read messages.
+  const sendReadReceipt = useCallback(() => {
+    if (socketRef.current?.readyState === WebSocket.OPEN && conversationId) {
+      socketRef.current.send(JSON.stringify({
+        type: "read",
+        conversationId,
+      }))
+    }
+  }, [conversationId])
+
   const handleTyping = useCallback(() => {
     // Only send if we're not already typing (to avoid spam)
     const isCurrentlyTyping = typingTimeoutRef.current !== null
@@ -181,5 +228,5 @@ export function useSocket(
     }, 3000)
   }, [sendTypingIndicator])
 
-  return { messages, sendMessage, isConnected, setMessages, typingUsers, handleTyping }
+  return { messages, sendMessage, isConnected, setMessages, typingUsers, handleTyping, sendReadReceipt }
 }

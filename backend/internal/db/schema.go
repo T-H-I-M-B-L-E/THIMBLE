@@ -159,6 +159,11 @@ func EnsureSchema(ctx context.Context) {
 	// view but still visible to the other participant. WhatsApp-style
 	// "delete for me".
 	Pool.Exec(ctx, `ALTER TABLE conversation_messages ADD COLUMN IF NOT EXISTS deleted_by_user_id TEXT`)
+	// Delivery + read receipts. delivered_at is stamped server-side when a
+	// recipient connection receives the message; read_at when the recipient
+	// reports the conversation visible.
+	Pool.Exec(ctx, `ALTER TABLE conversation_messages ADD COLUMN IF NOT EXISTS delivered_at TIMESTAMPTZ`)
+	Pool.Exec(ctx, `ALTER TABLE conversation_messages ADD COLUMN IF NOT EXISTS read_at TIMESTAMPTZ`)
 
 	Pool.Exec(ctx, `
 		CREATE TABLE IF NOT EXISTS notifications (

@@ -38,4 +38,16 @@ type ConvMessage struct {
 	Name           string `json:"name"`
 	Content        string `json:"content"`
 	Timestamp      int64  `json:"timestamp"`
+	// Receipt timestamps (ms epoch). Nil when not yet delivered/read.
+	DeliveredAt    *int64 `json:"deliveredAt,omitempty"`
+	ReadAt         *int64 `json:"readAt,omitempty"`
+}
+
+// ReceiptEvent is the WS payload for delivered/read updates. Sent
+// recipient → server when "read", and server → sender for both states.
+type ReceiptEvent struct {
+	Type           string `json:"type"` // "delivered" | "read"
+	ConversationID int    `json:"conversationId"`
+	MessageIDs     []int  `json:"messageIds"`
+	Timestamp      int64  `json:"timestamp"`
 }

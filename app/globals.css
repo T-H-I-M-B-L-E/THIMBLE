@@ -1634,11 +1634,16 @@
   .t-bubble-delete { opacity: 0.55; }
 }
 
-/* Sent-state check icon next to time. */
+/* Sent / delivered / read state. Single check = sent, double = delivered,
+   gold double = read. Subtle so it doesn't compete with the bubble. */
 .t-bubble-status {
   margin-left: 4px;
   color: var(--t-ink-3);
   vertical-align: -1px;
+  transition: color .2s;
+}
+.t-bubble-status.read {
+  color: var(--t-gold);
 }
 
 /* Floating undo toast that lives at the bottom of the message stream. */

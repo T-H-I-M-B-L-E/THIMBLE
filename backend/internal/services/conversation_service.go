@@ -81,6 +81,18 @@ func RestoreMessageForUser(ctx context.Context, msgID, userID string) *ServiceEr
 	return nil
 }
 
+// MarkConversationRead stamps read_at on every message addressed to
+// readerID in the conversation. Returns the IDs that were freshly read.
+// Used by the REST mark-read endpoint and (separately) by the WS
+// "read" event handler.
+func MarkConversationRead(ctx context.Context, convID int, readerID string) ([]int, *ServiceError) {
+	ids, err := repositories.MarkRead(ctx, convID, readerID)
+	if err != nil {
+		return nil, NewError(500, "db_failed", "failed to mark read")
+	}
+	return ids, nil
+}
+
 // HandleConversationWS drives one WS connection: registers it in the
 // room map, then loops reading messages until the client disconnects.
 // "typing" events are forwarded; everything else is persisted as a
@@ -119,9 +131,29 @@ func HandleConversationWS(c *websocket.Conn, userId string, convId int) {
 			continue
 		}
 
-		if eventType, ok := eventMap["type"].(string); ok && eventType == "typing" {
-			broadcastToRoom(convId, c, mt, msgBytes)
-			continue
+		if eventType, ok := eventMap["type"].(string); ok {
+			switch eventType {
+			case "typing":
+				broadcastToRoom(convId, c, mt, msgBytes)
+				continue
+			case "read":
+				// Client reports that the user has the conversation open.
+				// Mark every incoming-to-them message read, then broadcast a
+				// receipt event so the sender's UI flips.
+				updated, err := repositories.MarkRead(context.Background(), convId, userId)
+				if err != nil || len(updated) == 0 {
+					continue
+				}
+				receipt := models.ReceiptEvent{
+					Type:           "read",
+					ConversationID: convId,
+					MessageIDs:     updated,
+					Timestamp:      time.Now().UnixMilli(),
+				}
+				payload, _ := json.Marshal(receipt)
+				broadcastToRoomIncludingSender(convId, mt, payload)
+				continue
+			}
 		}
 
 		var msg models.ConvMessage
@@ -140,7 +172,43 @@ func HandleConversationWS(c *websocket.Conn, userId string, convId int) {
 
 		out, _ := json.Marshal(msg)
 		broadcastToRoomIncludingSender(convId, mt, out)
+
+		// After broadcasting, mark delivered to any other connected
+		// participant and notify the sender so the check turns to double.
+		recipients := getRecipientIDs(convId, userId)
+		if len(recipients) > 0 && msg.ID > 0 {
+			for _, recipientID := range recipients {
+				updated, err := repositories.MarkDelivered(context.Background(), convId, []int{msg.ID}, recipientID)
+				if err != nil || len(updated) == 0 {
+					continue
+				}
+				receipt := models.ReceiptEvent{
+					Type:           "delivered",
+					ConversationID: convId,
+					MessageIDs:     updated,
+					Timestamp:      time.Now().UnixMilli(),
+				}
+				payload, _ := json.Marshal(receipt)
+				broadcastToRoomIncludingSender(convId, mt, payload)
+			}
+		}
 	}
+}
+
+// getRecipientIDs returns the userIds of every connection in the room
+// other than the sender. Used to mark delivered to live recipients.
+func getRecipientIDs(convId int, senderID string) []string {
+	clientsMu.RLock()
+	defer clientsMu.RUnlock()
+	out := make([]string, 0, len(rooms[convId]))
+	seen := map[string]bool{}
+	for _, uid := range rooms[convId] {
+		if uid != senderID && !seen[uid] {
+			seen[uid] = true
+			out = append(out, uid)
+		}
+	}
+	return out
 }
 
 func broadcastToRoom(convId int, sender *websocket.Conn, mt int, payload []byte) {
