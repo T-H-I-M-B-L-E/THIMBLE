@@ -2,7 +2,7 @@
 
 import { DashboardLayout } from "@/components/dashboard-layout"
 import { Search, Send, ArrowLeft, User, UserPlus, X, ShieldAlert, Lock, Paperclip, ImageIcon } from "lucide-react"
-import { useState, useRef, useEffect } from "react"
+import { useState, useRef, useEffect, useMemo } from "react"
 import { useParams } from "next/navigation"
 import { useSocket } from "@/hooks/use-socket"
 import { useConversations, useMessages } from "@/hooks/use-conversations"
@@ -56,6 +56,14 @@ function formatFullTime(ts: number) {
   return new Date(ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
 }
 
+interface DirectoryUser {
+  id: string
+  fullName: string
+  username?: string
+  avatarUrl: string
+  role?: string
+}
+
 function NewMessageModal({
   currentUser,
   isVerified,
@@ -69,19 +77,52 @@ function NewMessageModal({
   onCreate: (conv: { id: number }) => void
   createConversation: (participants: { userId: string; userName: string; userAvatar: string }[]) => Promise<{ id: number }>
 }) {
-  const { following, isLoading } = useFollowing(currentUser?.id)
+  const { following } = useFollowing(currentUser?.id)
   const [search, setSearch] = useState("")
   const [creating, setCreating] = useState<string | null>(null)
+  const [directory, setDirectory] = useState<DirectoryUser[]>([])
+  const [loadingDir, setLoadingDir] = useState(true)
 
-  const filtered = following.filter(u =>
-    u.userName?.toLowerCase().includes(search.toLowerCase())
-  )
+  // Pull the full user directory so search isn't limited to people you
+  // already follow. Cheap — backend caps at 200.
+  useEffect(() => {
+    let cancelled = false
+    fetch("/api/users", { credentials: "include" })
+      .then(r => r.ok ? r.json() : [])
+      .then(data => { if (!cancelled && Array.isArray(data)) setDirectory(data) })
+      .catch(() => {})
+      .finally(() => { if (!cancelled) setLoadingDir(false) })
+    return () => { cancelled = true }
+  }, [])
 
-  const handleSelect = async (u: typeof following[0]) => {
+  const followingIds = useMemo(() => new Set(following.map(f => f.userId)), [following])
+
+  // Surface results from the full directory. With a search query → show
+  // everyone matching. Empty query → just show the people you follow as
+  // a quick-pick list.
+  const results = useMemo(() => {
+    const q = search.trim().toLowerCase()
+    const all = directory.filter(u => u.id !== currentUser?.id)
+    if (!q) {
+      // Empty state: prioritise people you already follow.
+      return all
+        .filter(u => followingIds.has(u.id))
+        .slice(0, 20)
+    }
+    return all
+      .filter(u =>
+        u.fullName?.toLowerCase().includes(q) ||
+        u.username?.toLowerCase().includes(q) ||
+        u.role?.toLowerCase().includes(q),
+      )
+      .slice(0, 25)
+  }, [search, directory, followingIds, currentUser?.id])
+
+  const handleSelect = async (u: DirectoryUser) => {
     if (!isVerified || creating) return
-    setCreating(u.userId)
+    setCreating(u.id)
     try {
-      const conv = await createConversation([{ userId: u.userId, userName: u.userName, userAvatar: u.userAvatar || "" }])
+      const conv = await createConversation([{ userId: u.id, userName: u.fullName, userAvatar: u.avatarUrl || "" }])
       onCreate(conv)
       onClose()
     } catch {
@@ -118,39 +159,51 @@ function NewMessageModal({
                   autoFocus
                   value={search}
                   onChange={e => setSearch(e.target.value)}
-                  placeholder="Search people you follow…"
+                  placeholder="Search anyone on Tvimble…"
                 />
               </div>
+              <p className="t-new-msg-hint">
+                {search.trim() ? "Showing all matching users" : "Suggested · people you follow"}
+              </p>
             </div>
 
             <div className="t-new-msg-modal-list">
-              {isLoading ? (
+              {loadingDir ? (
                 [1, 2, 3].map(i => <SkeletonRow key={i} />)
-              ) : filtered.length === 0 ? (
+              ) : results.length === 0 ? (
                 <div className="t-msg-empty">
                   <div className="t-msg-empty-icon">
                     <UserPlus size={22} />
                   </div>
                   <p>
-                    {following.length === 0
-                      ? "Follow people to message them."
-                      : "No one matches your search."}
+                    {search.trim()
+                      ? "No one matches your search."
+                      : "Search by name, @username, or role to find anyone."}
                   </p>
                 </div>
               ) : (
-                filtered.map(u => (
+                results.map(u => (
                   <button
-                    key={u.userId}
+                    key={u.id}
                     className="t-new-msg-user"
                     onClick={() => handleSelect(u)}
-                    disabled={creating === u.userId}
+                    disabled={creating === u.id}
                   >
-                    <Avatar src={u.userAvatar} name={u.userName} size={38} />
-                    <div>
-                      <p className="t-new-msg-user-name">{u.userName}</p>
-                      {u.role && <p className="t-new-msg-user-role">{u.role}</p>}
+                    <Avatar src={u.avatarUrl} name={u.fullName} size={38} />
+                    <div style={{ minWidth: 0 }}>
+                      <p className="t-new-msg-user-name">{u.fullName}</p>
+                      <p className="t-new-msg-user-role">
+                        {u.username ? `@${u.username}` : null}
+                        {u.username && u.role ? " · " : ""}
+                        {u.role}
+                      </p>
                     </div>
-                    {creating === u.userId && (
+                    {!followingIds.has(u.id) && (
+                      <span className="t-new-msg-tag" title="You don't follow this person">
+                        Not following
+                      </span>
+                    )}
+                    {creating === u.id && (
                       <div className="animate-spin" style={{ marginLeft: "auto", width: 16, height: 16, borderRadius: "50%", border: "2px solid var(--t-line)", borderTopColor: "var(--t-gold)" }} />
                     )}
                   </button>
@@ -213,12 +266,29 @@ export default function MessagesPage() {
   const other = getOther(selectedConv)
   const isTyping = other && typingUsers.has(other.userId)
 
+  // Detect whether the other person follows the current user. This is a
+  // one-way check (other → me), so we know when to surface the subtle
+  // "they don't follow you" hint in the conversation header.
+  const [otherFollowsMe, setOtherFollowsMe] = useState<boolean | null>(null)
+  useEffect(() => {
+    setOtherFollowsMe(null)
+    if (!other?.userId || !user?.id || other.userId === user.id) return
+    let cancelled = false
+    fetch(`/api/follows?followerId=${other.userId}&followingId=${user.id}`, {
+      credentials: "include",
+    })
+      .then(r => r.ok ? r.json() : { isFollowing: false })
+      .then(data => { if (!cancelled) setOtherFollowsMe(!!data?.isFollowing) })
+      .catch(() => { if (!cancelled) setOtherFollowsMe(false) })
+    return () => { cancelled = true }
+  }, [other?.userId, user?.id])
+
   return (
     <DashboardLayout role={role} fullBleed>
       <div className="t-messages">
 
         {/* ── Sidebar ── */}
-        <div className={cn("t-msg-list", selectedId ? "hidden md:flex" : "flex")}>
+        <div className={cn("t-msg-list", selectedId ? "t-msg-list--hidden-mobile" : "")}>
           <div className="t-msg-list-head">
             <div className="t-msg-list-title-row">
               <span className="t-msg-list-title">Messages</span>
@@ -284,7 +354,9 @@ export default function MessagesPage() {
                         </span>
                       </div>
                       <p className="t-thread-preview">
-                        {conv.lastMessage?.content || "Start a conversation"}
+                        {conv.lastMessage?.content || (
+                          <span className="t-thread-preview-empty">No messages yet</span>
+                        )}
                       </p>
                     </div>
                   </button>
@@ -295,21 +367,32 @@ export default function MessagesPage() {
         </div>
 
         {/* ── Pane ── */}
-        <div className={cn("t-msg-pane", !selectedId ? "hidden md:flex" : "flex")}>
+        <div className={cn("t-msg-pane", !selectedId ? "t-msg-pane--hidden-mobile" : "")}>
           {selectedConv ? (
             <>
               {/* Header */}
               <div className="t-msg-pane-head">
                 <button
-                  className={cn("t-icon-btn-sm md:hidden")}
+                  className="t-icon-btn-sm t-msg-back-btn"
                   onClick={() => setSelectedId(null)}
                   style={{ border: "none", background: "none", marginLeft: -4 }}
+                  aria-label="Back to conversations"
                 >
                   <ArrowLeft size={20} />
                 </button>
                 <Avatar src={other?.userAvatar} name={other?.userName} size={36} />
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <p className="t-msg-pane-name">{other?.userName || "Unknown"}</p>
+                  <p className="t-msg-pane-name">
+                    {other?.userName || "Unknown"}
+                    {otherFollowsMe === false && (
+                      <span
+                        className="t-not-following-chip"
+                        title={`${other?.userName ?? "This person"} doesn't follow you`}
+                      >
+                        Not following you
+                      </span>
+                    )}
+                  </p>
                   <p className={cn("t-msg-pane-sub", isTyping && "typing")}>
                     {isTyping ? "typing…" : isConnected ? "online" : "offline"}
                   </p>

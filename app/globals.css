@@ -1541,6 +1541,62 @@
     height: auto;
     overflow: visible;
   }
+  /* Single-pane mobile flow: only one side renders at a time. */
+  .t-msg-list--hidden-mobile { display: none; }
+  .t-msg-pane--hidden-mobile { display: none; }
+  .t-msg-list, .t-msg-pane { border-right: 0; }
+}
+/* Back-to-list button is mobile-only. */
+.t-msg-back-btn { display: inline-flex; }
+@media (min-width: 881px) {
+  .t-msg-back-btn { display: none; }
+}
+
+/* Subtle "they don't follow you" chip in the conversation header. */
+.t-not-following-chip {
+  margin-left: 8px;
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  color: var(--t-ink-3);
+  background: var(--t-surface-2);
+  border: 1px solid var(--t-line);
+  vertical-align: middle;
+  white-space: nowrap;
+}
+@media (max-width: 480px) {
+  .t-not-following-chip { font-size: 10px; padding: 1px 7px; }
+}
+
+/* "Not following" tag inside the new-message picker rows. */
+.t-new-msg-tag {
+  margin-left: auto;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 10.5px;
+  font-weight: 500;
+  color: var(--t-ink-3);
+  background: var(--t-surface-2);
+  border: 1px solid var(--t-line);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* Hint line under search input in the new-message modal. */
+.t-new-msg-hint {
+  margin: 8px 2px 0;
+  font-size: 11.5px;
+  color: var(--t-ink-3);
+  letter-spacing: 0.01em;
+}
+
+/* Empty preview text in thread rows ("No messages yet"). */
+.t-thread-preview-empty {
+  color: var(--t-ink-3);
+  font-style: italic;
 }
 
 /* Sidebar list */
