@@ -513,6 +513,21 @@
   overflow-y: auto;
 }
 .t-icomp-textarea::placeholder { color: var(--t-ink-3); }
+/* Wrapper that holds both the textarea and the animated ghost placeholder. */
+.t-icomp-textwrap { position: relative; width: 100%; }
+.t-icomp-ghost {
+  position: absolute;
+  inset: 0;
+  padding: 4px 0;
+  font-size: 17px;
+  line-height: 1.45;
+  letter-spacing: -0.005em;
+  color: var(--t-ink-3);
+  pointer-events: none;
+  display: flex;
+  align-items: flex-start;
+  user-select: none;
+}
 .t-icomp-preview {
   position: relative; width: 100%; max-width: 360px;
   aspect-ratio: 16/10;
@@ -655,6 +670,20 @@
   font-size: 15px; line-height: 1.45; color: var(--t-ink);
   letter-spacing: -0.005em;
   white-space: pre-wrap; word-wrap: break-word; word-break: break-word;
+}
+
+/* ── TextType: typewriter animation (composer ghost placeholder) ──────── */
+.t-texttype {
+  display: inline-block;
+  white-space: pre-wrap;
+}
+.t-texttype-cursor {
+  margin-left: 0.18rem;
+  display: inline-block;
+  opacity: 1;
+}
+.t-texttype-cursor--hidden {
+  display: none;
 }
 
 /* ── TextPost: standalone quote-style card for text-only posts ────────── */

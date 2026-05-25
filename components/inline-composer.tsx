@@ -5,6 +5,26 @@ import Image from "next/image"
 import { ImageIcon, Loader2, X, Users } from "lucide-react"
 import { uploadFile } from "@/lib/upload"
 import type { PostData } from "@/components/post-card"
+import { TextType } from "@/components/text-type"
+
+// 15 placeholder prompts. Cycles via TextType so it feels alive.
+const COMPOSER_PROMPTS = [
+  "What's happening?",
+  "What's good?",
+  "What's on your mind?",
+  "Share something with the world…",
+  "Post a moment from today",
+  "Drop your latest work",
+  "What inspired you today?",
+  "Working on something new?",
+  "Show off the fit",
+  "Behind-the-scenes anyone?",
+  "What's the vibe today?",
+  "Tag a designer you love",
+  "Pin a mood to the board",
+  "What did you shoot today?",
+  "Spill the tea ☕",
+]
 
 const MAX_CHARS = 280
 const COUNTER_VISIBLE_AT = 240
@@ -198,19 +218,35 @@ export function InlineComposer({ user, onOptimistic, onCommit, onRevert }: Inlin
         )}
 
         <div className="t-icomp-body">
-          <textarea
-            ref={textareaRef}
-            className="t-icomp-textarea"
-            placeholder="What's happening?"
-            value={text}
-            onChange={e => setText(e.target.value)}
-            onFocus={() => setFocused(true)}
-            onBlur={() => setFocused(false)}
-            onKeyDown={onKeyDown}
-            rows={1}
-            maxLength={MAX_CHARS + 40}
-            aria-label="Compose post"
-          />
+          <div className="t-icomp-textwrap">
+            {/* Animated ghost placeholder. Hidden once the user types or
+                focuses, so it never competes with real input. */}
+            {!text && !focused && (
+              <div className="t-icomp-ghost" aria-hidden="true">
+                <TextType
+                  text={COMPOSER_PROMPTS}
+                  typingSpeed={55}
+                  deletingSpeed={28}
+                  pauseDuration={1800}
+                  cursorCharacter="_"
+                  cursorBlinkDuration={0.55}
+                  variableSpeed={{ min: 40, max: 90 }}
+                />
+              </div>
+            )}
+            <textarea
+              ref={textareaRef}
+              className="t-icomp-textarea"
+              value={text}
+              onChange={e => setText(e.target.value)}
+              onFocus={() => setFocused(true)}
+              onBlur={() => setFocused(false)}
+              onKeyDown={onKeyDown}
+              rows={1}
+              maxLength={MAX_CHARS + 40}
+              aria-label="Compose post"
+            />
+          </div>
 
           {imageUrl && (
             <div
