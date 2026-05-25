@@ -2194,16 +2194,17 @@ body {
 }
 .t-sidenav { display: none !important; }
 .t-main {
-  /* Fill the column. The grid in .t-shell.has-rail allocates minmax(0,1fr)
-     so the main column expands to whatever space the rail doesn't claim. */
+  /* Feed column width — matches Instagram's ~614-640px so individual
+     posts feel right on laptops/desktops. The grid still lays out the
+     rail to the right; any extra viewport space sits in the margins. */
   width: 100%;
+  max-width: 640px;
   margin: 0 auto;
   padding: 24px 0 160px !important;
 }
-/* When no rail is shown the main column would stretch absurdly wide on
-   ultrawides — cap it for readability but keep it generous on laptops. */
+/* Settings, profile, and other non-feed pages benefit from more room. */
 .t-shell:not(.has-rail) .t-main {
-  max-width: 1100px;
+  max-width: 920px;
 }
 @media (max-width: 880px) {
   .t-main { max-width: 100% !important; }
