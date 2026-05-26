@@ -71,6 +71,10 @@ export default function ProfilePage() {
 
   if (isLoading || !user) return null
 
+  const hasMedia = (p: any) => !!p.imageUrl || (Array.isArray(p.images) && p.images.length > 0)
+  const visualPosts = userPosts.filter(hasMedia)
+  const visualSavedPosts = savedPosts.filter(hasMedia)
+
   const bio = user.bio || "The vision is yet to be written."
   const website = user.website || ""
   const instagram = ((user as any).instagram || "").trim()
@@ -172,7 +176,7 @@ export default function ProfilePage() {
 
         <div className="t-profile-stats">
           <div>
-            <div className="t-stat-big">{userPosts.length}</div>
+            <div className="t-stat-big">{visualPosts.length}</div>
             <div className="t-stat-lbl">Works</div>
           </div>
           <div style={{ cursor: "pointer" }} onClick={() => setActiveTab("following")}>
@@ -202,7 +206,7 @@ export default function ProfilePage() {
               <div style={{ display: "flex", justifyContent: "center", padding: "80px 0" }}>
                 <div className="animate-spin rounded-full h-12 w-12 border-t-2" style={{ borderColor: "var(--t-gold)" }}></div>
               </div>
-            ) : userPosts.length === 0 ? (
+            ) : visualPosts.length === 0 ? (
               <div style={{ textAlign: "center", padding: "60px 16px", border: "2px dashed var(--t-line)", borderRadius: "12px" }}>
                 <p style={{ color: "var(--t-ink-2)", marginBottom: "16px" }}>No works published yet</p>
                 <button
@@ -214,7 +218,7 @@ export default function ProfilePage() {
               </div>
             ) : (
               <div className="t-profile-grid">
-                {userPosts.map((post) => (
+                {visualPosts.map((post) => (
                   <button
                     key={post.id}
                     className="t-grid-item"
@@ -225,11 +229,7 @@ export default function ProfilePage() {
                     style={{ padding: 0, border: "none", background: "none", cursor: "pointer" }}
                     aria-label={post.description || "Open post"}
                   >
-                    {post.imageUrl ? (
-                      <img src={post.imageUrl} alt={post.description || "Work"} loading="lazy" />
-                    ) : (
-                      <span className="t-grid-text">{post.description}</span>
-                    )}
+                    <img src={post.imageUrl} alt={post.description || "Work"} loading="lazy" />
                   </button>
                 ))}
               </div>
@@ -243,13 +243,13 @@ export default function ProfilePage() {
               <div style={{ display: "flex", justifyContent: "center", padding: "80px 0" }}>
                 <div className="animate-spin rounded-full h-12 w-12 border-t-2" style={{ borderColor: "var(--t-gold)" }}></div>
               </div>
-            ) : savedPosts.length === 0 ? (
+            ) : visualSavedPosts.length === 0 ? (
               <div style={{ textAlign: "center", padding: "60px 16px", border: "2px dashed var(--t-line)", borderRadius: "12px" }}>
                 <p style={{ color: "var(--t-ink-2)" }}>No saved posts yet</p>
               </div>
             ) : (
               <div className="t-profile-grid">
-                {savedPosts.map((post) => (
+                {visualSavedPosts.map((post) => (
                   <button
                     key={post.id}
                     className="t-grid-item"
@@ -260,11 +260,7 @@ export default function ProfilePage() {
                     style={{ padding: 0, border: "none", background: "none", cursor: "pointer" }}
                     aria-label={post.description || "Open saved post"}
                   >
-                    {post.imageUrl ? (
-                      <img src={post.imageUrl} alt={post.description || "Saved"} loading="lazy" />
-                    ) : (
-                      <span className="t-grid-text">{post.description}</span>
-                    )}
+                    <img src={post.imageUrl} alt={post.description || "Saved"} loading="lazy" />
                   </button>
                 ))}
               </div>

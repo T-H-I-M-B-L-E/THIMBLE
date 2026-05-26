@@ -1409,23 +1409,6 @@
   transition: transform .4s ease;
 }
 .t-grid-item:hover img { transform: scale(1.04); }
-/* Text-only post tile in the profile grid. */
-.t-grid-text {
-  position: absolute;
-  inset: 0;
-  display: -webkit-box;
-  -webkit-line-clamp: 6;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-  padding: 14px;
-  font-size: 13px;
-  line-height: 1.4;
-  color: var(--t-ink);
-  background:
-    radial-gradient(120% 90% at 20% 0%, rgba(212, 175, 55, 0.10), transparent 60%),
-    var(--t-surface);
-  word-break: break-word;
-}
 .t-grid-overlay {
   position: absolute; inset: 0; background: rgba(20,16,8,.5);
   display: flex; align-items: flex-end; padding: 10px;
