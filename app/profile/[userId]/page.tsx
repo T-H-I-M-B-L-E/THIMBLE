@@ -131,7 +131,7 @@ export default function UserProfilePage() {
 
   const bio = viewedUser.bio || "The vision is yet to be written."
   const website = viewedUser.website || ""
-  const instagram: string = ""
+  const instagram = ((viewedUser as any).instagram || "").trim()
   const userRole = viewedUser.role || "designer"
   const websiteHref = normalizeWebsiteUrl(website)
   const websiteHostname = getSafeHostname(website)

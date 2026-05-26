@@ -13,6 +13,7 @@ type User struct {
 	Bio                string  `json:"bio,omitempty"`
 	Location           string  `json:"location,omitempty"`
 	Website            string  `json:"website,omitempty"`
+	Instagram          string  `json:"instagram,omitempty"`
 	VerificationStatus string  `json:"verificationStatus"`
 	IsVerified         bool    `json:"isVerified"`
 	Followers          int     `json:"followers"`

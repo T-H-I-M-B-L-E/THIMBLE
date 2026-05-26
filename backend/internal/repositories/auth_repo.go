@@ -175,3 +175,22 @@ func UpdatePasswordByEmail(ctx context.Context, email, passwordHash string) (int
 	}
 	return result.RowsAffected(), nil
 }
+
+// GetTokenVersion returns the user's current token_version. JWTs carry
+// this value as a claim; any mismatch invalidates the token.
+func GetTokenVersion(ctx context.Context, userID string) (int, error) {
+	var v int
+	err := db.Pool.QueryRow(ctx,
+		"SELECT token_version FROM users WHERE id = $1", userID).Scan(&v)
+	return v, err
+}
+
+// BumpTokenVersion increments the user's token_version, invalidating
+// every JWT issued before this call. The caller is responsible for
+// issuing a fresh token if they want the current session to stay alive.
+func BumpTokenVersion(ctx context.Context, userID string) error {
+	_, err := db.Pool.Exec(ctx,
+		"UPDATE users SET token_version = token_version + 1, updated_at = CURRENT_TIMESTAMP WHERE id = $1",
+		userID)
+	return err
+}

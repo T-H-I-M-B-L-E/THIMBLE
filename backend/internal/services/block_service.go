@@ -33,13 +33,10 @@ func UnblockUser(ctx context.Context, blockerID, blockedID string) *ServiceError
 	return nil
 }
 
-func ListBlocked(ctx context.Context, blockerID string) []string {
-	ids, err := repositories.ListBlocked(ctx, blockerID)
+func ListBlocked(ctx context.Context, blockerID string) []repositories.BlockedUser {
+	users, err := repositories.ListBlockedUsers(ctx, blockerID)
 	if err != nil {
-		return []string{}
+		return []repositories.BlockedUser{}
 	}
-	if ids == nil {
-		return []string{}
-	}
-	return ids
+	return users
 }

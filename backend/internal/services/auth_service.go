@@ -79,7 +79,8 @@ func VerifyEmail(ctx context.Context, req models.VerifyEmailRequest) (*VerifyEma
 	}
 	repositories.DeletePendingSignup(ctx, req.Email)
 
-	token, err := middleware.GenerateJWT(userId, req.Email)
+	tv, _ := repositories.GetTokenVersion(ctx, userId)
+	token, err := middleware.GenerateJWT(userId, req.Email, tv)
 	if err != nil {
 		return nil, NewError(500, "token_failed", "failed to generate token")
 	}
@@ -121,7 +122,8 @@ func Login(ctx context.Context, req models.LoginRequest) (*LoginResult, *Service
 
 	repositories.RecordLogin(ctx, rec.User.ID)
 
-	token, err := middleware.GenerateJWT(rec.User.ID, rec.User.Email)
+	tv, _ := repositories.GetTokenVersion(ctx, rec.User.ID)
+	token, err := middleware.GenerateJWT(rec.User.ID, rec.User.Email, tv)
 	if err != nil {
 		return nil, NewError(500, "token_failed", "failed to generate token")
 	}
@@ -207,6 +209,31 @@ func ChangeEmail(ctx context.Context, userID, currentPassword, newEmail string) 
 		return NewError(500, "db_failed", "failed to update email")
 	}
 	return nil
+}
+
+// LogoutAllResult carries the fresh JWT the caller should swap in after
+// invalidating every other session.
+type LogoutAllResult struct {
+	Token string
+	Email string
+}
+
+// LogoutAll bumps token_version (invalidating every JWT issued before
+// the bump) and signs a new token at the new version so the calling
+// session stays alive. Other devices will 401 on their next request.
+func LogoutAll(ctx context.Context, userID, email string) (*LogoutAllResult, *ServiceError) {
+	if err := repositories.BumpTokenVersion(ctx, userID); err != nil {
+		return nil, NewError(500, "db_failed", "failed to sign out other devices")
+	}
+	tv, err := repositories.GetTokenVersion(ctx, userID)
+	if err != nil {
+		return nil, NewError(500, "db_failed", "failed to refresh session")
+	}
+	token, terr := middleware.GenerateJWT(userID, email, tv)
+	if terr != nil {
+		return nil, NewError(500, "token_failed", "failed to refresh session")
+	}
+	return &LogoutAllResult{Token: token, Email: email}, nil
 }
 
 // DeleteAccount removes a user's account after verifying their password.

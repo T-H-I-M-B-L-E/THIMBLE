@@ -113,6 +113,7 @@ export function EditProfileModal({
         bio,
         avatar: avatarUrl,
         website: normalizeWebsiteUrl(website),
+        instagram: instagram.trim().replace(/^@/, ""),
         fullName: fullName.trim(),
       };
       if (usernameChanged) body.username = trimmedUsername;

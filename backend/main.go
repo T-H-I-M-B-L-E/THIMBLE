@@ -58,6 +58,7 @@ func registerRoutes(app *fiber.App, authLimiter fiber.Handler) {
 	app.Post("/auth/verify-email", authLimiter, handlers.VerifyEmail)
 	app.Post("/auth/login", authLimiter, handlers.Login)
 	app.Post("/auth/logout", handlers.Logout)
+	app.Post("/auth/logout-all", middleware.RequireJWT, handlers.LogoutAll)
 	app.Post("/auth/forgot-password", authLimiter, handlers.ForgotPassword)
 	app.Post("/auth/reset-password", authLimiter, handlers.ResetPassword)
 	app.Post("/auth/change-password", middleware.RequireJWT, handlers.ChangePassword)

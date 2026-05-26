@@ -2812,3 +2812,182 @@ body {
 /* ---------- Hide built-in sidebars (legacy) ---------- */
 aside.fixed.right-0 { display: none !important; }
 
+/* ============================================================
+   SETTINGS PAGE
+   ============================================================ */
+.t-settings-wrap {
+  max-width: 880px;
+  margin: 0 auto;
+  padding-bottom: 60px;
+}
+.t-settings-title {
+  font-size: 26px;
+  font-weight: 700;
+  color: var(--t-ink);
+  margin: 0 0 24px;
+}
+.t-settings-row {
+  display: flex;
+  gap: 32px;
+  align-items: flex-start;
+}
+.t-settings-nav {
+  min-width: 200px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  position: sticky;
+  top: 80px;
+}
+.t-settings-link {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: none;
+  background: transparent;
+  color: var(--t-ink-2);
+  font-size: 14px;
+  font-weight: 500;
+  border-radius: 9px;
+  cursor: pointer;
+  font-family: inherit;
+  text-align: left;
+  white-space: nowrap;
+}
+.t-settings-link.on {
+  background: var(--t-surface-2);
+  color: var(--t-ink);
+  font-weight: 600;
+}
+.t-settings-content {
+  flex: 1;
+  min-width: 0;
+}
+@media (max-width: 720px) {
+  .t-settings-wrap { padding: 0 14px 60px; }
+  .t-settings-title { font-size: 22px; margin: 0 0 16px; }
+  .t-settings-row {
+    flex-direction: column;
+    gap: 14px;
+  }
+  .t-settings-nav {
+    position: static;
+    flex-direction: row;
+    min-width: 0;
+    width: 100%;
+    gap: 6px;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    padding-bottom: 4px;
+  }
+  .t-settings-nav::-webkit-scrollbar { display: none; }
+  .t-settings-link {
+    flex: 0 0 auto;
+    padding: 8px 12px;
+    font-size: 13px;
+  }
+  .t-settings-content { width: 100%; }
+}
+.t-settings-card {
+  background: var(--t-surface);
+  border: 1px solid var(--t-line);
+  border-radius: 14px;
+  padding: 24px;
+  margin-bottom: 16px;
+}
+.t-settings-card-title {
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--t-ink);
+  margin: 0 0 4px;
+}
+.t-settings-card-desc {
+  font-size: 13px;
+  color: var(--t-ink-3);
+  margin: 0 0 18px;
+  line-height: 1.5;
+}
+@media (max-width: 720px) {
+  .t-settings-card { padding: 16px; border-radius: 12px; }
+  .t-settings-card-title { font-size: 15px; }
+  .t-settings-card-desc { font-size: 12px; margin: 0 0 14px; }
+}
+.t-blocked-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.t-blocked-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 6px;
+  border-radius: 10px;
+}
+.t-blocked-row:hover { background: var(--t-surface-2); }
+.t-blocked-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex: 0 0 auto;
+}
+.t-blocked-meta { flex: 1; min-width: 0; }
+.t-blocked-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--t-ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.t-blocked-handle {
+  font-size: 12px;
+  color: var(--t-ink-3);
+  margin-top: 1px;
+}
+.t-blocked-unblock {
+  padding: 7px 14px;
+  background: transparent;
+  color: var(--t-ink);
+  border: 1px solid var(--t-line);
+  border-radius: 9px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  flex: 0 0 auto;
+}
+.t-blocked-unblock:hover:not(:disabled) { background: var(--t-surface); border-color: var(--t-ink-3); }
+.t-blocked-unblock:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* ============================================================
+   POST DETAIL PAGE
+   ============================================================ */
+.t-post-detail-wrap {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 24px;
+}
+.t-post-detail-grid {
+  display: grid;
+  grid-template-columns: 1fr clamp(280px, 33%, 400px);
+  gap: 32px;
+}
+@media (max-width: 880px) {
+  .t-post-detail-wrap { padding: 16px; }
+  .t-post-detail-grid {
+    grid-template-columns: 1fr;
+    gap: 24px;
+  }
+}
+@media (max-width: 480px) {
+  .t-post-detail-wrap { padding: 12px; }
+  .t-post-detail-grid { gap: 18px; }
+}
+

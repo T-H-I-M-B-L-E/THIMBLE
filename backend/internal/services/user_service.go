@@ -18,13 +18,14 @@ import (
 // Optional fields are pointers so absent and zero values are
 // distinguishable (only present pointers are written).
 type UserProfilePatch struct {
-	Role     *string
-	Bio      *string
-	Avatar   *string
-	Website  *string
-	Location *string
-	Username *string
-	FullName *string
+	Role      *string
+	Bio       *string
+	Avatar    *string
+	Website   *string
+	Location  *string
+	Username  *string
+	FullName  *string
+	Instagram *string
 }
 
 // UpdateUserProfile applies the patch. Username updates run first
@@ -70,8 +71,8 @@ func UpdateUserProfile(ctx context.Context, callerID, id string, patch UserProfi
 		}
 	}
 
-	if patch.Role != nil || patch.Bio != nil || patch.Avatar != nil || patch.Website != nil || patch.Location != nil || patch.FullName != nil {
-		if err := repositories.UpdateProfileFields(ctx, id, patch.Role, patch.Bio, patch.Avatar, patch.Website, patch.Location, patch.FullName); err != nil {
+	if patch.Role != nil || patch.Bio != nil || patch.Avatar != nil || patch.Website != nil || patch.Location != nil || patch.FullName != nil || patch.Instagram != nil {
+		if err := repositories.UpdateProfileFields(ctx, id, patch.Role, patch.Bio, patch.Avatar, patch.Website, patch.Location, patch.FullName, patch.Instagram); err != nil {
 			log.Printf("Failed to update user %s: %v", id, err)
 			return NewError(500, "db_write_failed", "failed to update profile")
 		}
@@ -80,7 +81,13 @@ func UpdateUserProfile(ctx context.Context, callerID, id string, patch UserProfi
 	return nil
 }
 
-func GetUserProfile(ctx context.Context, id string) (*models.User, *ServiceError) {
+func GetUserProfile(ctx context.Context, callerID, id string) (*models.User, *ServiceError) {
+	if callerID != "" && callerID != id {
+		blocked, err := repositories.IsBlockedBetween(ctx, callerID, id)
+		if err == nil && blocked {
+			return nil, NewError(404, "not_found", "user not found")
+		}
+	}
 	u, err := repositories.FindUserByID(ctx, id)
 	if err != nil {
 		return nil, NewError(404, "not_found", "user not found")
@@ -96,8 +103,8 @@ func SuggestUsers(ctx context.Context, userId string) ([]repositories.SuggestedU
 	return users, nil
 }
 
-func ListAllUsers(ctx context.Context) ([]repositories.UserSummary, *ServiceError) {
-	users, err := repositories.ListAllUsers(ctx)
+func ListAllUsers(ctx context.Context, callerID string) ([]repositories.UserSummary, *ServiceError) {
+	users, err := repositories.ListAllUsers(ctx, callerID)
 	if err != nil {
 		return nil, NewError(500, "db_failed", "failed to fetch users")
 	}

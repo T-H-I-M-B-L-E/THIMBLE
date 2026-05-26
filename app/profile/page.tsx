@@ -73,7 +73,7 @@ export default function ProfilePage() {
 
   const bio = user.bio || "The vision is yet to be written."
   const website = user.website || ""
-  const instagram: string = ""
+  const instagram = ((user as any).instagram || "").trim()
   const userRole = user.role || "designer"
   const websiteHref = normalizeWebsiteUrl(website)
   const websiteHostname = getSafeHostname(website)

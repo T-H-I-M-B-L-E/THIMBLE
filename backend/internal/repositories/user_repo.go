@@ -13,15 +13,15 @@ import (
 // caller to expire ban state.
 func FindUserByID(ctx context.Context, id string) (*models.User, error) {
 	var user models.User
-	var avatarUrl, bio, location, website, verificationStatus *string
+	var avatarUrl, bio, location, website, instagram, verificationStatus *string
 	var bannedUntil, usernameChangedAt *time.Time
 	err := db.Pool.QueryRow(ctx,
-		`SELECT id, email, full_name, username, username_changed_at, role, avatar_url, bio, location, website,
+		`SELECT id, email, full_name, username, username_changed_at, role, avatar_url, bio, location, website, instagram,
 		        verification_status, is_verified,
 		        followers, following, posts, is_banned, banned_until, ban_message
 		 FROM users WHERE id = $1`, id).
 		Scan(&user.ID, &user.Email, &user.FullName, &user.Username, &usernameChangedAt,
-			&user.Role, &avatarUrl, &bio, &location, &website,
+			&user.Role, &avatarUrl, &bio, &location, &website, &instagram,
 			&verificationStatus, &user.IsVerified, &user.Followers, &user.Following, &user.Posts,
 			&user.IsBanned, &bannedUntil, &user.BanMessage)
 	if err != nil {
@@ -38,6 +38,9 @@ func FindUserByID(ctx context.Context, id string) (*models.User, error) {
 	}
 	if website != nil {
 		user.Website = *website
+	}
+	if instagram != nil {
+		user.Instagram = *instagram
 	}
 	if verificationStatus != nil {
 		user.VerificationStatus = *verificationStatus
@@ -81,7 +84,7 @@ func UpdateUsername(ctx context.Context, id, newName string) error {
 
 // UpdateProfileFields uses COALESCE so callers can pass nil for any
 // field they want left untouched.
-func UpdateProfileFields(ctx context.Context, id string, role, bio, avatar, website, location, fullName *string) error {
+func UpdateProfileFields(ctx context.Context, id string, role, bio, avatar, website, location, fullName, instagram *string) error {
 	_, err := db.Pool.Exec(ctx,
 		`UPDATE users SET
 			role = COALESCE($1, role),
@@ -90,9 +93,10 @@ func UpdateProfileFields(ctx context.Context, id string, role, bio, avatar, webs
 			website = COALESCE($4, website),
 			location = COALESCE($5, location),
 			full_name = COALESCE($6, full_name),
+			instagram = COALESCE($7, instagram),
 			updated_at = CURRENT_TIMESTAMP
-		WHERE id = $7`,
-		role, bio, avatar, website, location, fullName, id)
+		WHERE id = $8`,
+		role, bio, avatar, website, location, fullName, instagram, id)
 	return err
 }
 
@@ -145,10 +149,17 @@ type UserSummary struct {
 	IsVerified         bool   `json:"isVerified"`
 }
 
-func ListAllUsers(ctx context.Context) ([]UserSummary, error) {
+func ListAllUsers(ctx context.Context, callerID string) ([]UserSummary, error) {
 	rows, err := db.Pool.Query(ctx,
 		`SELECT id, full_name, username, COALESCE(avatar_url,''), COALESCE(role,''), verification_status, is_verified
-		 FROM users ORDER BY full_name ASC LIMIT 200`)
+		 FROM users
+		 WHERE id != $1
+		   AND NOT EXISTS (
+		     SELECT 1 FROM blocks b
+		     WHERE (b.blocker_id = $1 AND b.blocked_id = users.id)
+		        OR (b.blocker_id = users.id AND b.blocked_id = $1)
+		   )
+		 ORDER BY full_name ASC LIMIT 200`, callerID)
 	if err != nil {
 		return nil, err
 	}

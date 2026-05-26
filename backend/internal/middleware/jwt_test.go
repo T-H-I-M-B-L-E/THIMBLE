@@ -29,7 +29,7 @@ func withSecret(secret string, fn func()) {
 
 func TestGenerateAndValidateJWT_RoundTrip(t *testing.T) {
 	withSecret("test-secret-at-least-32-chars!!", func() {
-		token, err := GenerateJWT("user-123", "alice@example.com")
+		token, err := GenerateJWT("user-123", "alice@example.com", 0)
 		if err != nil {
 			t.Fatalf("GenerateJWT returned error: %v", err)
 		}
@@ -48,7 +48,7 @@ func TestGenerateAndValidateJWT_RoundTrip(t *testing.T) {
 
 func TestValidateJWT_WrongSecret(t *testing.T) {
 	withSecret("secret-A-32-chars-minimum!!!!!!", func() {
-		token, _ := GenerateJWT("user-999", "x@y.com")
+		token, _ := GenerateJWT("user-999", "x@y.com", 0)
 		withSecret("secret-B-32-chars-minimum!!!!!!", func() {
 			if _, err := ValidateJWT(token); err == nil {
 				t.Error("expected error for wrong secret, got nil")
@@ -120,7 +120,7 @@ func doRequest(app *fiber.App, method, path string, headers map[string]string) *
 func TestJWTAuth_ValidBearerToken(t *testing.T) {
 	withSecret("test-secret-at-least-32-chars!!", func() {
 		app := newFiberApp()
-		token, _ := GenerateJWT("user-42", "b@c.com")
+		token, _ := GenerateJWT("user-42", "b@c.com", 0)
 		resp := doRequest(app, "GET", "/protected", map[string]string{
 			"Authorization": "Bearer " + token,
 		})
@@ -139,7 +139,7 @@ func TestJWTAuth_ValidBearerToken(t *testing.T) {
 func TestJWTAuth_ValidCookieToken(t *testing.T) {
 	withSecret("test-secret-at-least-32-chars!!", func() {
 		app := newFiberApp()
-		token, _ := GenerateJWT("user-99", "c@d.com")
+		token, _ := GenerateJWT("user-99", "c@d.com", 0)
 		req := httptest.NewRequest("GET", "/protected", nil)
 		req.AddCookie(&http.Cookie{Name: "auth_token", Value: token})
 		resp, _ := app.Test(req, -1)
@@ -231,13 +231,13 @@ func BenchmarkGenerateJWT(b *testing.B) {
 	config.SetJWTSecret("bench-secret-32-chars-minimum!!")
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_, _ = GenerateJWT(fmt.Sprintf("user-%d", i), "bench@test.com")
+		_, _ = GenerateJWT(fmt.Sprintf("user-%d", i), "bench@test.com", 0)
 	}
 }
 
 func BenchmarkValidateJWT(b *testing.B) {
 	config.SetJWTSecret("bench-secret-32-chars-minimum!!")
-	token, _ := GenerateJWT("user-bench", "bench@test.com")
+	token, _ := GenerateJWT("user-bench", "bench@test.com", 0)
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		_, _ = ValidateJWT(token)

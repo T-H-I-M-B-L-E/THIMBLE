@@ -217,14 +217,8 @@ export default function PostDetailPage() {
       </div>
 
       {/* Main content */}
-      <div style={{ maxWidth: 1200, margin: "0 auto", padding: 24 }}>
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "1fr clamp(280px, 33%, 400px)",
-            gap: 32,
-          }}
-        >
+      <div className="t-post-detail-wrap">
+        <div className="t-post-detail-grid">
           {/* Left: image + description + comments */}
           <div>
             {post.imageUrl && (

@@ -11,26 +11,28 @@ func UpdateUserProfile(c *fiber.Ctx) error {
 	callerID := c.Locals("userId").(string)
 
 	var body struct {
-		Role     *string `json:"role"`
-		Bio      *string `json:"bio"`
-		Avatar   *string `json:"avatar"`
-		Website  *string `json:"website"`
-		Location *string `json:"location"`
-		Username *string `json:"username"`
-		FullName *string `json:"fullName"`
+		Role      *string `json:"role"`
+		Bio       *string `json:"bio"`
+		Avatar    *string `json:"avatar"`
+		Website   *string `json:"website"`
+		Location  *string `json:"location"`
+		Username  *string `json:"username"`
+		FullName  *string `json:"fullName"`
+		Instagram *string `json:"instagram"`
 	}
 	if err := c.BodyParser(&body); err != nil {
 		return c.Status(400).JSON(fiber.Map{"error": "invalid request body"})
 	}
 
 	patch := services.UserProfilePatch{
-		Role:     body.Role,
-		Bio:      body.Bio,
-		Avatar:   body.Avatar,
-		Website:  body.Website,
-		Location: body.Location,
-		Username: body.Username,
-		FullName: body.FullName,
+		Role:      body.Role,
+		Bio:       body.Bio,
+		Avatar:    body.Avatar,
+		Website:   body.Website,
+		Location:  body.Location,
+		Username:  body.Username,
+		FullName:  body.FullName,
+		Instagram: body.Instagram,
 	}
 	if err := services.UpdateUserProfile(c.Context(), callerID, id, patch); err != nil {
 		// Username errors return code + message — preserve that shape.
@@ -47,7 +49,8 @@ func UpdateUserProfile(c *fiber.Ctx) error {
 
 func GetUserProfile(c *fiber.Ctx) error {
 	id := c.Params("id")
-	u, err := services.GetUserProfile(c.Context(), id)
+	callerID, _ := c.Locals("userId").(string)
+	u, err := services.GetUserProfile(c.Context(), callerID, id)
 	if err != nil {
 		return respondError(c, err)
 	}
@@ -67,7 +70,8 @@ func UserSuggestions(c *fiber.Ctx) error {
 }
 
 func ListAllUsers(c *fiber.Ctx) error {
-	users, err := services.ListAllUsers(c.Context())
+	callerID, _ := c.Locals("userId").(string)
+	users, err := services.ListAllUsers(c.Context(), callerID)
 	if err != nil {
 		return respondError(c, err)
 	}

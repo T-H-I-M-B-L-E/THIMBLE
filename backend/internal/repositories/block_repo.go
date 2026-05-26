@@ -41,9 +41,9 @@ func IsBlockedBetween(ctx context.Context, a, b string) (bool, error) {
 	return exists, err
 }
 
-// ListBlocked returns the userIds that `blockerID` has blocked. Used to
-// populate the settings → blocked-users list and (in batch contexts) to
-// pre-fetch the set for client-side filtering.
+// ListBlocked returns the userIds that `blockerID` has blocked. Used in
+// batch contexts where only IDs are needed (e.g. client-side filtering
+// of cached feeds). For the settings UI, use ListBlockedUsers.
 func ListBlocked(ctx context.Context, blockerID string) ([]string, error) {
 	rows, err := db.Pool.Query(ctx,
 		`SELECT blocked_id FROM blocks WHERE blocker_id = $1 ORDER BY created_at DESC`,
@@ -59,4 +59,35 @@ func ListBlocked(ctx context.Context, blockerID string) ([]string, error) {
 		ids = append(ids, id)
 	}
 	return ids, nil
+}
+
+// BlockedUser is the enriched row shape returned by ListBlockedUsers.
+type BlockedUser struct {
+	ID        string `json:"id"`
+	FullName  string `json:"fullName"`
+	Username  string `json:"username"`
+	AvatarUrl string `json:"avatarUrl"`
+}
+
+// ListBlockedUsers returns the users that `blockerID` has blocked, with
+// name + avatar joined in for direct display in the settings UI.
+func ListBlockedUsers(ctx context.Context, blockerID string) ([]BlockedUser, error) {
+	rows, err := db.Pool.Query(ctx,
+		`SELECT u.id, u.full_name, u.username, COALESCE(u.avatar_url,'')
+		 FROM blocks b
+		 JOIN users u ON u.id = b.blocked_id
+		 WHERE b.blocker_id = $1
+		 ORDER BY b.created_at DESC`,
+		blockerID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	users := []BlockedUser{}
+	for rows.Next() {
+		var u BlockedUser
+		rows.Scan(&u.ID, &u.FullName, &u.Username, &u.AvatarUrl)
+		users = append(users, u)
+	}
+	return users, nil
 }

@@ -6,14 +6,15 @@ import { useAuth } from "@/lib/useAuth"
 import { useNotify } from "@/components/notify-provider"
 import { DashboardLayout } from "@/components/dashboard-layout"
 import { EditProfileModal } from "@/components/edit-profile-modal"
-import { User, Lock, Bell, AlertTriangle } from "lucide-react"
+import { User, Lock, Bell, Shield, AlertTriangle } from "lucide-react"
 
-type Section = "profile" | "account" | "notifications" | "danger"
+type Section = "profile" | "account" | "notifications" | "privacy" | "danger"
 
 const SECTIONS: { id: Section; label: string; icon: typeof User }[] = [
   { id: "profile", label: "Profile", icon: User },
   { id: "account", label: "Account", icon: Lock },
   { id: "notifications", label: "Notifications", icon: Bell },
+  { id: "privacy", label: "Privacy", icon: Shield },
   { id: "danger", label: "Danger zone", icon: AlertTriangle },
 ]
 
@@ -33,44 +34,17 @@ export default function SettingsPage() {
 
   return (
     <DashboardLayout showRail={false}>
-      <div style={{ maxWidth: 880, margin: "0 auto", paddingBottom: 60 }}>
-        <h1 style={{ fontSize: 26, fontWeight: 700, color: "var(--t-ink)", margin: "0 0 24px" }}>
-          Settings
-        </h1>
+      <div className="t-settings-wrap">
+        <h1 className="t-settings-title">Settings</h1>
 
-        <div style={{ display: "flex", gap: 32, alignItems: "flex-start" }}>
+        <div className="t-settings-row">
           {/* Section nav */}
-          <nav
-            className="t-settings-nav"
-            style={{
-              minWidth: 200,
-              display: "flex",
-              flexDirection: "column",
-              gap: 4,
-              position: "sticky",
-              top: 80,
-            }}
-          >
+          <nav className="t-settings-nav">
             {SECTIONS.map(({ id, label, icon: Icon }) => (
               <button
                 key={id}
                 onClick={() => setActive(id)}
                 className={active === id ? "t-settings-link on" : "t-settings-link"}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 10,
-                  padding: "10px 12px",
-                  border: "none",
-                  background: active === id ? "var(--t-surface-2)" : "transparent",
-                  color: active === id ? "var(--t-ink)" : "var(--t-ink-2)",
-                  fontSize: 14,
-                  fontWeight: active === id ? 600 : 500,
-                  borderRadius: 9,
-                  cursor: "pointer",
-                  fontFamily: "inherit",
-                  textAlign: "left",
-                }}
               >
                 <Icon size={15} />
                 {label}
@@ -79,12 +53,13 @@ export default function SettingsPage() {
           </nav>
 
           {/* Active section content */}
-          <div style={{ flex: 1, minWidth: 0 }}>
+          <div className="t-settings-content">
             {active === "profile" && (
               <ProfileSection user={user} onOpenEdit={() => setEditOpen(true)} />
             )}
             {active === "account" && <AccountSection user={user} />}
             {active === "notifications" && <NotificationsSection />}
+            {active === "privacy" && <PrivacySection />}
             {active === "danger" && <DangerSection onLoggedOut={() => { logout(); router.push("/auth") }} />}
           </div>
         </div>
@@ -99,21 +74,9 @@ export default function SettingsPage() {
 
 function Card({ title, description, children }: { title: string; description?: string; children: React.ReactNode }) {
   return (
-    <section
-      style={{
-        background: "var(--t-surface)",
-        border: "1px solid var(--t-line)",
-        borderRadius: 14,
-        padding: 24,
-        marginBottom: 16,
-      }}
-    >
-      <h2 style={{ fontSize: 17, fontWeight: 600, color: "var(--t-ink)", margin: "0 0 4px" }}>{title}</h2>
-      {description && (
-        <p style={{ fontSize: 13, color: "var(--t-ink-3)", margin: "0 0 18px", lineHeight: 1.5 }}>
-          {description}
-        </p>
-      )}
+    <section className="t-settings-card">
+      <h2 className="t-settings-card-title">{title}</h2>
+      {description && <p className="t-settings-card-desc">{description}</p>}
       {children}
     </section>
   )
@@ -187,6 +150,26 @@ function ProfileSection({ user, onOpenEdit }: { user: any; onOpenEdit: () => voi
 
 function AccountSection({ user }: { user: any }) {
   const notify = useNotify()
+
+  // Logout-all
+  const [logoutAllBusy, setLogoutAllBusy] = useState(false)
+
+  const logoutEverywhere = async () => {
+    const ok = await notify.confirm({
+      title: "Log out everywhere else?",
+      message: "All your other devices will be signed out on their next action. You'll stay signed in here.",
+      confirmLabel: "Log out other devices",
+    })
+    if (!ok) return
+    setLogoutAllBusy(true)
+    try {
+      const res = await fetch("/api/auth/logout-all", { method: "POST", credentials: "include" })
+      if (!res.ok) { notify.error("Could not sign out other devices."); return }
+      notify.success("Other devices signed out.")
+    } finally {
+      setLogoutAllBusy(false)
+    }
+  }
 
   // Password form
   const [currentPw, setCurrentPw] = useState("")
@@ -272,6 +255,12 @@ function AccountSection({ user }: { user: any }) {
           </button>
         </form>
       </Card>
+
+      <Card title="Sessions" description="If you've signed in on a device you no longer use, sign it out from here.">
+        <button type="button" onClick={logoutEverywhere} style={buttonPrimary} disabled={logoutAllBusy}>
+          {logoutAllBusy ? "Signing out…" : "Log out of all other devices"}
+        </button>
+      </Card>
     </>
   )
 }
@@ -348,6 +337,76 @@ function NotificationsSection() {
             </label>
           ))}
         </div>
+      )}
+    </Card>
+  )
+}
+
+type BlockedUser = { id: string; fullName: string; username: string; avatarUrl: string }
+
+function PrivacySection() {
+  const notify = useNotify()
+  const [blocked, setBlocked] = useState<BlockedUser[] | null>(null)
+  const [busyId, setBusyId] = useState<string | null>(null)
+
+  useEffect(() => {
+    fetch("/api/blocks", { credentials: "include" })
+      .then(r => r.ok ? r.json() : [])
+      .then((data: BlockedUser[]) => setBlocked(Array.isArray(data) ? data : []))
+      .catch(() => setBlocked([]))
+  }, [])
+
+  const unblock = async (u: BlockedUser) => {
+    const ok = await notify.confirm({
+      title: `Unblock ${u.fullName || u.username}?`,
+      message: "They'll be able to see your profile and posts again.",
+      confirmLabel: "Unblock",
+    })
+    if (!ok) return
+    setBusyId(u.id)
+    try {
+      const res = await fetch(`/api/blocks/${u.id}`, { method: "DELETE", credentials: "include" })
+      if (!res.ok && res.status !== 204) {
+        notify.error("Could not unblock. Try again.")
+        return
+      }
+      setBlocked(prev => (prev ?? []).filter(b => b.id !== u.id))
+      notify.success("Unblocked.")
+    } finally {
+      setBusyId(null)
+    }
+  }
+
+  return (
+    <Card title="Blocked accounts" description="People you've blocked can't see your profile or posts, and you won't see theirs.">
+      {blocked === null ? (
+        <p style={{ fontSize: 13, color: "var(--t-ink-3)" }}>Loading…</p>
+      ) : blocked.length === 0 ? (
+        <p style={{ fontSize: 13, color: "var(--t-ink-3)" }}>You haven't blocked anyone.</p>
+      ) : (
+        <ul className="t-blocked-list">
+          {blocked.map(u => (
+            <li key={u.id} className="t-blocked-row">
+              <img
+                src={u.avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(u.fullName || u.username || "User")}&background=0D8ABC&color=fff&size=80`}
+                alt=""
+                className="t-blocked-avatar"
+              />
+              <div className="t-blocked-meta">
+                <div className="t-blocked-name">{u.fullName || u.username}</div>
+                {u.username && <div className="t-blocked-handle">@{u.username}</div>}
+              </div>
+              <button
+                type="button"
+                onClick={() => unblock(u)}
+                disabled={busyId === u.id}
+                className="t-blocked-unblock"
+              >
+                {busyId === u.id ? "…" : "Unblock"}
+              </button>
+            </li>
+          ))}
+        </ul>
       )}
     </Card>
   )

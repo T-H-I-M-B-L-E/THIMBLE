@@ -76,6 +76,32 @@ func Logout(c *fiber.Ctx) error {
 	return c.Status(200).JSON(fiber.Map{"success": true})
 }
 
+// LogoutAll invalidates every JWT issued for the caller (across all
+// devices), then issues a fresh token for the current session so the
+// caller stays logged in here.
+func LogoutAll(c *fiber.Ctx) error {
+	userId, ok := c.Locals("userId").(string)
+	if !ok || userId == "" {
+		return c.Status(401).JSON(fiber.Map{"error": "unauthorized"})
+	}
+	email, _ := c.Locals("email").(string)
+
+	result, err := services.LogoutAll(c.Context(), userId, email)
+	if err != nil {
+		return respondError(c, err)
+	}
+	c.Cookie(&fiber.Cookie{
+		Name:     "auth_token",
+		Value:    result.Token,
+		Expires:  time.Now().Add(7 * 24 * time.Hour),
+		HTTPOnly: true,
+		Secure:   config.IsProduction(),
+		SameSite: "Lax",
+		Path:     "/",
+	})
+	return c.JSON(fiber.Map{"success": true, "token": result.Token})
+}
+
 func ForgotPassword(c *fiber.Ctx) error {
 	var req struct {
 		Email string `json:"email"`
