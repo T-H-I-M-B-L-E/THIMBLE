@@ -4,7 +4,7 @@ import { DashboardLayout } from "@/components/dashboard-layout"
 import { Search, Send, ArrowLeft, User, UserPlus, X, ShieldAlert, Lock, Paperclip, ImageIcon, Trash2, Check, CheckCheck, MoreVertical, UserX } from "lucide-react"
 import { useState, useRef, useEffect, useMemo } from "react"
 import { createPortal } from "react-dom"
-import { useParams, useRouter } from "next/navigation"
+import { useRouter } from "next/navigation"
 import { useNotify } from "@/components/notify-provider"
 import { useSocket } from "@/hooks/use-socket"
 import { useConversations, useMessages } from "@/hooks/use-conversations"
@@ -253,8 +253,6 @@ function NewMessageModal({
 }
 
 export default function MessagesPage() {
-  const params = useParams()
-  const role = params.role as string
   const router = useRouter()
   const notify = useNotify()
   const { user } = useStore()
@@ -412,7 +410,7 @@ export default function MessagesPage() {
   const handleViewProfile = () => {
     setMenuOpen(false)
     if (!other?.userId) return
-    router.push(`/dashboard/${role}/profile/${other.userId}`)
+    router.push(`/profile/${other.userId}`)
   }
 
   const handleBlockUser = async () => {
@@ -497,7 +495,7 @@ export default function MessagesPage() {
   }, [other?.userId, user?.id])
 
   return (
-    <DashboardLayout role={role} fullBleed>
+    <DashboardLayout fullBleed>
       <div className="t-messages">
 
         {/* ── Sidebar ── */}

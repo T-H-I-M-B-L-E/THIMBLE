@@ -140,16 +140,15 @@ export function PostCard({ post, currentUserId, onDelete }: PostCardProps) {
     })
     .filter(Boolean) as { id: string; name: string; role?: string }[];
 
-  const handleTaggedUserClick = (userId: string, userRole?: string) => {
-    const role = userRole?.toLowerCase() || "designer";
+  const handleTaggedUserClick = (userId: string, _userRole?: string) => {
     prefetchComments(post.id);
-    router.push(`/dashboard/${role}/profile/${userId}`);
+    router.push(`/profile/${userId}`);
   };
 
   const handleAuthorClick = () => {
     if (!post.userId) return;
     prefetchComments(post.id);
-    router.push(`/dashboard/designer/profile/${post.userId}`);
+    router.push(`/profile/${post.userId}`);
   };
 
   const handleSubmitComment = async (e: React.FormEvent) => {

@@ -23,7 +23,7 @@ export function NotificationItem({ notification, onRead }: NotificationItemProps
     e.stopPropagation()
     if (onRead) onRead(notification.id)
     if (notification.sender.id) {
-      router.push(`/dashboard/manufacturer/profile/${notification.sender.id}`)
+      router.push(`/profile/${notification.sender.id}`)
     }
   }
 

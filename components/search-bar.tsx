@@ -15,7 +15,7 @@ interface UserSummary {
 }
 
 interface SearchBarProps {
-  role: string
+  role?: string
 }
 
 /**
@@ -25,7 +25,7 @@ interface SearchBarProps {
  * Dropdown shows up to 6 matches; click navigates to the user's profile.
  * No-results state renders inline so the user knows the search ran.
  */
-export function SearchBar({ role }: SearchBarProps) {
+export function SearchBar({ role: _role }: SearchBarProps) {
   const router = useRouter()
   const wrapRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -101,7 +101,7 @@ export function SearchBar({ role }: SearchBarProps) {
   const goToProfile = (id: string) => {
     setOpen(false)
     setQuery("")
-    router.push(`/dashboard/${role}/profile/${id}`)
+    router.push(`/profile/${id}`)
   }
 
   return (

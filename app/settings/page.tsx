@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { useRouter, useParams } from "next/navigation"
+import { useRouter } from "next/navigation"
 import { useAuth } from "@/lib/useAuth"
 import { useNotify } from "@/components/notify-provider"
 import { DashboardLayout } from "@/components/dashboard-layout"
@@ -19,8 +19,6 @@ const SECTIONS: { id: Section; label: string; icon: typeof User }[] = [
 
 export default function SettingsPage() {
   const router = useRouter()
-  const params = useParams()
-  const role = params.role as string
   const { user, isLoading, logout, refresh } = useAuth()
   const notify = useNotify()
 
@@ -34,7 +32,7 @@ export default function SettingsPage() {
   if (isLoading || !user) return null
 
   return (
-    <DashboardLayout role={role} showRail={false}>
+    <DashboardLayout showRail={false}>
       <div style={{ maxWidth: 880, margin: "0 auto", paddingBottom: 60 }}>
         <h1 style={{ fontSize: 26, fontWeight: 700, color: "var(--t-ink)", margin: "0 0 24px" }}>
           Settings

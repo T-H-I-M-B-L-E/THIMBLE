@@ -10,12 +10,14 @@ function getJWTSecret(): Uint8Array {
 }
 
 const protectedRoutes = [
-  '/dashboard',
   '/onboarding',
   '/upload',
   '/explore',
   '/feed',
   '/profile',
+  '/messages',
+  '/settings',
+  '/gigs',
 ]
 
 function isProtectedRoute(pathname: string): boolean {

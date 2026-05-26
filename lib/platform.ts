@@ -32,7 +32,7 @@ export const getWebSocketUrl = () => {
 
 export const getDashboardFeedPath = (role?: string | null) => {
   if (!role) return "/onboarding"
-  return `/dashboard/${role}/feed`
+  return `/feed`
 }
 
 /**

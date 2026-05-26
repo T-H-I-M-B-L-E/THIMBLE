@@ -68,7 +68,7 @@ export function RightRail() {
               <SuggestionRow
                 key={person.id}
                 person={person}
-                profileHref={`/dashboard/${user?.role ?? "model"}/profile/${person.id}`}
+                profileHref={`/profile/${person.id}`}
                 currentUserId={user?.id}
               />
             ))}

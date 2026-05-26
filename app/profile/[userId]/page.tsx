@@ -2,10 +2,8 @@
 
 import { useAuth } from "@/lib/useAuth"
 import { DashboardLayout } from "@/components/dashboard-layout"
-import Image from "next/image"
-import { useRouter } from "next/navigation"
+import { useRouter, useParams } from "next/navigation"
 import { useState, useEffect } from "react"
-import { useParams } from "next/navigation"
 import { Globe, Instagram, User, ArrowLeft } from "lucide-react"
 import { useFollowing, prefetchComments } from "@/hooks/use-social"
 import { useUsers } from "@/hooks/use-users"
@@ -18,7 +16,6 @@ import type { PostData } from "@/components/post-card"
 export default function UserProfilePage() {
   const router = useRouter()
   const params = useParams()
-  const role = params.role as string
   const userId = params.userId as string
   const { user: currentUser, isLoading: currentUserLoading } = useAuth()
   const [viewedUser, setViewedUser] = useState<any>(null)
@@ -30,17 +27,15 @@ export default function UserProfilePage() {
   const { following: userFollowing } = useFollowing(userId)
   const { lookup } = useUsers()
 
-  // If viewing own profile, redirect to the regular profile page
   useEffect(() => {
     if (!currentUserLoading && currentUser && currentUser.id === userId) {
-      router.replace(`/dashboard/${role}/profile`)
+      router.replace(`/profile`)
     }
-  }, [currentUserLoading, currentUser, userId, role, router])
+  }, [currentUserLoading, currentUser, userId, router])
 
   useEffect(() => {
     const fetchUserData = async () => {
       try {
-        // Try to get user from the users hook first
         const user = lookup(userId)
         if (user) {
           setViewedUser(user)
@@ -48,7 +43,6 @@ export default function UserProfilePage() {
           return
         }
 
-        // Fallback: Try to fetch from API
         const res = await fetch(`/api/users/${userId}`, {
           credentials: "include",
         })
@@ -98,7 +92,7 @@ export default function UserProfilePage() {
 
   if (isLoadingUser) {
     return (
-      <DashboardLayout role={role} showRail={true}>
+      <DashboardLayout showRail={true}>
         <div style={{ display: "flex", justifyContent: "center", padding: "80px 0" }}>
           <div className="animate-spin rounded-full h-12 w-12 border-t-2" style={{ borderColor: "var(--t-gold)" }}></div>
         </div>
@@ -108,7 +102,7 @@ export default function UserProfilePage() {
 
   if (!viewedUser) {
     return (
-      <DashboardLayout role={role} showRail={true}>
+      <DashboardLayout showRail={true}>
         <div style={{ maxWidth: "900px", width: "100%", margin: "0 auto", paddingBottom: "40px" }}>
           <button
             onClick={() => router.back()}
@@ -138,12 +132,12 @@ export default function UserProfilePage() {
   const bio = viewedUser.bio || "The vision is yet to be written."
   const website = viewedUser.website || ""
   const instagram: string = ""
-  const userRole = viewedUser.role || role
+  const userRole = viewedUser.role || "designer"
   const websiteHref = normalizeWebsiteUrl(website)
   const websiteHostname = getSafeHostname(website)
 
   return (
-    <DashboardLayout role={role} showRail={true}>
+    <DashboardLayout showRail={true}>
       <div style={{ maxWidth: "900px", width: "100%", margin: "0 auto", paddingBottom: "40px" }}>
         <button
           onClick={() => router.back()}
@@ -163,9 +157,7 @@ export default function UserProfilePage() {
           Back
         </button>
 
-        {/* Profile Header */}
         <div style={{ marginBottom: "32px", display: "flex", gap: "24px", alignItems: "flex-start" }}>
-          {/* Avatar */}
           <div
             style={{
               width: "100px",
@@ -186,7 +178,6 @@ export default function UserProfilePage() {
             />
           </div>
 
-          {/* Meta + Actions */}
           <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: "16px" }}>
             <div>
               <h1 style={{ fontSize: "28px", fontWeight: 700, color: "var(--t-ink)", margin: "0 0 8px 0", display: "inline-flex", alignItems: "center", gap: 8 }}>
@@ -203,7 +194,6 @@ export default function UserProfilePage() {
               {bio}
             </p>
 
-            {/* Links */}
             {(website || instagram) && (
               <div className="t-profile-links">
                 {website && (
@@ -225,7 +215,6 @@ export default function UserProfilePage() {
           </div>
         </div>
 
-        {/* Stats */}
         <div className="t-profile-stats">
           <div>
             <div className="t-stat-big">{userPosts.length}</div>
@@ -237,7 +226,6 @@ export default function UserProfilePage() {
           </div>
         </div>
 
-        {/* Tabs */}
         <div className="t-profile-tabs">
           {["posts", "following"].map((tab) => (
             <button
@@ -250,7 +238,6 @@ export default function UserProfilePage() {
           ))}
         </div>
 
-        {/* Portfolio Grid */}
         {activeTab === "posts" && (
           <div style={{ marginTop: "20px" }}>
             {isLoadingPosts ? (
@@ -281,7 +268,6 @@ export default function UserProfilePage() {
           </div>
         )}
 
-        {/* Following Tab */}
         {activeTab === "following" && (
           <div style={{ marginTop: "20px" }}>
             {userFollowing.length === 0 ? (
@@ -313,7 +299,6 @@ export default function UserProfilePage() {
           </div>
         )}
 
-        {/* Lightbox Modal */}
         {selectedPost && (
           <PostLightbox
             post={selectedPost}

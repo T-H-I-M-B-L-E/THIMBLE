@@ -18,15 +18,17 @@ import { RightRail } from "./right-rail"
 
 interface DashboardLayoutProps {
   children: React.ReactNode
-  role: string
+  /** Optional now — role is derived from useAuth(). Kept for back-compat. */
+  role?: string
   showRail?: boolean
   fullBleed?: boolean
 }
 
-export function DashboardLayout({ children, role, showRail = false, fullBleed = false }: DashboardLayoutProps) {
+export function DashboardLayout({ children, role: roleProp, showRail = false, fullBleed = false }: DashboardLayoutProps) {
   const router = useRouter()
   const { user } = useStore()
-  const { logout } = useAuth()
+  const { user: authUser, logout } = useAuth()
+  const role = roleProp || authUser?.role || "designer"
   const [createPostOpen, setCreatePostOpen] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
@@ -60,10 +62,10 @@ export function DashboardLayout({ children, role, showRail = false, fullBleed = 
   // Pill nav holds 4 destinations max for a symmetric premium layout.
   // The dashboard root ("Explore") is still reachable via the brand logo.
   const navItems = [
-    { href: `/dashboard/${role}/feed`, icon: Home, label: "Home" },
-    { href: `/dashboard/${role}/gigs`, icon: Briefcase, label: "Gigs" },
-    { href: `/dashboard/${role}/messages`, icon: MessageSquare, label: "Messages" },
-    { href: `/dashboard/${role}/profile`, icon: User, label: "Profile" },
+    { href: `/feed`, icon: Home, label: "Home" },
+    { href: `/gigs`, icon: Briefcase, label: "Gigs" },
+    { href: `/messages`, icon: MessageSquare, label: "Messages" },
+    { href: `/profile`, icon: User, label: "Profile" },
   ]
 
   if (user?.isBanned) {
@@ -113,7 +115,7 @@ export function DashboardLayout({ children, role, showRail = false, fullBleed = 
                   <button
                     role="menuitem"
                     className="t-avatar-dropdown-item"
-                    onClick={() => { setMenuOpen(false); router.push(`/dashboard/${role}/profile`) }}
+                    onClick={() => { setMenuOpen(false); router.push(`/profile`) }}
                   >
                     <User size={15} />
                     Profile
@@ -121,7 +123,7 @@ export function DashboardLayout({ children, role, showRail = false, fullBleed = 
                   <button
                     role="menuitem"
                     className="t-avatar-dropdown-item"
-                    onClick={() => { setMenuOpen(false); router.push(`/dashboard/${role}/settings`) }}
+                    onClick={() => { setMenuOpen(false); router.push(`/settings`) }}
                   >
                     <Settings size={15} />
                     Settings

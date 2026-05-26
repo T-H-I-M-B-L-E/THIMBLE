@@ -5,13 +5,10 @@ import { DashboardLayout } from "@/components/dashboard-layout"
 import { Input } from "@/components/ui/input"
 import { Search, MapPin, DollarSign, Calendar } from "lucide-react"
 import { useState, useEffect } from "react"
-import { useParams } from "next/navigation"
 import Image from "next/image"
 import { getApiUrl } from "@/lib/platform"
 
 export default function GigsPage() {
-  const params = useParams()
-  const role = params.role as string
   const { user, gigs: fallbackGigs, applyToGig } = useStore()
   const [gigs, setGigs] = useState<any[]>([])
   const [isLoading, setIsLoading] = useState(true)
@@ -49,7 +46,7 @@ export default function GigsPage() {
   )
 
   return (
-    <DashboardLayout role={role}>
+    <DashboardLayout>
       <div style={{ maxWidth: "900px", width: "100%", margin: "0 auto" }}>
         <div style={{ marginBottom: "20px" }}>
           <h1 className="t-page-title">Marketplace</h1>

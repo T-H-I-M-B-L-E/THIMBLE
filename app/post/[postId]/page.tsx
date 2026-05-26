@@ -68,7 +68,7 @@ export default function PostDetailPage() {
         credentials: "include",
       });
       if (res.ok) {
-        router.push(`/dashboard/${user?.role ?? "designer"}/feed`);
+        router.push(`/feed`);
       } else {
         notify.error("Could not delete from server.");
       }
@@ -465,7 +465,7 @@ export default function PostDetailPage() {
               <button
                 onClick={() => {
                   prefetchComments(post.id);
-                  router.push(`/dashboard/designer/profile/${post.userId}`);
+                  router.push(`/profile/${post.userId}`);
                 }}
                 style={{
                   display: "flex",
@@ -512,7 +512,7 @@ export default function PostDetailPage() {
               </button>
               <button
                 onClick={() =>
-                  router.push(`/dashboard/designer/profile/${post.userId}`)
+                  router.push(`/profile/${post.userId}`)
                 }
                 style={{
                   width: "100%",

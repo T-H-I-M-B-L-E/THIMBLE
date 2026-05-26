@@ -37,7 +37,7 @@ export function VerificationBanner() {
         </div>
       </div>
       {!isPending && (
-        <Link href={`/dashboard/${user.role}/profile`}>
+        <Link href={`/profile`}>
           <Button size="sm" className="rounded-none bg-black text-white hover:bg-neutral-800 transition-soft">
             Start Verification
             <ArrowRight className="ml-2 h-4 w-4" />
