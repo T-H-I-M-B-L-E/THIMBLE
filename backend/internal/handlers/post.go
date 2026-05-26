@@ -152,7 +152,7 @@ func GetSavedPosts(c *fiber.Ctx) error {
 	if !ok || userId == "" {
 		return c.Status(401).JSON(fiber.Map{"error": "unauthorized"})
 	}
-	posts, err := services.ListSavedPosts(c.Context(), userId)
+	posts, err := services.ListSavedPosts(c.Context(), userId, c.Query("before"))
 	if err != nil {
 		return respondError(c, err)
 	}

@@ -18,6 +18,11 @@ type Post struct {
 	SavedByMe      bool      `json:"savedByMe"`
 	TaggedUsers    []string  `json:"taggedUsers"`
 	CreatedAt      time.Time `json:"createdAt"`
+
+	// SaveCursor is only populated by ListSavedPosts. It's the post_saves.id
+	// of this row, used as the `before` cursor for the next page of saves.
+	// Empty on every other endpoint.
+	SaveCursor string `json:"saveCursor,omitempty"`
 }
 
 type Comment struct {

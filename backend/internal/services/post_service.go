@@ -172,8 +172,8 @@ func IsPostSaved(ctx context.Context, userID, postID string) (bool, *ServiceErro
 	return saved, nil
 }
 
-func ListSavedPosts(ctx context.Context, userID string) ([]models.Post, *ServiceError) {
-	posts, err := repositories.ListSavedPosts(ctx, userID)
+func ListSavedPosts(ctx context.Context, userID, beforeSaveID string) ([]models.Post, *ServiceError) {
+	posts, err := repositories.ListSavedPosts(ctx, userID, beforeSaveID, feedPageSize)
 	if err != nil {
 		return nil, NewError(500, "db_failed", "failed to fetch saved posts")
 	}

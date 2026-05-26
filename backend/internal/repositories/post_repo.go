@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strconv"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -404,8 +405,15 @@ func IsPostSaved(ctx context.Context, userID, postID string) (bool, error) {
 	return saved, err
 }
 
-func ListSavedPosts(ctx context.Context, userID string) ([]models.Post, error) {
-	rows, err := db.Pool.Query(ctx, `
+// ListSavedPosts returns saves in reverse-chronological save order with
+// cursor pagination. `beforeSaveID` is the post_saves.id of the last
+// row from the previous page; pass "" for the first page.
+func ListSavedPosts(ctx context.Context, userID, beforeSaveID string, limit int) ([]models.Post, error) {
+	if limit <= 0 || limit > 100 {
+		limit = 20
+	}
+	args := []interface{}{userID}
+	query := `
 		SELECT p.id, COALESCE(p.slug,''), p.user_id,
 		       COALESCE(u.full_name, p.author_name) AS author_name,
 		       COALESCE(u.avatar_url, p.author_avatar) AS author_avatar,
@@ -413,12 +421,19 @@ func ListSavedPosts(ctx context.Context, userID string) ([]models.Post, error) {
 		       p.image_url, p.images, p.description, p.likes, p.tagged_users, p.created_at,
 		       (SELECT COUNT(*) FROM post_comments pc WHERE pc.post_id = p.id) AS comment_count,
 		       EXISTS(SELECT 1 FROM post_likes pl WHERE pl.post_id = p.id AND pl.user_id = $1) AS liked_by_me,
-		       TRUE AS saved_by_me
+		       TRUE AS saved_by_me,
+		       ps.id AS save_id
 		FROM post_saves ps
 		JOIN posts p ON p.id = ps.post_id
 		LEFT JOIN users u ON u.id = p.user_id
-		WHERE ps.user_id = $1
-		ORDER BY ps.created_at DESC`, userID)
+		WHERE ps.user_id = $1`
+	if beforeSaveID != "" {
+		query += fmt.Sprintf(" AND ps.id < $%d", len(args)+1)
+		args = append(args, beforeSaveID)
+	}
+	query += fmt.Sprintf(" ORDER BY ps.id DESC LIMIT %d", limit)
+
+	rows, err := db.Pool.Query(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -427,9 +442,10 @@ func ListSavedPosts(ctx context.Context, userID string) ([]models.Post, error) {
 	for rows.Next() {
 		var p models.Post
 		var tagsJSON, imagesJSON []byte
+		var saveID int64
 		rows.Scan(&p.Id, &p.Slug, &p.UserId, &p.AuthorName, &p.AuthorAvatar, &p.AuthorVerified,
 			&p.ImageUrl, &imagesJSON, &p.Description, &p.Likes, &tagsJSON, &p.CreatedAt,
-			&p.CommentCount, &p.LikedByMe, &p.SavedByMe)
+			&p.CommentCount, &p.LikedByMe, &p.SavedByMe, &saveID)
 		if len(tagsJSON) > 0 {
 			json.Unmarshal(tagsJSON, &p.TaggedUsers)
 		}
@@ -443,6 +459,7 @@ func ListSavedPosts(ctx context.Context, userID string) ([]models.Post, error) {
 		if len(p.Images) == 0 && p.ImageUrl != "" {
 			p.Images = []string{p.ImageUrl}
 		}
+		p.SaveCursor = strconv.FormatInt(saveID, 10)
 		posts = append(posts, p)
 	}
 	if posts == nil {
