@@ -8,20 +8,60 @@ import { PostCard } from "@/components/post-card"
 import type { PostData } from "@/components/post-card"
 import { InlineComposer } from "@/components/inline-composer"
 import { useFollowing } from "@/hooks/use-social"
+import { useInfinite } from "@/hooks/use-infinite"
 import { useNotify } from "@/components/notify-provider"
-import { getCached, setCached, isFresh } from "@/lib/swr-cache"
+import { getCached, setCached } from "@/lib/swr-cache"
 
 const FEED_KEY = "feed:posts"
 
 export function FeedView() {
   const { user } = useAuth()
   const { removeDesignPost } = useStore()
-  const [posts, setPosts] = useState<PostData[]>(() => getCached<PostData[]>(FEED_KEY) ?? [])
-  const [isLoading, setIsLoading] = useState(() => !isFresh(FEED_KEY))
   const [activeFilter, setActiveFilter] = useState("For you")
   const [toast, setToast] = useState<string | null>(null)
   const { following } = useFollowing(user?.id)
   const notify = useNotify()
+
+  // Cursor pagination: pageCursor is the id of the last seen post; pass
+  // null for the first page. Backend returns up to 20 at a time.
+  const fetchPage = useCallback(async (pageCursor: string | null) => {
+    const url = pageCursor ? `/api/posts?before=${encodeURIComponent(pageCursor)}` : "/api/posts"
+    const res = await fetch(url, { credentials: "include" })
+    if (!res.ok) throw new Error("Failed to load")
+    const data = await res.json()
+    const arr: PostData[] = Array.isArray(data) ? data : []
+    return {
+      items: arr,
+      // If the backend returns fewer than the page size, we know we're done.
+      nextCursor: arr.length === 20 ? String(arr[arr.length - 1].id) : null,
+    }
+  }, [])
+
+  const {
+    items: posts,
+    isLoading,
+    isLoadingMore,
+    hasMore,
+    sentinelRef,
+    setItems: setPosts,
+  } = useInfinite<PostData>(fetchPage)
+
+  // Seed first paint from the SWR cache for perceived speed, then let the
+  // hook's revalidation replace it.
+  const [seeded, setSeeded] = useState(false)
+  useEffect(() => {
+    if (seeded) return
+    const cached = getCached<PostData[]>(FEED_KEY)
+    if (cached && cached.length > 0) setPosts(cached)
+    setSeeded(true)
+  }, [seeded, setPosts])
+
+  // Keep the cache in sync with the first page worth of posts only —
+  // we don't want to balloon localStorage with hundreds of items.
+  useEffect(() => {
+    if (posts.length === 0) return
+    setCached(FEED_KEY, posts.slice(0, 20))
+  }, [posts])
 
   const visiblePosts = (() => {
     if (activeFilter === "Following") {
@@ -30,30 +70,6 @@ export function FeedView() {
     }
     return posts
   })()
-
-  useEffect(() => {
-    // Always revalidate on mount; the UI is already showing cached posts (if any),
-    // so this is a silent background refresh rather than a blocking load.
-    fetchPosts()
-  }, [])
-
-  const fetchPosts = async () => {
-    const hasCached = (getCached<PostData[]>(FEED_KEY)?.length ?? 0) > 0
-    if (!hasCached) setIsLoading(true)
-    try {
-      const res = await fetch("/api/posts", { credentials: "include" })
-      if (!res.ok) throw new Error("Failed")
-      const data = await res.json()
-      const arr = Array.isArray(data) ? data : []
-      setPosts(arr)
-      setCached(FEED_KEY, arr)
-    } catch (err) {
-      console.error("Failed to fetch posts:", err)
-      if (!hasCached) setPosts([])
-    } finally {
-      setIsLoading(false)
-    }
-  }
 
   const handleDelete = async (postId: number | string) => {
     const ok = await notify.confirm({
@@ -69,11 +85,7 @@ export function FeedView() {
         credentials: "include",
       })
       if (res.ok || res.status === 204) {
-        setPosts(prev => {
-          const next = prev.filter(p => String(p.id) !== String(postId))
-          setCached(FEED_KEY, next)
-          return next
-        })
+        setPosts(prev => prev.filter(p => String(p.id) !== String(postId)))
         removeDesignPost(String(postId))
       } else {
         const error = await res.json().catch(() => ({}))
@@ -85,33 +97,19 @@ export function FeedView() {
   }
 
   const addOptimistic = useCallback((post: PostData) => {
-    setPosts(prev => {
-      const next = [post, ...prev]
-      setCached(FEED_KEY, next)
-      return next
-    })
+    setPosts(prev => [post, ...prev])
     return String(post.id)
-  }, [])
+  }, [setPosts])
 
   const commitOptimistic = useCallback((tempId: string, real: PostData) => {
-    setPosts(prev => {
-      const next = prev.map(p => (String(p.id) === tempId ? real : p))
-      setCached(FEED_KEY, next)
-      return next
-    })
-  }, [])
+    setPosts(prev => prev.map(p => (String(p.id) === tempId ? real : p)))
+  }, [setPosts])
 
   const revertOptimistic = useCallback((tempId: string, error: string) => {
-    if (tempId) {
-      setPosts(prev => {
-        const next = prev.filter(p => String(p.id) !== tempId)
-        setCached(FEED_KEY, next)
-        return next
-      })
-    }
+    if (tempId) setPosts(prev => prev.filter(p => String(p.id) !== tempId))
     setToast(error)
     setTimeout(() => setToast(null), 4000)
-  }, [])
+  }, [setPosts])
 
   const filterTabs = ["For you", "Following", "Designers", "Models", "Photographers", "Brands"]
 
@@ -138,7 +136,7 @@ export function FeedView() {
       </div>
 
       {/* Feed */}
-      {isLoading ? (
+      {isLoading && posts.length === 0 ? (
         <div className="flex items-center justify-center py-24">
           <div
             className="animate-spin rounded-full"
@@ -163,7 +161,25 @@ export function FeedView() {
               onDelete={handleDelete}
             />
           ))}
-          <div className="t-feed-end">You're caught up.</div>
+
+          {/* Sentinel: when this scrolls into view we load the next page.
+              Only mounted when there's more to load and we're on the
+              unfiltered feed (the Following filter is client-side and
+              can't cursor-paginate the same way). */}
+          {hasMore && activeFilter !== "Following" && (
+            <div ref={sentinelRef} className="t-feed-sentinel" aria-hidden="true" />
+          )}
+
+          {isLoadingMore && (
+            <div className="t-feed-loading-more">
+              <div
+                className="animate-spin rounded-full"
+                style={{ width: 24, height: 24, border: "2px solid var(--t-line)", borderTopColor: "var(--t-gold)" }}
+              />
+            </div>
+          )}
+
+          {!hasMore && <div className="t-feed-end">You're caught up.</div>}
         </div>
       )}
 

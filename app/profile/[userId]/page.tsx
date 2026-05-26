@@ -3,9 +3,10 @@
 import { useAuth } from "@/lib/useAuth"
 import { DashboardLayout } from "@/components/dashboard-layout"
 import { useRouter, useParams } from "next/navigation"
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { Globe, Instagram, User, ArrowLeft } from "lucide-react"
 import { useFollowing, prefetchComments } from "@/hooks/use-social"
+import { useInfinite } from "@/hooks/use-infinite"
 import { useUsers } from "@/hooks/use-users"
 import { getSafeHostname, normalizeWebsiteUrl } from "@/lib/platform"
 import { PostLightbox } from "@/components/post-lightbox"
@@ -19,13 +20,32 @@ export default function UserProfilePage() {
   const userId = params.userId as string
   const { user: currentUser, isLoading: currentUserLoading } = useAuth()
   const [viewedUser, setViewedUser] = useState<any>(null)
-  const [userPosts, setUserPosts] = useState<any[]>([])
   const [isLoadingUser, setIsLoadingUser] = useState(true)
-  const [isLoadingPosts, setIsLoadingPosts] = useState(true)
   const [activeTab, setActiveTab] = useState("posts")
   const [selectedPost, setSelectedPost] = useState<PostData | null>(null)
   const { following: userFollowing } = useFollowing(userId)
   const { lookup } = useUsers()
+
+  const PAGE_SIZE = 20
+  const fetchUserPosts = useCallback(
+    async (cursor: string | null) => {
+      const params = new URLSearchParams()
+      params.set("userId", userId)
+      if (cursor) params.set("before", cursor)
+      const res = await fetch(`/api/posts?${params.toString()}`, {
+        cache: "no-store",
+        credentials: "include",
+      })
+      if (!res.ok) throw new Error(`Failed to fetch posts: ${res.status}`)
+      const arr: PostData[] = await res.json()
+      return {
+        items: Array.isArray(arr) ? arr : [],
+        nextCursor: arr.length === PAGE_SIZE ? String(arr[arr.length - 1].id) : null,
+      }
+    },
+    [userId],
+  )
+  const userPostsState = useInfinite<PostData>(fetchUserPosts, [userId], !!viewedUser)
 
   useEffect(() => {
     if (!currentUserLoading && currentUser && currentUser.id === userId) {
@@ -61,34 +81,6 @@ export default function UserProfilePage() {
     }
     fetchUserData()
   }, [userId, lookup])
-
-  useEffect(() => {
-    if (!viewedUser) return
-
-    const fetchUserPosts = async () => {
-      try {
-        const res = await fetch("/api/posts", {
-          cache: "no-store",
-          credentials: "include",
-        })
-
-        if (!res.ok) {
-          throw new Error(`Failed to fetch posts: ${res.status}`)
-        }
-
-        const allPosts = await res.json()
-        const filtered = allPosts.filter((p: any) => p.userId === userId)
-        setUserPosts(filtered)
-      } catch (err) {
-        console.error("Failed to fetch user posts:", err)
-        setUserPosts([])
-      } finally {
-        setIsLoadingPosts(false)
-      }
-    }
-
-    fetchUserPosts()
-  }, [viewedUser, userId])
 
   if (isLoadingUser) {
     return (
@@ -130,7 +122,7 @@ export default function UserProfilePage() {
   }
 
   const hasMedia = (p: any) => !!p.imageUrl || (Array.isArray(p.images) && p.images.length > 0)
-  const visualPosts = userPosts.filter(hasMedia)
+  const visualPosts = userPostsState.items.filter(hasMedia)
 
   const bio = viewedUser.bio || "The vision is yet to be written."
   const website = viewedUser.website || ""
@@ -243,7 +235,7 @@ export default function UserProfilePage() {
 
         {activeTab === "posts" && (
           <div style={{ marginTop: "20px" }}>
-            {isLoadingPosts ? (
+            {userPostsState.isLoading && visualPosts.length === 0 ? (
               <div style={{ display: "flex", justifyContent: "center", padding: "80px 0" }}>
                 <div className="animate-spin rounded-full h-12 w-12 border-t-2" style={{ borderColor: "var(--t-gold)" }}></div>
               </div>
@@ -252,21 +244,31 @@ export default function UserProfilePage() {
                 <p style={{ color: "var(--t-ink-2)" }}>No works published yet</p>
               </div>
             ) : (
-              <div className="t-profile-grid">
-                {visualPosts.map((post) => (
-                  <button
-                    key={post.id}
-                    className="t-grid-item"
-                    onClick={() => {
-                      prefetchComments(post.id)
-                      setSelectedPost(post)
-                    }}
-                    style={{ padding: 0, border: "none", background: "none", cursor: "pointer" }}
-                  >
-                    <img src={post.imageUrl} alt={post.description || "Work"} />
-                  </button>
-                ))}
-              </div>
+              <>
+                <div className="t-profile-grid">
+                  {visualPosts.map((post) => (
+                    <button
+                      key={post.id}
+                      className="t-grid-item"
+                      onClick={() => {
+                        prefetchComments(post.id)
+                        setSelectedPost(post)
+                      }}
+                      style={{ padding: 0, border: "none", background: "none", cursor: "pointer" }}
+                    >
+                      <img src={post.imageUrl} alt={post.description || "Work"} />
+                    </button>
+                  ))}
+                </div>
+                {userPostsState.hasMore && (
+                  <div ref={userPostsState.sentinelRef} className="t-feed-sentinel" aria-hidden="true" />
+                )}
+                {userPostsState.isLoadingMore && (
+                  <div className="t-feed-loading-more">
+                    <div className="animate-spin rounded-full h-6 w-6 border-t-2" style={{ borderColor: "var(--t-gold)" }} />
+                  </div>
+                )}
+              </>
             )}
           </div>
         )}

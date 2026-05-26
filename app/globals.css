@@ -980,6 +980,15 @@
   text-align: center; color: var(--t-ink-3); font-size: 13px;
   padding: 24px 0 10px;
 }
+.t-feed-sentinel {
+  height: 1px;
+  margin-top: -1px;
+}
+.t-feed-loading-more {
+  display: flex;
+  justify-content: center;
+  padding: 24px 0;
+}
 
 /* Search dropdown (top bar) */
 .t-search-dropdown {

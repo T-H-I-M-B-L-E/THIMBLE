@@ -4,16 +4,19 @@ import { useAuth } from "@/lib/useAuth"
 import { useNotify } from "@/components/notify-provider"
 import { DashboardLayout } from "@/components/dashboard-layout"
 import { useRouter } from "next/navigation"
-import { useState, useEffect } from "react"
+import { useState, useCallback } from "react"
 import { EditProfileModal } from "@/components/edit-profile-modal"
 import { VerificationModal } from "@/components/verification-modal"
 import { VerifiedBadge } from "@/components/verified-badge"
 import { getSafeHostname, normalizeWebsiteUrl } from "@/lib/platform"
 import { Globe, Instagram, Settings, Shield, User } from "lucide-react"
 import { useFollowing, prefetchComments } from "@/hooks/use-social"
+import { useInfinite } from "@/hooks/use-infinite"
 import { PostLightbox } from "@/components/post-lightbox"
 import { RoleBadge } from "@/components/role-badge"
 import type { PostData } from "@/components/post-card"
+
+const PAGE_SIZE = 20
 
 export default function ProfilePage() {
   const router = useRouter()
@@ -21,59 +24,53 @@ export default function ProfilePage() {
   const notify = useNotify()
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
   const [isVerifyModalOpen, setIsVerifyModalOpen] = useState(false)
-  const [userPosts, setUserPosts] = useState<any[]>([])
-  const [savedPosts, setSavedPosts] = useState<any[]>([])
-  const [isLoadingPosts, setIsLoadingPosts] = useState(true)
-  const [isLoadingSaved, setIsLoadingSaved] = useState(false)
   const [activeTab, setActiveTab] = useState("posts")
   const [selectedPost, setSelectedPost] = useState<PostData | null>(null)
   const { following, isLoading: loadingFollowing } = useFollowing(user?.id)
 
-  useEffect(() => {
-    if (!isLoading && user) {
-      fetchUserPosts()
-    }
-  }, [isLoading, user])
-
-  const fetchSavedPosts = async () => {
-    setIsLoadingSaved(true)
-    try {
-      const res = await fetch("/api/posts/saved", { credentials: "include" })
-      if (res.ok) setSavedPosts(await res.json())
-    } catch {
-      setSavedPosts([])
-    } finally {
-      setIsLoadingSaved(false)
-    }
-  }
-
-  const fetchUserPosts = async () => {
-    try {
-      const res = await fetch("/api/posts", {
+  // Profile posts: backend supports ?userId= as a filter and ?before= as
+  // the cursor. We page in 20 at a time.
+  const fetchUserPosts = useCallback(
+    async (cursor: string | null) => {
+      const params = new URLSearchParams()
+      if (user?.id) params.set("userId", user.id)
+      if (cursor) params.set("before", cursor)
+      const res = await fetch(`/api/posts?${params.toString()}`, {
         cache: "no-store",
         credentials: "include",
       })
-
-      if (!res.ok) {
-        throw new Error(`Failed to fetch posts: ${res.status}`)
+      if (!res.ok) throw new Error(`Failed to fetch posts: ${res.status}`)
+      const arr: PostData[] = await res.json()
+      return {
+        items: Array.isArray(arr) ? arr : [],
+        nextCursor: arr.length === PAGE_SIZE ? String(arr[arr.length - 1].id) : null,
       }
+    },
+    [user?.id],
+  )
 
-      const allPosts = await res.json()
-      const filtered = allPosts.filter((p: any) => p.userId === user?.id)
-      setUserPosts(filtered)
-    } catch (err) {
-      console.error("Failed to fetch user posts:", err)
-      setUserPosts([])
-    } finally {
-      setIsLoadingPosts(false)
+  // Saved posts: backend uses post_saves.id as the cursor (returned via
+  // post.saveCursor).
+  const fetchSaved = useCallback(async (cursor: string | null) => {
+    const url = cursor ? `/api/posts/saved?before=${encodeURIComponent(cursor)}` : "/api/posts/saved"
+    const res = await fetch(url, { credentials: "include" })
+    if (!res.ok) throw new Error("Failed to fetch saved")
+    const arr: PostData[] = await res.json()
+    const last = arr[arr.length - 1] as any
+    return {
+      items: Array.isArray(arr) ? arr : [],
+      nextCursor: arr.length === PAGE_SIZE && last?.saveCursor ? String(last.saveCursor) : null,
     }
-  }
+  }, [])
+
+  const userPostsState = useInfinite<PostData>(fetchUserPosts, [user?.id], !!user?.id)
+  const savedState = useInfinite<PostData>(fetchSaved, [], activeTab === "saved" && !!user?.id)
 
   if (isLoading || !user) return null
 
   const hasMedia = (p: any) => !!p.imageUrl || (Array.isArray(p.images) && p.images.length > 0)
-  const visualPosts = userPosts.filter(hasMedia)
-  const visualSavedPosts = savedPosts.filter(hasMedia)
+  const visualPosts = userPostsState.items.filter(hasMedia)
+  const visualSavedPosts = savedState.items.filter(hasMedia)
 
   const bio = user.bio || "The vision is yet to be written."
   const website = user.website || ""
@@ -190,10 +187,7 @@ export default function ProfilePage() {
             <button
               key={tab}
               className={`t-tab ${activeTab === tab ? "on" : ""}`}
-              onClick={() => {
-                setActiveTab(tab)
-                if (tab === "saved" && savedPosts.length === 0 && !isLoadingSaved) fetchSavedPosts()
-              }}
+              onClick={() => setActiveTab(tab)}
             >
               {tab}
             </button>
@@ -202,7 +196,7 @@ export default function ProfilePage() {
 
         {activeTab === "posts" && (
           <div style={{ marginTop: "20px" }}>
-            {isLoadingPosts ? (
+            {userPostsState.isLoading && visualPosts.length === 0 ? (
               <div style={{ display: "flex", justifyContent: "center", padding: "80px 0" }}>
                 <div className="animate-spin rounded-full h-12 w-12 border-t-2" style={{ borderColor: "var(--t-gold)" }}></div>
               </div>
@@ -217,29 +211,39 @@ export default function ProfilePage() {
                 </button>
               </div>
             ) : (
-              <div className="t-profile-grid">
-                {visualPosts.map((post) => (
-                  <button
-                    key={post.id}
-                    className="t-grid-item"
-                    onClick={() => {
-                      prefetchComments(post.id)
-                      setSelectedPost(post)
-                    }}
-                    style={{ padding: 0, border: "none", background: "none", cursor: "pointer" }}
-                    aria-label={post.description || "Open post"}
-                  >
-                    <img src={post.imageUrl} alt={post.description || "Work"} loading="lazy" />
-                  </button>
-                ))}
-              </div>
+              <>
+                <div className="t-profile-grid">
+                  {visualPosts.map((post) => (
+                    <button
+                      key={post.id}
+                      className="t-grid-item"
+                      onClick={() => {
+                        prefetchComments(post.id)
+                        setSelectedPost(post)
+                      }}
+                      style={{ padding: 0, border: "none", background: "none", cursor: "pointer" }}
+                      aria-label={post.description || "Open post"}
+                    >
+                      <img src={post.imageUrl} alt={post.description || "Work"} loading="lazy" />
+                    </button>
+                  ))}
+                </div>
+                {userPostsState.hasMore && (
+                  <div ref={userPostsState.sentinelRef} className="t-feed-sentinel" aria-hidden="true" />
+                )}
+                {userPostsState.isLoadingMore && (
+                  <div className="t-feed-loading-more">
+                    <div className="animate-spin rounded-full h-6 w-6 border-t-2" style={{ borderColor: "var(--t-gold)" }} />
+                  </div>
+                )}
+              </>
             )}
           </div>
         )}
 
         {activeTab === "saved" && (
           <div style={{ marginTop: "20px" }}>
-            {isLoadingSaved ? (
+            {savedState.isLoading && visualSavedPosts.length === 0 ? (
               <div style={{ display: "flex", justifyContent: "center", padding: "80px 0" }}>
                 <div className="animate-spin rounded-full h-12 w-12 border-t-2" style={{ borderColor: "var(--t-gold)" }}></div>
               </div>
@@ -248,22 +252,32 @@ export default function ProfilePage() {
                 <p style={{ color: "var(--t-ink-2)" }}>No saved posts yet</p>
               </div>
             ) : (
-              <div className="t-profile-grid">
-                {visualSavedPosts.map((post) => (
-                  <button
-                    key={post.id}
-                    className="t-grid-item"
-                    onClick={() => {
-                      prefetchComments(post.id)
-                      setSelectedPost({ ...post, savedByMe: true })
-                    }}
-                    style={{ padding: 0, border: "none", background: "none", cursor: "pointer" }}
-                    aria-label={post.description || "Open saved post"}
-                  >
-                    <img src={post.imageUrl} alt={post.description || "Saved"} loading="lazy" />
-                  </button>
-                ))}
-              </div>
+              <>
+                <div className="t-profile-grid">
+                  {visualSavedPosts.map((post) => (
+                    <button
+                      key={post.id}
+                      className="t-grid-item"
+                      onClick={() => {
+                        prefetchComments(post.id)
+                        setSelectedPost({ ...post, savedByMe: true })
+                      }}
+                      style={{ padding: 0, border: "none", background: "none", cursor: "pointer" }}
+                      aria-label={post.description || "Open saved post"}
+                    >
+                      <img src={post.imageUrl} alt={post.description || "Saved"} loading="lazy" />
+                    </button>
+                  ))}
+                </div>
+                {savedState.hasMore && (
+                  <div ref={savedState.sentinelRef} className="t-feed-sentinel" aria-hidden="true" />
+                )}
+                {savedState.isLoadingMore && (
+                  <div className="t-feed-loading-more">
+                    <div className="animate-spin rounded-full h-6 w-6 border-t-2" style={{ borderColor: "var(--t-gold)" }} />
+                  </div>
+                )}
+              </>
             )}
           </div>
         )}
