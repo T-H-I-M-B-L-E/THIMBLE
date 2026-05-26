@@ -18,6 +18,7 @@ import { normalizeWebsiteUrl } from "@/lib/platform";
 interface EditProfileModalProps {
   isOpen: boolean;
   onClose: () => void;
+  onSave?: () => void;
   user: any;
 }
 
@@ -35,6 +36,7 @@ function nextUsernameChangeAt(changedAtIso?: string | null): Date | null {
 export function EditProfileModal({
   isOpen,
   onClose,
+  onSave,
   user,
 }: EditProfileModalProps) {
   const [fullName, setFullName] = useState("");
@@ -111,6 +113,7 @@ export function EditProfileModal({
         bio,
         avatar: avatarUrl,
         website: normalizeWebsiteUrl(website),
+        fullName: fullName.trim(),
       };
       if (usernameChanged) body.username = trimmedUsername;
 
@@ -132,7 +135,7 @@ export function EditProfileModal({
         }
         throw new Error(data?.error || "Failed to update profile");
       }
-      window.dispatchEvent(new Event("focus"));
+      onSave?.();
       onClose();
     } catch (err) {
       console.error("Failed to update profile:", err);

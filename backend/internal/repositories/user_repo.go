@@ -81,7 +81,7 @@ func UpdateUsername(ctx context.Context, id, newName string) error {
 
 // UpdateProfileFields uses COALESCE so callers can pass nil for any
 // field they want left untouched.
-func UpdateProfileFields(ctx context.Context, id string, role, bio, avatar, website, location *string) error {
+func UpdateProfileFields(ctx context.Context, id string, role, bio, avatar, website, location, fullName *string) error {
 	_, err := db.Pool.Exec(ctx,
 		`UPDATE users SET
 			role = COALESCE($1, role),
@@ -89,9 +89,10 @@ func UpdateProfileFields(ctx context.Context, id string, role, bio, avatar, webs
 			avatar_url = COALESCE($3, avatar_url),
 			website = COALESCE($4, website),
 			location = COALESCE($5, location),
+			full_name = COALESCE($6, full_name),
 			updated_at = CURRENT_TIMESTAMP
-		WHERE id = $6`,
-		role, bio, avatar, website, location, id)
+		WHERE id = $7`,
+		role, bio, avatar, website, location, fullName, id)
 	return err
 }
 

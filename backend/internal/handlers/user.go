@@ -17,12 +17,22 @@ func UpdateUserProfile(c *fiber.Ctx) error {
 		Website  *string `json:"website"`
 		Location *string `json:"location"`
 		Username *string `json:"username"`
+		FullName *string `json:"fullName"`
 	}
 	if err := c.BodyParser(&body); err != nil {
 		return c.Status(400).JSON(fiber.Map{"error": "invalid request body"})
 	}
 
-	if err := services.UpdateUserProfile(c.Context(), callerID, id, services.UserProfilePatch(body)); err != nil {
+	patch := services.UserProfilePatch{
+		Role:     body.Role,
+		Bio:      body.Bio,
+		Avatar:   body.Avatar,
+		Website:  body.Website,
+		Location: body.Location,
+		Username: body.Username,
+		FullName: body.FullName,
+	}
+	if err := services.UpdateUserProfile(c.Context(), callerID, id, patch); err != nil {
 		// Username errors return code + message — preserve that shape.
 		if err.Code == "invalid_username" || err.Code == "username_taken" || err.Code == "username_cooldown" {
 			return c.Status(err.Status).JSON(fiber.Map{

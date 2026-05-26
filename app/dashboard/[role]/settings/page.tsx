@@ -21,7 +21,7 @@ export default function SettingsPage() {
   const router = useRouter()
   const params = useParams()
   const role = params.role as string
-  const { user, isLoading, logout } = useAuth()
+  const { user, isLoading, logout, refresh } = useAuth()
   const notify = useNotify()
 
   const [active, setActive] = useState<Section>("profile")
@@ -92,7 +92,7 @@ export default function SettingsPage() {
         </div>
       </div>
 
-      <EditProfileModal isOpen={editOpen} onClose={() => setEditOpen(false)} user={user} />
+      <EditProfileModal isOpen={editOpen} onClose={() => setEditOpen(false)} onSave={refresh} user={user} />
     </DashboardLayout>
   )
 }

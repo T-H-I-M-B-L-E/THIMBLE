@@ -22,7 +22,7 @@ export default function ProfilePage() {
   const router = useRouter()
   const params = useParams()
   const role = params.role as string
-  const { user, isLoading } = useAuth()
+  const { user, isLoading, refresh } = useAuth()
   const notify = useNotify()
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
   const [isVerifyModalOpen, setIsVerifyModalOpen] = useState(false)
@@ -113,6 +113,7 @@ export default function ProfilePage() {
       <EditProfileModal
         isOpen={isEditModalOpen}
         onClose={() => setIsEditModalOpen(false)}
+        onSave={refresh}
         user={user}
       />
       <VerificationModal

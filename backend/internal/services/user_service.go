@@ -24,6 +24,7 @@ type UserProfilePatch struct {
 	Website  *string
 	Location *string
 	Username *string
+	FullName *string
 }
 
 // UpdateUserProfile applies the patch. Username updates run first
@@ -69,8 +70,8 @@ func UpdateUserProfile(ctx context.Context, callerID, id string, patch UserProfi
 		}
 	}
 
-	if patch.Role != nil || patch.Bio != nil || patch.Avatar != nil || patch.Website != nil || patch.Location != nil {
-		if err := repositories.UpdateProfileFields(ctx, id, patch.Role, patch.Bio, patch.Avatar, patch.Website, patch.Location); err != nil {
+	if patch.Role != nil || patch.Bio != nil || patch.Avatar != nil || patch.Website != nil || patch.Location != nil || patch.FullName != nil {
+		if err := repositories.UpdateProfileFields(ctx, id, patch.Role, patch.Bio, patch.Avatar, patch.Website, patch.Location, patch.FullName); err != nil {
 			log.Printf("Failed to update user %s: %v", id, err)
 			return NewError(500, "db_write_failed", "failed to update profile")
 		}
