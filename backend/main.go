@@ -125,7 +125,8 @@ func registerRoutes(app *fiber.App, authLimiter fiber.Handler) {
 	app.Patch("/api/notifications/:id/read", middleware.RequireJWT, handlers.MarkNotificationRead)
 
 	// ── Gigs ──────────────────────────────────────────────────────────────────
-	app.Get("/api/gigs", handlers.ListGigs)
+	app.Get("/api/gigs", middleware.OptionalJWT, handlers.ListGigs)
+	app.Post("/api/gigs/:id/apply", middleware.RequireJWT, handlers.ApplyToGig)
 
 	// ── Webhooks ──────────────────────────────────────────────────────────────
 	app.Post("/webhooks/github", handlers.GithubWebhook)

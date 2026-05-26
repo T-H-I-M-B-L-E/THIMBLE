@@ -2,17 +2,19 @@
 
 import { useStore } from "@/lib/store"
 import { DashboardLayout } from "@/components/dashboard-layout"
+import { useNotify } from "@/components/notify-provider"
 import { Input } from "@/components/ui/input"
 import { Search, MapPin, DollarSign, Calendar } from "lucide-react"
 import { useState, useEffect } from "react"
 import Image from "next/image"
-import { getApiUrl } from "@/lib/platform"
 
 export default function GigsPage() {
-  const { user, gigs: fallbackGigs, applyToGig } = useStore()
+  const { user, gigs: fallbackGigs } = useStore()
+  const notify = useNotify()
   const [gigs, setGigs] = useState<any[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState("")
+  const [applyingId, setApplyingId] = useState<number | null>(null)
   const isVerified = user?.verificationStatus === "verified"
 
   useEffect(() => {
@@ -20,23 +22,40 @@ export default function GigsPage() {
   }, [])
 
   const fetchGigs = async () => {
-    const gigsUrl = getApiUrl("/api/gigs")
-
-    if (!gigsUrl) {
-      setGigs(fallbackGigs)
-      setIsLoading(false)
-      return
-    }
-
     try {
-      const res = await fetch(gigsUrl)
+      const res = await fetch("/api/gigs", { credentials: "include" })
       const data = await res.json()
-      setGigs(data)
+      setGigs(Array.isArray(data) ? data : [])
     } catch (err) {
       console.error("Failed to fetch gigs:", err)
       setGigs(fallbackGigs)
     } finally {
       setIsLoading(false)
+    }
+  }
+
+  const apply = async (gig: any) => {
+    if (gig.hasApplied || applyingId === gig.id) return
+    setApplyingId(gig.id)
+    // Optimistic update so the button reflects the new state instantly.
+    setGigs(prev => prev.map(g => g.id === gig.id ? { ...g, hasApplied: true, applications: g.applications + 1 } : g))
+    try {
+      const res = await fetch(`/api/gigs/${gig.id}/apply`, { method: "POST", credentials: "include" })
+      if (!res.ok) {
+        // Roll back.
+        setGigs(prev => prev.map(g => g.id === gig.id ? { ...g, hasApplied: false, applications: Math.max(0, g.applications - 1) } : g))
+        const data = await res.json().catch(() => ({}))
+        notify.error(data?.message || "Could not apply. Try again.")
+        return
+      }
+      const data = await res.json().catch(() => ({}))
+      if (data?.already) {
+        notify.success("You've already applied to this gig.")
+      } else {
+        notify.success("Application sent.")
+      }
+    } finally {
+      setApplyingId(null)
     }
   }
 
@@ -124,10 +143,13 @@ export default function GigsPage() {
                     <div className="t-gig-actions">
                       <button
                         className="t-btn-primary t-btn-sm"
-                        disabled={!isVerified}
-                        onClick={() => applyToGig(gig.id)}
+                        disabled={!isVerified || gig.hasApplied || applyingId === gig.id}
+                        onClick={() => apply(gig)}
                       >
-                        {isVerified ? "Apply" : "Verify to Apply"}
+                        {!isVerified ? "Verify to Apply"
+                          : gig.hasApplied ? "Applied"
+                          : applyingId === gig.id ? "Applying…"
+                          : "Apply"}
                       </button>
                       <button
                         className="t-btn-quiet t-btn-sm"

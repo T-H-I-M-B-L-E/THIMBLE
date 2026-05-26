@@ -12,5 +12,6 @@ type Gig struct {
 	PostedByRole   string    `json:"postedByRole"`
 	PostedByAvatar string    `json:"postedByAvatar"`
 	Applications   int       `json:"applications"`
+	HasApplied     bool      `json:"hasApplied"`
 	CreatedAt      time.Time `json:"createdAt"`
 }

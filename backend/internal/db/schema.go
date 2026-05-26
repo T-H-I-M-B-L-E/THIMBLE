@@ -161,6 +161,17 @@ func EnsureSchema(ctx context.Context) {
 
 	Pool.Exec(ctx, `ALTER TABLE users ADD COLUMN IF NOT EXISTS token_version INT NOT NULL DEFAULT 0`)
 
+	mustExec(ctx, `
+		CREATE TABLE IF NOT EXISTS gig_applications (
+			id         BIGSERIAL PRIMARY KEY,
+			gig_id     BIGINT NOT NULL REFERENCES gigs(id) ON DELETE CASCADE,
+			user_id    TEXT NOT NULL,
+			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+			UNIQUE (gig_id, user_id)
+		)
+	`, "gig_applications")
+	Pool.Exec(ctx, `CREATE INDEX IF NOT EXISTS idx_gig_applications_user ON gig_applications(user_id)`)
+
 	Pool.Exec(ctx, `ALTER TABLE users ADD COLUMN IF NOT EXISTS is_banned BOOLEAN NOT NULL DEFAULT FALSE`)
 	Pool.Exec(ctx, `ALTER TABLE users ADD COLUMN IF NOT EXISTS banned_until TIMESTAMPTZ`)
 	Pool.Exec(ctx, `ALTER TABLE users ADD COLUMN IF NOT EXISTS ban_message TEXT NOT NULL DEFAULT ''`)
