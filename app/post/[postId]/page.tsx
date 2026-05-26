@@ -17,6 +17,7 @@ import { useNotify } from "@/components/notify-provider";
 import { AuthGate } from "@/components/auth-gate";
 import { Avatar } from "@/components/avatar";
 import { VerifiedBadge } from "@/components/verified-badge";
+import { PostMedia } from "@/components/post-media";
 
 interface PostDetail extends PostData {
   userId: string;
@@ -221,7 +222,7 @@ export default function PostDetailPage() {
         <div className="t-post-detail-grid">
           {/* Left: image + description + comments */}
           <div>
-            {post.imageUrl && (
+            {((post.images?.length ?? 0) > 0 || post.imageUrl) && (
               <div
                 style={{
                   borderRadius: 16,
@@ -230,10 +231,10 @@ export default function PostDetailPage() {
                   marginBottom: 24,
                 }}
               >
-                <img
-                  src={post.imageUrl}
+                <PostMedia
+                  images={post.images?.length ? post.images : [post.imageUrl]}
                   alt={post.description || "Post"}
-                  style={{ width: "100%", height: "auto", display: "block" }}
+                  fit="contain"
                 />
               </div>
             )}
