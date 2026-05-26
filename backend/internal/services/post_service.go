@@ -29,6 +29,17 @@ func GetPost(ctx context.Context, callerID, postID string) (*models.Post, *Servi
 	return post, nil
 }
 
+func GetPostBySlug(ctx context.Context, callerID, slug string) (*models.Post, *ServiceError) {
+	post, err := repositories.GetPostBySlug(ctx, callerID, slug)
+	if err != nil {
+		return nil, NewError(500, "db_failed", "failed to fetch post")
+	}
+	if post == nil {
+		return nil, NewError(404, "not_found", "post not found")
+	}
+	return post, nil
+}
+
 // MaxImagesPerPost caps multi-image posts. Keep small enough to feel
 // curated and to bound feed media bytes.
 const MaxImagesPerPost = 6

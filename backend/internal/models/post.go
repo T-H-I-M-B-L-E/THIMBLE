@@ -4,6 +4,7 @@ import "time"
 
 type Post struct {
 	Id             int       `json:"id"`
+	Slug           string    `json:"slug"`
 	UserId         string    `json:"userId"`
 	AuthorName     string    `json:"authorName"`
 	AuthorAvatar   string    `json:"authorAvatar"`

@@ -78,10 +78,10 @@ export default function PostDetailPage() {
   };
 
   const handleShare = async () => {
-    const url = `${window.location.origin}/post/${postId}`;
+    const url = `${window.location.origin}/post/${post?.slug || postId}`;
     if (navigator.share) {
       try {
-        await navigator.share({ title: post?.description || "THIMBLE", url });
+        await navigator.share({ title: post?.description || "TVIMBLE", url });
       } catch {
         /* user cancelled */
       }
@@ -95,7 +95,12 @@ export default function PostDetailPage() {
   useEffect(() => {
     const fetchPost = async () => {
       try {
-        const res = await fetch(`/api/posts/${postId}`, { credentials: "include" });
+        // Try slug endpoint first; fall back to numeric id for old links
+        const isNumeric = /^\d+$/.test(postId);
+        const url = isNumeric
+          ? `/api/posts/${postId}`
+          : `/api/posts/slug/${postId}`;
+        const res = await fetch(url, { credentials: "include" });
         if (!res.ok) throw new Error("Failed to fetch post");
         const found = await res.json();
         if (found && found.id) setPost(found as PostDetail);

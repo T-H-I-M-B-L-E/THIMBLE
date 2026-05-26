@@ -30,6 +30,7 @@ import { PostCaption } from "@/components/post-caption";
 
 export interface PostData {
   id: number | string;
+  slug?: string;
   userId?: string;
   authorName: string;
   authorAvatar: string;
@@ -117,7 +118,7 @@ export function PostCard({ post, currentUserId, onDelete }: PostCardProps) {
   const inputRef = useRef<HTMLInputElement>(null);
 
   const handleShare = async () => {
-    const url = `${window.location.origin}/post/${post.id}`;
+    const url = `${window.location.origin}/post/${post.slug || post.id}`;
     if (navigator.share) {
       try {
         await navigator.share({ title: post.description || "THIMBLE", url });

@@ -3,13 +3,21 @@ package repositories
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 
 	"chat-app/internal/db"
 	"chat-app/internal/models"
+	"chat-app/internal/utils"
 )
+
+func isUniqueViolation(err error) bool {
+	var pgErr *pgconn.PgError
+	return errors.As(err, &pgErr) && pgErr.Code == "23505"
+}
 
 // ListPosts is the feed query: it joins to users for live author info,
 // counts comments inline, and stamps liked-by-me when callerID is set.
@@ -23,7 +31,7 @@ func ListPosts(ctx context.Context, callerID, beforeID, filterUserID string, lim
 	if filterUserID != "" {
 		// Profile view: simple chronological, no ranking needed.
 		query = `
-			SELECT p.id, p.user_id,
+			SELECT p.id, COALESCE(p.slug,''), p.user_id,
 			       COALESCE(u.full_name, p.author_name) AS author_name,
 			       COALESCE(u.avatar_url, p.author_avatar) AS author_avatar,
 			       COALESCE(u.is_verified, FALSE) AS author_verified,
@@ -63,7 +71,7 @@ func ListPosts(ctx context.Context, callerID, beforeID, filterUserID string, lim
 		// seen score+id to avoid gaps/duplicates across pages.
 		query = `
 			WITH ranked AS (
-				SELECT p.id, p.user_id,
+				SELECT p.id, COALESCE(p.slug,'') AS slug, p.user_id,
 				       COALESCE(u.full_name, p.author_name)   AS author_name,
 				       COALESCE(u.avatar_url, p.author_avatar) AS author_avatar,
 				       COALESCE(u.is_verified, FALSE)          AS author_verified,
@@ -95,7 +103,7 @@ func ListPosts(ctx context.Context, callerID, beforeID, filterUserID string, lim
 
 		query += fmt.Sprintf(`
 			)
-			SELECT id, user_id, author_name, author_avatar, author_verified,
+			SELECT id, slug, user_id, author_name, author_avatar, author_verified,
 			       image_url, images, description, likes, tagged_users, created_at,
 			       comment_count, liked_by_me, saved_by_me
 			FROM ranked
@@ -113,7 +121,7 @@ func ListPosts(ctx context.Context, callerID, beforeID, filterUserID string, lim
 	for rows.Next() {
 		var p models.Post
 		var taggedJSON, imagesJSON []byte
-		if err := rows.Scan(&p.Id, &p.UserId, &p.AuthorName, &p.AuthorAvatar, &p.AuthorVerified, &p.ImageUrl, &imagesJSON, &p.Description, &p.Likes, &taggedJSON, &p.CreatedAt, &p.CommentCount, &p.LikedByMe, &p.SavedByMe); err == nil {
+		if err := rows.Scan(&p.Id, &p.Slug, &p.UserId, &p.AuthorName, &p.AuthorAvatar, &p.AuthorVerified, &p.ImageUrl, &imagesJSON, &p.Description, &p.Likes, &taggedJSON, &p.CreatedAt, &p.CommentCount, &p.LikedByMe, &p.SavedByMe); err == nil {
 			json.Unmarshal(taggedJSON, &p.TaggedUsers)
 			json.Unmarshal(imagesJSON, &p.Images)
 			if p.Images == nil {
@@ -132,26 +140,24 @@ func ListPosts(ctx context.Context, callerID, beforeID, filterUserID string, lim
 	return posts, nil
 }
 
-// GetPostByID fetches a single post by id, populating liked_by_me and
-// saved_by_me when callerID is set.
-func GetPostByID(ctx context.Context, callerID, postID string) (*models.Post, error) {
+const postSelectFields = `
+	SELECT p.id, COALESCE(p.slug,''), p.user_id,
+	       COALESCE(u.full_name, p.author_name) AS author_name,
+	       COALESCE(u.avatar_url, p.author_avatar) AS author_avatar,
+	       COALESCE(u.is_verified, FALSE) AS author_verified,
+	       p.image_url, p.images, p.description, p.likes, p.tagged_users, p.created_at,
+	       (SELECT COUNT(*) FROM post_comments pc WHERE pc.post_id = p.id) AS comment_count,
+	       CASE WHEN $1 <> '' THEN EXISTS(SELECT 1 FROM post_likes pl WHERE pl.post_id = p.id AND pl.user_id = $1) ELSE FALSE END AS liked_by_me,
+	       CASE WHEN $1 <> '' THEN EXISTS(SELECT 1 FROM post_saves ps WHERE ps.post_id = p.id AND ps.user_id = $1) ELSE FALSE END AS saved_by_me
+	FROM posts p
+	LEFT JOIN users u ON u.id = p.user_id`
+
+func scanPost(row pgx.Row) (*models.Post, error) {
 	var p models.Post
 	var taggedJSON, imagesJSON []byte
-	err := db.Pool.QueryRow(ctx, `
-		SELECT p.id, p.user_id,
-		       COALESCE(u.full_name, p.author_name) AS author_name,
-		       COALESCE(u.avatar_url, p.author_avatar) AS author_avatar,
-		       COALESCE(u.is_verified, FALSE) AS author_verified,
-		       p.image_url, p.images, p.description, p.likes, p.tagged_users, p.created_at,
-		       (SELECT COUNT(*) FROM post_comments pc WHERE pc.post_id = p.id) AS comment_count,
-		       CASE WHEN $1 <> '' THEN EXISTS(SELECT 1 FROM post_likes pl WHERE pl.post_id = p.id AND pl.user_id = $1) ELSE FALSE END AS liked_by_me,
-		       CASE WHEN $1 <> '' THEN EXISTS(SELECT 1 FROM post_saves ps WHERE ps.post_id = p.id AND ps.user_id = $1) ELSE FALSE END AS saved_by_me
-		FROM posts p
-		LEFT JOIN users u ON u.id = p.user_id
-		WHERE p.id = $2`, callerID, postID).
-		Scan(&p.Id, &p.UserId, &p.AuthorName, &p.AuthorAvatar, &p.AuthorVerified,
-			&p.ImageUrl, &imagesJSON, &p.Description, &p.Likes, &taggedJSON, &p.CreatedAt,
-			&p.CommentCount, &p.LikedByMe, &p.SavedByMe)
+	err := row.Scan(&p.Id, &p.Slug, &p.UserId, &p.AuthorName, &p.AuthorAvatar, &p.AuthorVerified,
+		&p.ImageUrl, &imagesJSON, &p.Description, &p.Likes, &taggedJSON, &p.CreatedAt,
+		&p.CommentCount, &p.LikedByMe, &p.SavedByMe)
 	if err != nil {
 		if err == pgx.ErrNoRows {
 			return nil, nil
@@ -174,7 +180,19 @@ func GetPostByID(ctx context.Context, callerID, postID string) (*models.Post, er
 	return &p, nil
 }
 
-// InsertPost writes a new row and returns the assigned id and created_at.
+// GetPostByID fetches a single post by numeric id.
+func GetPostByID(ctx context.Context, callerID, postID string) (*models.Post, error) {
+	return scanPost(db.Pool.QueryRow(ctx,
+		postSelectFields+` WHERE p.id = $2`, callerID, postID))
+}
+
+// GetPostBySlug fetches a single post by its short slug.
+func GetPostBySlug(ctx context.Context, callerID, slug string) (*models.Post, error) {
+	return scanPost(db.Pool.QueryRow(ctx,
+		postSelectFields+` WHERE p.slug = $2`, callerID, slug))
+}
+
+// InsertPost writes a new row and returns the assigned id, slug, and created_at.
 // image_url is set from images[0] when provided so legacy single-image
 // reads keep working.
 func InsertPost(ctx context.Context, p *models.Post) error {
@@ -190,9 +208,25 @@ func InsertPost(ctx context.Context, p *models.Post) error {
 	}
 	taggedJSON, _ := json.Marshal(p.TaggedUsers)
 	imagesJSON, _ := json.Marshal(p.Images)
-	return db.Pool.QueryRow(ctx,
-		"INSERT INTO posts (user_id, author_name, author_avatar, image_url, images, description, tagged_users) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id, created_at",
-		p.UserId, p.AuthorName, p.AuthorAvatar, p.ImageUrl, imagesJSON, p.Description, taggedJSON).Scan(&p.Id, &p.CreatedAt)
+
+	// Retry on the rare slug collision (1-in-62^6 chance per existing post).
+	for {
+		slug := utils.GenerateSlug()
+		err := db.Pool.QueryRow(ctx,
+			`INSERT INTO posts (user_id, author_name, author_avatar, image_url, images, description, tagged_users, slug)
+			 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+			 RETURNING id, slug, created_at`,
+			p.UserId, p.AuthorName, p.AuthorAvatar, p.ImageUrl, imagesJSON, p.Description, taggedJSON, slug,
+		).Scan(&p.Id, &p.Slug, &p.CreatedAt)
+		if err == nil {
+			return nil
+		}
+		// 23505 = unique_violation — slug collision, try again
+		if isUniqueViolation(err) {
+			continue
+		}
+		return err
+	}
 }
 
 func DeletePost(ctx context.Context, postId, userId string) (int64, error) {
@@ -372,7 +406,7 @@ func IsPostSaved(ctx context.Context, userID, postID string) (bool, error) {
 
 func ListSavedPosts(ctx context.Context, userID string) ([]models.Post, error) {
 	rows, err := db.Pool.Query(ctx, `
-		SELECT p.id, p.user_id,
+		SELECT p.id, COALESCE(p.slug,''), p.user_id,
 		       COALESCE(u.full_name, p.author_name) AS author_name,
 		       COALESCE(u.avatar_url, p.author_avatar) AS author_avatar,
 		       COALESCE(u.is_verified, FALSE) AS author_verified,
@@ -393,7 +427,7 @@ func ListSavedPosts(ctx context.Context, userID string) ([]models.Post, error) {
 	for rows.Next() {
 		var p models.Post
 		var tagsJSON, imagesJSON []byte
-		rows.Scan(&p.Id, &p.UserId, &p.AuthorName, &p.AuthorAvatar, &p.AuthorVerified,
+		rows.Scan(&p.Id, &p.Slug, &p.UserId, &p.AuthorName, &p.AuthorAvatar, &p.AuthorVerified,
 			&p.ImageUrl, &imagesJSON, &p.Description, &p.Likes, &tagsJSON, &p.CreatedAt,
 			&p.CommentCount, &p.LikedByMe, &p.SavedByMe)
 		if len(tagsJSON) > 0 {
