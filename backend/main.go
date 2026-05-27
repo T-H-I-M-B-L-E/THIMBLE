@@ -31,7 +31,12 @@ func main() {
 	go middleware.SweepExpiredTickets()
 	services.StartInfraMonitor(ctx)
 
-	app := fiber.New()
+	app := fiber.New(fiber.Config{
+		ReadTimeout:  15 * time.Second,
+		WriteTimeout: 30 * time.Second,
+		IdleTimeout:  60 * time.Second,
+		BodyLimit:    8 * 1024 * 1024, // 8 MB
+	})
 
 	// Count responses and record errors + slow requests for the infra dashboard.
 	app.Use(func(c *fiber.Ctx) error {
@@ -75,7 +80,16 @@ func main() {
 		},
 	})
 
-	registerRoutes(app, authLimiter)
+	apiLimiter := limiter.New(limiter.Config{
+		Max:        300,
+		Expiration: 1 * time.Minute,
+		KeyGenerator: func(c *fiber.Ctx) string { return c.IP() },
+		LimitReached: func(c *fiber.Ctx) error {
+			return c.Status(fiber.StatusTooManyRequests).JSON(fiber.Map{"error": "rate limit exceeded"})
+		},
+	})
+
+	registerRoutes(app, authLimiter, apiLimiter)
 
 	log.Printf("Server starting on :%s", cfg.Port)
 	log.Fatal(app.Listen(":" + cfg.Port))
@@ -83,7 +97,7 @@ func main() {
 
 // registerRoutes is kept separate from main() so the route table is the
 // one thing you read to understand the public API.
-func registerRoutes(app *fiber.App, authLimiter fiber.Handler) {
+func registerRoutes(app *fiber.App, authLimiter fiber.Handler, apiLimiter fiber.Handler) {
 	// ── Auth ──────────────────────────────────────────────────────────────────
 	app.Post("/auth/signup", authLimiter, handlers.Signup)
 	app.Post("/auth/verify-email", authLimiter, handlers.VerifyEmail)
@@ -95,72 +109,76 @@ func registerRoutes(app *fiber.App, authLimiter fiber.Handler) {
 	app.Post("/auth/change-password", middleware.RequireJWT, handlers.ChangePassword)
 	app.Post("/auth/change-email", middleware.RequireJWT, handlers.ChangeEmail)
 	app.Delete("/auth/account", middleware.RequireJWT, handlers.DeleteAccount)
-	app.Get("/api/settings/email-prefs", middleware.RequireJWT, handlers.GetEmailPrefs)
-	app.Patch("/api/settings/email-prefs", middleware.RequireJWT, handlers.UpdateEmailPrefs)
 	app.Post("/auth/make-admin", handlers.MakeAdmin)
 
-	// ── WebSocket ticket ──────────────────────────────────────────────────────
-	app.Post("/api/ws-ticket", middleware.RequireJWT, middleware.IssueWSTicket)
-
-	// ── Users ─────────────────────────────────────────────────────────────────
-	app.Patch("/users/:id", middleware.RequireJWT, handlers.UpdateUserProfile)
-	app.Get("/users/:id", middleware.RequireJWT, handlers.GetUserProfile)
-	app.Get("/api/users", middleware.RequireJWT, handlers.ListAllUsers)
-	app.Get("/api/users/suggestions", middleware.RequireJWT, handlers.UserSuggestions)
-	app.Get("/api/tags/trending", middleware.RequireJWT, handlers.TrendingTags)
-
-	// ── WebSocket ─────────────────────────────────────────────────────────────
+	// ── WebSocket (no rate limit — long-lived connections) ────────────────────
 	app.Get("/ws", middleware.RequireWSAuth, websocket.New(handlers.ConversationWS))
+	app.Get("/admin/ws", middleware.RequireWSAdminAuth, websocket.New(handlers.AdminWS))
 
-	// ── Conversations ─────────────────────────────────────────────────────────
-	app.Get("/api/conversations", middleware.RequireJWT, handlers.ListConversations)
-	app.Post("/api/conversations", middleware.RequireJWT, handlers.CreateConversation)
-	app.Get("/api/conversations/:id/messages", middleware.RequireJWT, handlers.GetConversationMessages)
-	app.Delete("/api/conversations/:id/messages/:msgId", middleware.RequireJWT, handlers.DeleteConversationMessage)
-	app.Post("/api/conversations/:id/messages/:msgId/restore", middleware.RequireJWT, handlers.RestoreConversationMessage)
-	app.Post("/api/conversations/:id/read", middleware.RequireJWT, handlers.MarkConversationRead)
-	app.Delete("/api/conversations/:id", middleware.RequireJWT, handlers.DeleteConversation)
+	// ── Webhooks (no rate limit — called by GitHub) ───────────────────────────
+	app.Post("/webhooks/github", handlers.GithubWebhook)
 
-	// ── Blocks ───────────────────────────────────────────────────────────────
-	app.Get("/api/blocks", middleware.RequireJWT, handlers.ListBlocked)
-	app.Post("/api/blocks/:id", middleware.RequireJWT, handlers.BlockUser)
-	app.Delete("/api/blocks/:id", middleware.RequireJWT, handlers.UnblockUser)
+	// ── Users (legacy non-/api paths) ─────────────────────────────────────────
+	app.Patch("/users/:id", apiLimiter, middleware.RequireJWT, handlers.UpdateUserProfile)
+	app.Get("/users/:id", apiLimiter, middleware.RequireJWT, handlers.GetUserProfile)
 
 	// ── Admin chat ────────────────────────────────────────────────────────────
 	app.Get("/admin/chat/history", middleware.RequireJWT, middleware.RequireAdmin, handlers.AdminChatHistory)
-	app.Get("/admin/ws", middleware.RequireWSAdminAuth, websocket.New(handlers.AdminWS))
 
-	// ── Posts ─────────────────────────────────────────────────────────────────
-	app.Get("/api/posts", handlers.ListPosts)
-	app.Post("/api/posts", middleware.RequireJWT, handlers.CreatePost)
-	app.Get("/api/posts/saved", middleware.RequireJWT, handlers.GetSavedPosts)
-	app.Get("/api/posts/slug/:slug", handlers.GetPostBySlug)
-	app.Get("/api/posts/:id", handlers.GetPost)
-	app.Delete("/api/posts/:id", middleware.RequireJWT, handlers.DeletePost)
-	app.Get("/api/posts/:id/likes", middleware.RequireJWT, handlers.GetPostLikes)
-	app.Post("/api/posts/:id/likes", middleware.RequireJWT, handlers.LikePost)
-	app.Delete("/api/posts/:id/likes", middleware.RequireJWT, handlers.UnlikePost)
-	app.Get("/api/posts/:id/comments", middleware.RequireJWT, handlers.GetPostComments)
-	app.Post("/api/posts/:id/comments", middleware.RequireJWT, handlers.CreatePostComment)
-	app.Delete("/api/posts/:id/comments/:commentId", middleware.RequireJWT, handlers.DeletePostComment)
-	app.Post("/api/posts/:id/saves", middleware.RequireJWT, handlers.SavePost)
-	app.Delete("/api/posts/:id/saves", middleware.RequireJWT, handlers.UnsavePost)
+	// ── /api group — 300 req/min per IP ───────────────────────────────────────
+	api := app.Group("/api", apiLimiter)
 
-	// ── Follows ───────────────────────────────────────────────────────────────
-	app.Get("/api/follows", middleware.RequireJWT, handlers.GetFollows)
-	app.Post("/api/follows", middleware.RequireJWT, handlers.Follow)
-	app.Delete("/api/follows", middleware.RequireJWT, handlers.Unfollow)
+	api.Post("/ws-ticket", middleware.RequireJWT, middleware.IssueWSTicket)
 
-	// ── Notifications ─────────────────────────────────────────────────────────
-	app.Get("/api/notifications", middleware.RequireJWT, handlers.ListNotifications)
-	app.Patch("/api/notifications/:id/read", middleware.RequireJWT, handlers.MarkNotificationRead)
+	api.Get("/settings/email-prefs", middleware.RequireJWT, handlers.GetEmailPrefs)
+	api.Patch("/settings/email-prefs", middleware.RequireJWT, handlers.UpdateEmailPrefs)
 
-	// ── Gigs ──────────────────────────────────────────────────────────────────
-	app.Get("/api/gigs", middleware.OptionalJWT, handlers.ListGigs)
-	app.Post("/api/gigs/:id/apply", middleware.RequireJWT, handlers.ApplyToGig)
+	api.Get("/users", middleware.RequireJWT, handlers.ListAllUsers)
+	api.Get("/users/suggestions", middleware.RequireJWT, handlers.UserSuggestions)
+	api.Get("/tags/trending", middleware.RequireJWT, handlers.TrendingTags)
 
-	// ── Webhooks ──────────────────────────────────────────────────────────────
-	app.Post("/webhooks/github", handlers.GithubWebhook)
+	api.Get("/conversations", middleware.RequireJWT, handlers.ListConversations)
+	api.Post("/conversations", middleware.RequireJWT, handlers.CreateConversation)
+	api.Get("/conversations/:id/messages", middleware.RequireJWT, handlers.GetConversationMessages)
+	api.Delete("/conversations/:id/messages/:msgId", middleware.RequireJWT, handlers.DeleteConversationMessage)
+	api.Post("/conversations/:id/messages/:msgId/restore", middleware.RequireJWT, handlers.RestoreConversationMessage)
+	api.Post("/conversations/:id/read", middleware.RequireJWT, handlers.MarkConversationRead)
+	api.Delete("/conversations/:id", middleware.RequireJWT, handlers.DeleteConversation)
+
+	api.Get("/blocks", middleware.RequireJWT, handlers.ListBlocked)
+	api.Post("/blocks/:id", middleware.RequireJWT, handlers.BlockUser)
+	api.Delete("/blocks/:id", middleware.RequireJWT, handlers.UnblockUser)
+
+	api.Get("/posts", handlers.ListPosts)
+	api.Post("/posts", middleware.RequireJWT, handlers.CreatePost)
+	api.Get("/posts/saved", middleware.RequireJWT, handlers.GetSavedPosts)
+	api.Get("/posts/slug/:slug", handlers.GetPostBySlug)
+	api.Get("/posts/:id", handlers.GetPost)
+	api.Delete("/posts/:id", middleware.RequireJWT, handlers.DeletePost)
+	api.Get("/posts/:id/likes", middleware.RequireJWT, handlers.GetPostLikes)
+	api.Post("/posts/:id/likes", middleware.RequireJWT, handlers.LikePost)
+	api.Delete("/posts/:id/likes", middleware.RequireJWT, handlers.UnlikePost)
+	api.Get("/posts/:id/comments", middleware.RequireJWT, handlers.GetPostComments)
+	api.Post("/posts/:id/comments", middleware.RequireJWT, handlers.CreatePostComment)
+	api.Delete("/posts/:id/comments/:commentId", middleware.RequireJWT, handlers.DeletePostComment)
+	api.Post("/posts/:id/saves", middleware.RequireJWT, handlers.SavePost)
+	api.Delete("/posts/:id/saves", middleware.RequireJWT, handlers.UnsavePost)
+
+	api.Get("/follows", middleware.RequireJWT, handlers.GetFollows)
+	api.Post("/follows", middleware.RequireJWT, handlers.Follow)
+	api.Delete("/follows", middleware.RequireJWT, handlers.Unfollow)
+
+	api.Get("/notifications", middleware.RequireJWT, handlers.ListNotifications)
+	api.Patch("/notifications/:id/read", middleware.RequireJWT, handlers.MarkNotificationRead)
+
+	api.Get("/gigs", middleware.OptionalJWT, handlers.ListGigs)
+	api.Post("/gigs/:id/apply", middleware.RequireJWT, handlers.ApplyToGig)
+
+	api.Post("/ads/:id/click", handlers.RecordAdClick)
+	api.Post("/ads/:id/impression", middleware.OptionalJWT, handlers.RecordAdImpression)
+
+	api.Get("/verification/me", middleware.RequireJWT, handlers.GetMyVerification)
+	api.Post("/verification", middleware.RequireJWT, handlers.SubmitVerification)
 
 	// ── Admin ─────────────────────────────────────────────────────────────────
 	adminGroup := app.Group("/admin", middleware.RequireJWT, middleware.RequireAdmin)
@@ -184,12 +202,4 @@ func registerRoutes(app *fiber.App, authLimiter fiber.Handler) {
 	adminGroup.Patch("/ads/:id", handlers.UpdateAd)
 	adminGroup.Delete("/ads/:id", handlers.DeleteAd)
 	adminGroup.Patch("/ads/:id/toggle", handlers.ToggleAd)
-
-	// ── Ads (user-facing tracking) ────────────────────────────────────────────
-	app.Post("/api/ads/:id/click", handlers.RecordAdClick)
-	app.Post("/api/ads/:id/impression", middleware.OptionalJWT, handlers.RecordAdImpression)
-
-	// ── Verification (user-facing) ────────────────────────────────────────────
-	app.Get("/api/verification/me", middleware.RequireJWT, handlers.GetMyVerification)
-	app.Post("/api/verification", middleware.RequireJWT, handlers.SubmitVerification)
 }

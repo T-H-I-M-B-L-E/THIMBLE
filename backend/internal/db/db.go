@@ -3,19 +3,26 @@ package db
 import (
 	"context"
 	"log"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-// Pool is the process-wide Postgres connection pool. Initialised once in
-// main via Init().
 var Pool *pgxpool.Pool
 
-// Init opens the pool against connStr and stores it in the package-level
-// Pool variable so every other package can reach it without dependency
-// wiring. Returns a cleanup function the caller should defer.
 func Init(ctx context.Context, connStr string) func() {
-	p, err := pgxpool.New(ctx, connStr)
+	cfg, err := pgxpool.ParseConfig(connStr)
+	if err != nil {
+		log.Fatal("Unable to parse database URL:", err)
+	}
+
+	cfg.MaxConns = 25
+	cfg.MinConns = 2
+	cfg.MaxConnLifetime = 30 * time.Minute
+	cfg.MaxConnIdleTime = 10 * time.Minute
+	cfg.HealthCheckPeriod = 1 * time.Minute
+
+	p, err := pgxpool.NewWithConfig(ctx, cfg)
 	if err != nil {
 		log.Fatal("Unable to connect to database:", err)
 	}
