@@ -110,6 +110,7 @@ export default function InfraPage() {
     if (manual) setRefreshing(true)
     try {
       const res = await fetch('/api/admin/infra', { credentials:'include' })
+      if (res.status === 401) { window.location.href = '/admin/login'; return }
       if (!res.ok) throw new Error(`${res.status}`)
       setData(await res.json())
       setLastRefresh(new Date())
