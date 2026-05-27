@@ -29,7 +29,7 @@ export default function NewAdPage() {
     })
     if (!res.ok) {
       const err = await res.json().catch(() => ({}))
-      throw new Error(err.message || 'Failed to create ad')
+      throw new Error(err.error || err.message || `Server error ${res.status}`)
     }
     router.push('/admin/ads')
   }
