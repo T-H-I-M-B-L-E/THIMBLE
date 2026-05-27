@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Plus, ToggleLeft, ToggleRight, Pencil, Trash2 } from 'lucide-react'
 import { useNotify } from '@/components/notify-provider'
+import { adminFetch } from '@/lib/adminFetch'
 
 interface Ad {
   id: string
@@ -28,7 +29,7 @@ export default function AdminAdsPage() {
   const load = async () => {
     setLoading(true)
     try {
-      const res = await fetch('/api/admin/ads', { credentials: 'include' })
+      const res = await adminFetch('/api/admin/ads')
       if (res.status === 401) { router.push('/admin'); return }
       const data = await res.json()
       setAds(Array.isArray(data) ? data : [])
@@ -40,7 +41,7 @@ export default function AdminAdsPage() {
   useEffect(() => { load() }, [])
 
   const handleToggle = async (id: string) => {
-    const res = await fetch(`/api/admin/ads/${id}/toggle`, { method: 'PATCH', credentials: 'include' })
+    const res = await adminFetch(`/api/admin/ads/${id}/toggle`, { method: 'PATCH' })
     if (res.ok) {
       const updated = await res.json()
       setAds(prev => prev.map(a => a.id === id ? { ...a, isActive: updated.isActive } : a))
@@ -55,7 +56,7 @@ export default function AdminAdsPage() {
       destructive: true,
     })
     if (!ok) return
-    const res = await fetch(`/api/admin/ads/${id}`, { method: 'DELETE', credentials: 'include' })
+    const res = await adminFetch(`/api/admin/ads/${id}`, { method: 'DELETE' })
     if (res.ok || res.status === 204) {
       setAds(prev => prev.filter(a => a.id !== id))
     } else {

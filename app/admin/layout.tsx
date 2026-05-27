@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { usePathname } from 'next/navigation'
+import { adminFetch } from '@/lib/adminFetch'
 
 interface Commit {
   sha: string
@@ -68,9 +69,9 @@ function AdminLayoutInner({ children }: { children: React.ReactNode }) {
 
   // Auth gate
   useEffect(() => {
-    fetch('/api/admin/stats', { credentials: 'include' })
+    adminFetch('/api/admin/stats')
       .then(r => {
-        if (r.status === 401 || r.status === 403) window.location.replace('/admin/login')
+        if (r.status === 403) window.location.replace('/admin/login')
         else setAuthChecked(true)
       })
       .catch(() => setAuthChecked(true))
@@ -79,7 +80,7 @@ function AdminLayoutInner({ children }: { children: React.ReactNode }) {
   // Commits
   useEffect(() => {
     const load = () =>
-      fetch('/api/admin/commits', { credentials: 'include' })
+      adminFetch('/api/admin/commits')
         .then(r => r.ok ? r.json() : []).then(setCommits).catch(() => {})
     load()
     const id = setInterval(load, 60000)
@@ -90,7 +91,7 @@ function AdminLayoutInner({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!authChecked) return
     const load = () =>
-      fetch('/api/admin/stats', { credentials: 'include' })
+      adminFetch('/api/admin/stats')
         .then(r => r.ok ? r.json() : null)
         .then(s => { if (s?.pendingVerifications != null) setPendingVerifications(s.pendingVerifications) })
         .catch(() => {})
@@ -101,13 +102,13 @@ function AdminLayoutInner({ children }: { children: React.ReactNode }) {
 
   // Settings + email stats
   useEffect(() => {
-    fetch('/api/admin/settings', { credentials: 'include' })
+    adminFetch('/api/admin/settings')
       .then(r => r.ok ? r.json() : {} as Record<string, string>)
       .then((s: Record<string, string>) => {
         if (s.commit_emails_enabled !== undefined)
           setCommitEmailsEnabled(s.commit_emails_enabled === 'true')
       }).catch(() => {})
-    fetch('/api/admin/email-stats', { credentials: 'include' })
+    adminFetch('/api/admin/email-stats')
       .then(r => r.ok ? r.json() : null)
       .then(s => { if (s) setEmailStats(s) }).catch(() => {})
   }, [])
@@ -116,7 +117,7 @@ function AdminLayoutInner({ children }: { children: React.ReactNode }) {
   const connectAdminChat = useCallback(async () => {
     if (chatWs.current?.readyState === WebSocket.OPEN) return
     try {
-      const r = await fetch('/api/admin/ws-token', { credentials: 'include' })
+      const r = await adminFetch('/api/admin/ws-token')
       if (!r.ok) return
       const { token } = await r.json()
       const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8080'
@@ -168,8 +169,8 @@ function AdminLayoutInner({ children }: { children: React.ReactNode }) {
     setTogglingEmail(true)
     const next = !commitEmailsEnabled
     setCommitEmailsEnabled(next)
-    await fetch('/api/admin/settings', {
-      method: 'PATCH', credentials: 'include',
+    await adminFetch('/api/admin/settings', {
+      method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ commit_emails_enabled: next ? 'true' : 'false' }),
     }).catch(() => setCommitEmailsEnabled(!next))

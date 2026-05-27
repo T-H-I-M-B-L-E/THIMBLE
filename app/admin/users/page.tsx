@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Suspense } from 'react'
 import { useNotify } from '@/components/notify-provider'
+import { adminFetch } from '@/lib/adminFetch'
 
 interface AdminUser {
   id: string
@@ -157,7 +158,7 @@ function UsersTable() {
     if (search) qs.set('search', search)
     if (roleFilter) qs.set('role', roleFilter)
     try {
-      const r = await fetch(`/api/admin/users?${qs}`, { credentials: 'include' })
+      const r = await adminFetch(`/api/admin/users?${qs}`)
       if (r.status === 403) { router.push('/admin/login'); return }
       const data = await r.json()
       setUsers(Array.isArray(data) ? data : [])
@@ -174,10 +175,9 @@ function UsersTable() {
   const updateUser = async (id: string, body: object) => {
     setActionLoading(id)
     try {
-      await fetch(`/api/admin/users/${id}`, {
+      await adminFetch(`/api/admin/users/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
         body: JSON.stringify(body),
       })
       fetchUsers()
@@ -196,7 +196,7 @@ function UsersTable() {
     if (!ok) return
     setActionLoading(id)
     try {
-      await fetch(`/api/admin/users/${id}`, { method: 'DELETE', credentials: 'include' })
+      await adminFetch(`/api/admin/users/${id}`, { method: 'DELETE' })
       setUsers(u => u.filter(x => x.id !== id))
     } finally {
       setActionLoading(null)
@@ -204,10 +204,9 @@ function UsersTable() {
   }
 
   const banUser = async (userId: string, durationHours: number, message: string) => {
-    await fetch(`/api/admin/users/${userId}/ban`, {
+    await adminFetch(`/api/admin/users/${userId}/ban`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',
       body: JSON.stringify({ durationHours, message }),
     })
     fetchUsers()
@@ -216,7 +215,7 @@ function UsersTable() {
   const unbanUser = async (id: string) => {
     setActionLoading(id)
     try {
-      await fetch(`/api/admin/users/${id}/ban`, { method: 'DELETE', credentials: 'include' })
+      await adminFetch(`/api/admin/users/${id}/ban`, { method: 'DELETE' })
       fetchUsers()
     } finally {
       setActionLoading(null)

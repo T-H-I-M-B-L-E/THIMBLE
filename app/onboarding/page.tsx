@@ -244,20 +244,22 @@ export default function OnboardingPage() {
                 </div>
                 <label className="absolute bottom-2 right-2 p-4 bg-black dark:bg-white rounded-full cursor-pointer hover:scale-105 transition-all shadow-xl">
                   <Camera className="h-5 w-5 text-white dark:text-black" />
-                  <input 
-                    type="file" 
-                    className="hidden" 
+                  <input
+                    type="file"
+                    className="hidden"
                     accept="image/*"
                     onChange={async (e) => {
                       const file = e.target.files?.[0]
-                      if (file) {
-                        try {
-                          const url = await uploadFile(file, (p) => setUploadProgress(p), "avatars")
-                          setProfilePreview(url)
-                        } catch (err) {
-                          console.error(err)
-                          setUploadProgress(0)
-                        }
+                      if (!file) return
+                      e.target.value = ""
+                      setUploadProgress(1)
+                      try {
+                        const url = await uploadFile(file, (p) => setUploadProgress(p), "avatars")
+                        setProfilePreview(url)
+                        setUploadProgress(0)
+                      } catch (err) {
+                        console.error(err)
+                        setUploadProgress(0)
                       }
                     }}
                   />

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef, useCallback } from 'react'
+import { adminFetch } from '@/lib/adminFetch'
 
 interface ChatMsg {
   id: number
@@ -51,7 +52,7 @@ export default function AdminChatPage() {
   const connect = useCallback(async () => {
     if (ws.current?.readyState === WebSocket.OPEN) return
     try {
-      const r = await fetch('/api/admin/ws-token', { credentials: 'include' })
+      const r = await adminFetch('/api/admin/ws-token')
       if (!r.ok) return
       const { token } = await r.json()
       const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8080'
@@ -73,7 +74,7 @@ export default function AdminChatPage() {
 
   useEffect(() => {
     // Load history
-    fetch('/api/admin/chat', { credentials: 'include' })
+    adminFetch('/api/admin/chat')
       .then(r => r.ok ? r.json() : [])
       .then((msgs: ChatMsg[]) => setMessages(Array.isArray(msgs) ? msgs : []))
       .catch(() => {})

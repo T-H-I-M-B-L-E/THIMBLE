@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import Link from 'next/link'
 import { ChevronLeft } from 'lucide-react'
+import { adminFetch } from '@/lib/adminFetch'
 import { AdForm } from '@/components/ad-form'
 import type { AdFormValues } from '@/components/ad-form'
 
@@ -28,16 +29,15 @@ export default function EditAdPage() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    fetch(`/api/admin/ads/${id}`, { credentials: 'include' })
+    adminFetch(`/api/admin/ads/${id}`)
       .then(r => r.json())
       .then(data => setAd(data))
       .finally(() => setLoading(false))
   }, [id])
 
   const handleSubmit = async (values: AdFormValues) => {
-    const res = await fetch(`/api/admin/ads/${id}`, {
+    const res = await adminFetch(`/api/admin/ads/${id}`, {
       method: 'PATCH',
-      credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         title: values.title,

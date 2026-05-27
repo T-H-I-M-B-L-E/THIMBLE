@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { adminFetch } from '@/lib/adminFetch'
 
 interface RoleCount { role: string; count: number }
 interface DailyCount { date: string; count: number }
@@ -92,9 +93,9 @@ export default function AdminDashboard() {
 
   useEffect(() => {
     Promise.all([
-      fetch('/api/admin/stats', { credentials: 'include' }),
-      fetch('/api/admin/users?admin=true', { credentials: 'include' }),
-      fetch('/api/admin/audit-log', { credentials: 'include' }),
+      adminFetch('/api/admin/stats'),
+      adminFetch('/api/admin/users?admin=true'),
+      adminFetch('/api/admin/audit-log'),
     ]).then(async ([sRes, aRes, lRes]) => {
       if (sRes.status === 403) { router.push('/admin/login'); return }
       setStats(await sRes.json())

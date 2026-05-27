@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { CheckCircle2, XCircle, ExternalLink, Loader2 } from 'lucide-react'
 import { useNotify } from '@/components/notify-provider'
+import { adminFetch } from '@/lib/adminFetch'
 
 interface VerificationRequest {
   id: number
@@ -54,9 +55,9 @@ export default function AdminVerificationPage() {
   const load = useCallback(() => {
     setLoading(true)
     const q = filter === 'all' ? '' : `?status=${filter}`
-    fetch(`/api/admin/verification-requests${q}`, { credentials: 'include' })
+    adminFetch(`/api/admin/verification-requests${q}`)
       .then(r => {
-        if (r.status === 401 || r.status === 403) { router.push('/admin/login'); return [] }
+        if (r.status === 403) { router.push('/admin/login'); return [] }
         return r.json()
       })
       .then(d => setRequests(Array.isArray(d) ? d : []))
@@ -69,9 +70,8 @@ export default function AdminVerificationPage() {
   const review = async (id: number, action: 'approve' | 'reject', adminNote = '') => {
     setReviewing({ id, action })
     try {
-      const res = await fetch(`/api/admin/verification-requests/${id}`, {
+      const res = await adminFetch(`/api/admin/verification-requests/${id}`, {
         method: 'PATCH',
-        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action, adminNote }),
       })

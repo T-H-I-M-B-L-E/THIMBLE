@@ -3,6 +3,7 @@
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { ChevronLeft } from 'lucide-react'
+import { adminFetch } from '@/lib/adminFetch'
 import { AdForm } from '@/components/ad-form'
 import type { AdFormValues } from '@/components/ad-form'
 
@@ -10,9 +11,8 @@ export default function NewAdPage() {
   const router = useRouter()
 
   const handleSubmit = async (values: AdFormValues) => {
-    const res = await fetch('/api/admin/ads', {
+    const res = await adminFetch('/api/admin/ads', {
       method: 'POST',
-      credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         title: values.title,

@@ -1,10 +1,13 @@
 'use client'
 
-import { useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useState, Suspense } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 
-export default function AdminLoginPage() {
+function AdminLoginInner() {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const sessionExpired = searchParams.get('reason') === 'expired'
+
   const [step, setStep] = useState<'greeting' | 'login'>('greeting')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -30,7 +33,6 @@ export default function AdminLoginPage() {
         setError(data.error || 'Login failed')
         return
       }
-      // Store admin name for splash screen personalisation
       if (data.fullName) sessionStorage.setItem('admin_name', data.fullName)
       else if (data.user?.fullName) sessionStorage.setItem('admin_name', data.user.fullName)
       if (data.userId) sessionStorage.setItem('admin_id', data.userId)
@@ -73,6 +75,12 @@ export default function AdminLoginPage() {
           <p className="text-2xl font-light tracking-widest text-white mt-1">Admin Access</p>
         </div>
 
+        {sessionExpired && (
+          <div className="mb-4 px-4 py-3 rounded-lg bg-amber-950/60 border border-amber-800/50 text-amber-300 text-sm text-center">
+            Your session has expired — please sign in again.
+          </div>
+        )}
+
         <form onSubmit={handleSubmit} className="bg-neutral-900 border border-neutral-800 rounded-2xl p-6 space-y-4">
           <div>
             <label className="text-xs uppercase tracking-widest text-neutral-500 block mb-2">Email</label>
@@ -102,14 +110,12 @@ export default function AdminLoginPage() {
                 aria-label={showPassword ? 'Hide password' : 'Show password'}
               >
                 {showPassword ? (
-                  // Eye-off
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/>
                     <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/>
                     <line x1="1" y1="1" x2="23" y2="23"/>
                   </svg>
                 ) : (
-                  // Eye
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
                     <circle cx="12" cy="12" r="3"/>
@@ -137,5 +143,13 @@ export default function AdminLoginPage() {
       </div>
 
     </div>
+  )
+}
+
+export default function AdminLoginPage() {
+  return (
+    <Suspense>
+      <AdminLoginInner />
+    </Suspense>
   )
 }

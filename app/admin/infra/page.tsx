@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import { Activity, Database, Cpu, Zap, Wifi, RefreshCw, CheckCircle, XCircle, AlertTriangle, Clock } from 'lucide-react'
+import { adminFetch } from '@/lib/adminFetch'
 
 interface ErrorEntry { time: string; method: string; path: string; status: number; latencyMs: number }
 interface SlowEntry  { time: string; method: string; path: string; status: number; latencyMs: number }
@@ -19,6 +20,32 @@ interface InfraData {
   alerts:       { thresholds: { errRatePct: number; slowMs: number } }
 }
 
+/* ── tooltip ── */
+function Tooltip({ text }: { text: string }) {
+  const [show, setShow] = useState(false)
+  return (
+    <span
+      style={{ position:'relative', display:'inline-flex', alignItems:'center' }}
+      onMouseEnter={() => setShow(true)}
+      onMouseLeave={() => setShow(false)}
+    >
+      <span style={{ display:'inline-flex', alignItems:'center', justifyContent:'center', width:14, height:14, borderRadius:'50%', border:'1px solid oklch(0.32 0.006 60)', color:'oklch(0.45 0.006 60)', fontSize:9, fontWeight:700, cursor:'help', lineHeight:1, fontFamily:'sans-serif' }}>i</span>
+      {show && (
+        <span style={{
+          position:'absolute', bottom:'calc(100% + 6px)', left:'50%', transform:'translateX(-50%)',
+          background:'oklch(0.16 0.005 60)', border:'1px solid oklch(0.24 0.006 60)',
+          borderRadius:8, padding:'8px 12px', fontSize:12, lineHeight:1.5,
+          color:'oklch(0.78 0.005 60)', whiteSpace:'normal', width:240,
+          boxShadow:'0 4px 20px rgba(0,0,0,0.5)', zIndex:50, pointerEvents:'none',
+          textAlign:'left', fontWeight:400, letterSpacing:'normal', textTransform:'none',
+        }}>
+          {text}
+        </span>
+      )}
+    </span>
+  )
+}
+
 /* ── helpers ── */
 function StatusDot({ ok }: { ok: boolean }) {
   return <span style={{ display:'inline-block', width:8, height:8, borderRadius:'50%', background: ok ? '#22c55e' : '#ef4444', boxShadow: ok ? '0 0 6px #22c55e88' : '0 0 6px #ef444488' }} />
@@ -32,7 +59,7 @@ function Card({ title, icon: Icon, children, status, tooltip }: {
       <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:16 }}>
         <Icon size={15} style={{ color:'oklch(0.65 0.010 60)' }} />
         <span style={{ fontSize:12, fontWeight:600, letterSpacing:'0.08em', textTransform:'uppercase', color:'oklch(0.55 0.008 60)' }}>{title}</span>
-        {tooltip && <span title={tooltip} style={{ fontSize:11, color:'oklch(0.38 0.006 60)', cursor:'help', marginLeft:2 }}>ⓘ</span>}
+        {tooltip && <span style={{ marginLeft:2 }}><Tooltip text={tooltip} /></span>}
         {status !== undefined && <span style={{ marginLeft:'auto' }}>{status ? <CheckCircle size={14} color="#22c55e" /> : <XCircle size={14} color="#ef4444" />}</span>}
       </div>
       <div style={{ display:'flex', flexDirection:'column', gap:10 }}>{children}</div>
@@ -45,7 +72,7 @@ function Row({ label, value, warn, tooltip }: { label: string; value: React.Reac
     <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
       <span style={{ fontSize:13, color:'oklch(0.50 0.006 60)', display:'flex', alignItems:'center', gap:4 }}>
         {label}
-        {tooltip && <span title={tooltip} style={{ fontSize:11, cursor:'help', color:'oklch(0.38 0.006 60)' }}>ⓘ</span>}
+        {tooltip && <Tooltip text={tooltip} />}
       </span>
       <span style={{ fontSize:13, fontWeight:600, color: warn ? '#f59e0b' : 'oklch(0.90 0.004 60)', fontVariantNumeric:'tabular-nums' }}>{value}</span>
     </div>
@@ -109,8 +136,7 @@ export default function InfraPage() {
   const load = useCallback(async (manual = false) => {
     if (manual) setRefreshing(true)
     try {
-      const res = await fetch('/api/admin/infra', { credentials:'include' })
-      if (res.status === 401) { window.location.href = '/admin/login'; return }
+      const res = await adminFetch('/api/admin/infra')
       if (!res.ok) throw new Error(`${res.status}`)
       setData(await res.json())
       setLastRefresh(new Date())
@@ -182,7 +208,7 @@ export default function InfraPage() {
               <div style={{ display:'flex', alignItems:'center', gap:6, marginBottom:6 }}>
                 <StatusDot ok={item.ok} />
                 <span style={{ fontSize:11, color:'oklch(0.50 0.006 60)', fontWeight:600, letterSpacing:'0.06em', textTransform:'uppercase' }}>{item.label}</span>
-                <span title={item.tooltip} style={{ fontSize:10, color:'oklch(0.35 0.006 60)', cursor:'help', marginLeft:'auto' }}>ⓘ</span>
+                <span style={{ marginLeft:'auto' }}><Tooltip text={item.tooltip} /></span>
               </div>
               <span style={{ fontSize:18, fontWeight:700, color: item.ok ? 'oklch(0.92 0.004 60)' : '#fca5a5' }}>{item.detail}</span>
             </div>
@@ -271,7 +297,7 @@ export default function InfraPage() {
             <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:16 }}>
               <Database size={14} style={{ color:'oklch(0.65 0.010 60)' }} />
               <span style={{ fontSize:12, fontWeight:600, letterSpacing:'0.08em', textTransform:'uppercase', color:'oklch(0.55 0.008 60)' }}>Slowest DB Queries</span>
-              <span title="Top 10 slowest queries by average execution time from pg_stat_statements. Requires the extension to be enabled on your Postgres instance." style={{ fontSize:11, color:'oklch(0.38 0.006 60)', cursor:'help' }}>ⓘ</span>
+              <Tooltip text="Top 10 slowest queries by average execution time from pg_stat_statements. Requires the extension to be enabled on your Postgres instance." />
             </div>
             <div style={{ overflowX:'auto' }}>
               <table style={{ width:'100%', borderCollapse:'collapse', fontSize:12 }}>
@@ -319,7 +345,7 @@ function VercelStatus() {
       <span style={{ fontSize:11, fontWeight:600, letterSpacing:'0.06em', textTransform:'uppercase', color:'oklch(0.50 0.006 60)' }}>Vercel</span>
       <StatusDot ok={ok} />
       <span style={{ fontSize:13, color: ok ? 'oklch(0.80 0.004 60)' : '#fca5a5' }}>{status.description}</span>
-      <span title="Pulled from Vercel's public status API — reflects global Vercel platform health, not just your deployment." style={{ fontSize:11, color:'oklch(0.35 0.006 60)', cursor:'help', marginLeft:'auto' }}>ⓘ</span>
+      <span style={{ marginLeft:'auto' }}><Tooltip text="Pulled from Vercel's public status API — reflects global Vercel platform health, not just your deployment." /></span>
     </div>
   )
 }
