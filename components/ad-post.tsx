@@ -59,22 +59,23 @@ export function AdPost({ ad }: AdPostProps) {
   };
 
   return (
-    <article ref={ref} className="t-post">
+    <article ref={ref} className="t-post t-post-ad">
       <div className="t-post-main">
         <header className="t-post-head">
           <div className="t-post-head-meta">
             <span className="t-post-name">{ad.sponsorName}</span>
             <span className="t-post-dot">·</span>
             <span
-              className="t-muted-xs"
               style={{
-                fontSize: 11,
-                padding: "1px 6px",
-                background: "var(--t-surface-2)",
+                fontSize: 10,
+                padding: "2px 7px",
+                background: "linear-gradient(90deg, rgba(245,200,66,0.25), rgba(184,134,11,0.18))",
+                border: "1px solid rgba(184,134,11,0.35)",
                 borderRadius: 4,
-                color: "var(--t-ink-3)",
-                fontWeight: 500,
-                letterSpacing: "0.04em",
+                color: "#8a6200",
+                fontWeight: 600,
+                letterSpacing: "0.08em",
+                textTransform: "uppercase",
               }}
             >
               Sponsored
@@ -124,8 +125,20 @@ export function AdPost({ ad }: AdPostProps) {
           <button
             onClick={handleClick}
             type="button"
-            className="t-btn-primary"
-            style={{ fontSize: 13, display: "inline-flex", alignItems: "center", gap: 6 }}
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 6,
+              fontSize: 13,
+              fontWeight: 600,
+              padding: "7px 16px",
+              borderRadius: 6,
+              border: "1px solid rgba(184,134,11,0.45)",
+              background: "linear-gradient(90deg, rgba(245,200,66,0.22), rgba(184,134,11,0.14))",
+              color: "#7a5500",
+              cursor: "pointer",
+              letterSpacing: "0.01em",
+            }}
           >
             Learn more <ExternalLink size={13} />
           </button>

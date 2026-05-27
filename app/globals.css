@@ -159,6 +159,12 @@
   --t-gold:     #1d1d1f;
   --t-gold-soft:rgba(29, 29, 31, 0.08);
   --t-gold-ink: #1d1d1f;
+  /* Ad-specific amber-gold tokens */
+  --t-ad-gold:       #b8860b;
+  --t-ad-gold-light: #f5c842;
+  --t-ad-bg:         linear-gradient(135deg, rgba(245,200,66,0.13) 0%, rgba(184,134,11,0.07) 100%);
+  --t-ad-border:     rgba(184,134,11,0.28);
+  --t-ad-glow:       0 2px 16px rgba(184,134,11,0.12), 0 1px 0 rgba(245,200,66,0.18) inset;
   --t-shadow-sm:0 1px 0 rgba(255,255,255,.5) inset, 0 2px 8px rgba(20,16,40,.04);
   --t-shadow:   0 1px 0 rgba(255,255,255,.55) inset, 0 8px 32px rgba(20,16,40,.08);
   --t-side-w:   0px;       /* sidebar removed */
@@ -619,6 +625,15 @@
 }
 .t-post:hover { background: rgba(255,255,255,0.32); }
 .t-post:first-child { border-top: 1px solid var(--t-line); }
+
+/* Ad card — golden-tinted variant */
+.t-post-ad {
+  background: var(--t-ad-bg);
+  border-bottom-color: var(--t-ad-border);
+  box-shadow: var(--t-ad-glow);
+}
+.t-post-ad:first-child { border-top-color: var(--t-ad-border); }
+.t-post-ad:hover { background: linear-gradient(135deg, rgba(245,200,66,0.20) 0%, rgba(184,134,11,0.11) 100%); }
 @keyframes t-post-in {
   from { opacity: 0; transform: translateY(-4px); }
   to { opacity: 1; transform: translateY(0); }
