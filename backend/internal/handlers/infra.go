@@ -29,12 +29,38 @@ func AdminInfra(c *fiber.Ctx) error {
 	}
 	dbLatencyMs := time.Since(dbStart).Milliseconds()
 
-	// Go runtime memory
+	// Top slow queries from pg_stat_statements (may not be enabled on all hosts)
+	type queryRow struct {
+		Query       string  `json:"query"`
+		Calls       int64   `json:"calls"`
+		MeanMs      float64 `json:"meanMs"`
+		TotalMs     float64 `json:"totalMs"`
+		StddevMs    float64 `json:"stddevMs"`
+	}
+	var slowQueries []queryRow
+	rows, qErr := db.Pool.Query(context.Background(), `
+		SELECT LEFT(query, 120), calls,
+		       mean_exec_time, total_exec_time, stddev_exec_time
+		FROM pg_stat_statements
+		WHERE query NOT LIKE '%pg_stat%'
+		ORDER BY mean_exec_time DESC
+		LIMIT 10
+	`)
+	if qErr == nil {
+		defer rows.Close()
+		for rows.Next() {
+			var r queryRow
+			if err := rows.Scan(&r.Query, &r.Calls, &r.MeanMs, &r.TotalMs, &r.StddevMs); err == nil {
+				slowQueries = append(slowQueries, r)
+			}
+		}
+	}
+
+	// Go runtime
 	var mem runtime.MemStats
 	runtime.ReadMemStats(&mem)
 
 	snap := metrics.Take()
-
 	total := snap.Req2xx + snap.Req4xx + snap.Req5xx
 	errRate := 0.0
 	if total > 0 {
@@ -71,6 +97,16 @@ func AdminInfra(c *fiber.Ctx) error {
 		},
 		"websockets": fiber.Map{
 			"activeConns": snap.WSConns,
+		},
+		"recentErrors": metrics.RecentErrors(),
+		"recentSlows":  metrics.RecentSlows(),
+		"slowQueries":  slowQueries,
+		"alerts": fiber.Map{
+			"thresholds": fiber.Map{
+				"errRatePct":   10,
+				"slowMs":       metrics.SlowThresholdMs,
+				"5xxThreshold": 5,
+			},
 		},
 	})
 }

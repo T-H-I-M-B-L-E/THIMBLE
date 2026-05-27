@@ -15,6 +15,7 @@ import (
 	"chat-app/internal/handlers"
 	"chat-app/internal/metrics"
 	"chat-app/internal/middleware"
+	"chat-app/internal/services"
 )
 
 func main() {
@@ -28,20 +29,33 @@ func main() {
 	db.EnsureSchema(ctx)
 
 	go middleware.SweepExpiredTickets()
+	services.StartInfraMonitor(ctx)
 
 	app := fiber.New()
 
-	// Count 2xx/4xx/5xx responses for the infra dashboard.
+	// Count responses and record errors + slow requests for the infra dashboard.
 	app.Use(func(c *fiber.Ctx) error {
+		start := time.Now()
 		err := c.Next()
+		latencyMs := time.Since(start).Milliseconds()
 		s := c.Response().StatusCode()
 		switch {
 		case s >= 500:
 			metrics.Inc5xx()
+			metrics.PushError(metrics.ErrorEntry{
+				Time: time.Now(), Method: c.Method(),
+				Path: c.Path(), Status: s, LatencyMs: latencyMs,
+			})
 		case s >= 400:
 			metrics.Inc4xx()
 		default:
 			metrics.Inc2xx()
+		}
+		if latencyMs >= metrics.SlowThresholdMs {
+			metrics.PushSlow(metrics.SlowEntry{
+				Time: time.Now(), Method: c.Method(),
+				Path: c.Path(), Status: s, LatencyMs: latencyMs,
+			})
 		}
 		return err
 	})
