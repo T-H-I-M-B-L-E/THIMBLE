@@ -172,6 +172,38 @@ func EnsureSchema(ctx context.Context) {
 	`, "gig_applications")
 	Pool.Exec(ctx, `CREATE INDEX IF NOT EXISTS idx_gig_applications_user ON gig_applications(user_id)`)
 
+	mustExec(ctx, `
+		CREATE TABLE IF NOT EXISTS ads (
+			id                TEXT PRIMARY KEY,
+			title             TEXT NOT NULL,
+			sponsor_name      TEXT NOT NULL,
+			description       TEXT NOT NULL DEFAULT '',
+			image_url         TEXT NOT NULL,
+			video_url         TEXT NOT NULL DEFAULT '',
+			redirect_url      TEXT NOT NULL,
+			placement         TEXT NOT NULL DEFAULT 'feed',
+			is_active         BOOLEAN NOT NULL DEFAULT TRUE,
+			start_date        TIMESTAMPTZ NOT NULL,
+			end_date          TIMESTAMPTZ NOT NULL,
+			click_count       BIGINT NOT NULL DEFAULT 0,
+			impression_count  BIGINT NOT NULL DEFAULT 0,
+			last_served_at    TIMESTAMPTZ,
+			created_by        TEXT,
+			created_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+			updated_at        TIMESTAMPTZ NOT NULL DEFAULT NOW()
+		)
+	`, "ads")
+	Pool.Exec(ctx, `CREATE INDEX IF NOT EXISTS idx_ads_active_window ON ads (placement, is_active, start_date, end_date)`)
+	Pool.Exec(ctx, `CREATE INDEX IF NOT EXISTS idx_ads_last_served ON ads (last_served_at NULLS FIRST)`)
+	mustExec(ctx, `
+		CREATE TABLE IF NOT EXISTS ad_impressions (
+			ad_id     TEXT NOT NULL REFERENCES ads(id) ON DELETE CASCADE,
+			user_id   TEXT NOT NULL,
+			served_on DATE NOT NULL DEFAULT CURRENT_DATE,
+			PRIMARY KEY (ad_id, user_id, served_on)
+		)
+	`, "ad_impressions")
+
 	Pool.Exec(ctx, `ALTER TABLE users ADD COLUMN IF NOT EXISTS is_banned BOOLEAN NOT NULL DEFAULT FALSE`)
 	Pool.Exec(ctx, `ALTER TABLE users ADD COLUMN IF NOT EXISTS banned_until TIMESTAMPTZ`)
 	Pool.Exec(ctx, `ALTER TABLE users ADD COLUMN IF NOT EXISTS ban_message TEXT NOT NULL DEFAULT ''`)

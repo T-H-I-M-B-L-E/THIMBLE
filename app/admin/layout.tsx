@@ -179,6 +179,7 @@ function AdminLayoutInner({ children }: { children: React.ReactNode }) {
   const navLinks: { href: string; label: string; badge?: number }[] = [
     { href: '/admin', label: 'Dashboard' },
     { href: '/admin/users', label: 'Users' },
+    { href: '/admin/ads', label: 'Ads' },
     { href: '/admin/verification', label: 'Verify', badge: pendingVerifications > 0 ? pendingVerifications : undefined },
     { href: '/admin/chat', label: 'Messages', badge: unread > 0 ? unread : undefined },
   ]

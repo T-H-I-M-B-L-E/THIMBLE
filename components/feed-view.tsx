@@ -6,6 +6,8 @@ import { ImageIcon } from "lucide-react"
 import { useState, useEffect, useCallback } from "react"
 import { PostCard } from "@/components/post-card"
 import type { PostData } from "@/components/post-card"
+import { AdPost } from "@/components/ad-post"
+import type { AdData } from "@/components/ad-post"
 import { InlineComposer } from "@/components/inline-composer"
 import { useFollowing } from "@/hooks/use-social"
 import { useInfinite } from "@/hooks/use-infinite"
@@ -13,6 +15,10 @@ import { useNotify } from "@/components/notify-provider"
 import { getCached, setCached } from "@/lib/swr-cache"
 
 const FEED_KEY = "feed:posts"
+
+type FeedItem =
+  | { type: "post"; data: PostData }
+  | { type: "ad"; data: AdData }
 
 export function FeedView() {
   const { user } = useAuth()
@@ -22,53 +28,56 @@ export function FeedView() {
   const { following } = useFollowing(user?.id)
   const notify = useNotify()
 
-  // Cursor pagination: pageCursor is the id of the last seen post; pass
-  // null for the first page. Backend returns up to 20 at a time.
   const fetchPage = useCallback(async (pageCursor: string | null) => {
     const url = pageCursor ? `/api/posts?before=${encodeURIComponent(pageCursor)}` : "/api/posts"
     const res = await fetch(url, { credentials: "include" })
     if (!res.ok) throw new Error("Failed to load")
     const data = await res.json()
-    const arr: PostData[] = Array.isArray(data) ? data : []
+    const arr: FeedItem[] = Array.isArray(data) ? data : []
+    // Cursor is the id of the last post item (skip ads for cursor tracking)
+    const lastPost = [...arr].reverse().find(i => i.type === "post")
+    const postCount = arr.filter(i => i.type === "post").length
     return {
       items: arr,
-      // If the backend returns fewer than the page size, we know we're done.
-      nextCursor: arr.length === 20 ? String(arr[arr.length - 1].id) : null,
+      nextCursor: postCount === 20 && lastPost ? String((lastPost.data as PostData).id) : null,
     }
   }, [])
 
   const {
-    items: posts,
+    items,
     isLoading,
     isLoadingMore,
     hasMore,
     sentinelRef,
-    setItems: setPosts,
-  } = useInfinite<PostData>(fetchPage)
+    setItems,
+  } = useInfinite<FeedItem>(fetchPage)
 
-  // Seed first paint from the SWR cache for perceived speed, then let the
-  // hook's revalidation replace it.
   const [seeded, setSeeded] = useState(false)
   useEffect(() => {
     if (seeded) return
     const cached = getCached<PostData[]>(FEED_KEY)
-    if (cached && cached.length > 0) setPosts(cached)
+    if (cached && cached.length > 0) {
+      setItems(cached.map(p => ({ type: "post" as const, data: p })))
+    }
     setSeeded(true)
-  }, [seeded, setPosts])
+  }, [seeded, setItems])
 
-  // Keep the cache in sync with the first page worth of posts only —
-  // we don't want to balloon localStorage with hundreds of items.
   useEffect(() => {
-    if (posts.length === 0) return
+    if (items.length === 0) return
+    const posts = items.filter(i => i.type === "post").map(i => i.data as PostData)
     setCached(FEED_KEY, posts.slice(0, 20))
-  }, [posts])
+  }, [items])
 
-  const visiblePosts = (() => {
+  const visibleItems = (() => {
     if (activeFilter === "Following") {
       const followingIds = new Set(following.map(f => f.userId))
-      return posts.filter(p => p.userId && followingIds.has(p.userId) && p.userId !== user?.id)
+      return items.filter(i => {
+        if (i.type === "ad") return false
+        const p = i.data as PostData
+        return p.userId && followingIds.has(p.userId) && p.userId !== user?.id
+      })
     }
-    return posts
+    return items
   })()
 
   const handleDelete = async (postId: number | string) => {
@@ -85,7 +94,10 @@ export function FeedView() {
         credentials: "include",
       })
       if (res.ok || res.status === 204) {
-        setPosts(prev => prev.filter(p => String(p.id) !== String(postId)))
+        setItems(prev => prev.filter(i => {
+          if (i.type === "ad") return true
+          return String((i.data as PostData).id) !== String(postId)
+        }))
         removeDesignPost(String(postId))
       } else {
         const error = await res.json().catch(() => ({}))
@@ -97,19 +109,27 @@ export function FeedView() {
   }
 
   const addOptimistic = useCallback((post: PostData) => {
-    setPosts(prev => [post, ...prev])
+    setItems(prev => [{ type: "post", data: post }, ...prev])
     return String(post.id)
-  }, [setPosts])
+  }, [setItems])
 
   const commitOptimistic = useCallback((tempId: string, real: PostData) => {
-    setPosts(prev => prev.map(p => (String(p.id) === tempId ? real : p)))
-  }, [setPosts])
+    setItems(prev => prev.map(i => {
+      if (i.type === "ad") return i
+      return String((i.data as PostData).id) === tempId ? { type: "post", data: real } : i
+    }))
+  }, [setItems])
 
   const revertOptimistic = useCallback((tempId: string, error: string) => {
-    if (tempId) setPosts(prev => prev.filter(p => String(p.id) !== tempId))
+    if (tempId) {
+      setItems(prev => prev.filter(i => {
+        if (i.type === "ad") return true
+        return String((i.data as PostData).id) !== tempId
+      }))
+    }
     setToast(error)
     setTimeout(() => setToast(null), 4000)
-  }, [setPosts])
+  }, [setItems])
 
   const filterTabs = ["For you", "Following", "Designers", "Models", "Photographers", "Brands"]
 
@@ -122,7 +142,6 @@ export function FeedView() {
         onRevert={revertOptimistic}
       />
 
-      {/* Filter Pills */}
       <div className="t-filterbar">
         {filterTabs.map(tab => (
           <button
@@ -135,15 +154,14 @@ export function FeedView() {
         ))}
       </div>
 
-      {/* Feed */}
-      {isLoading && posts.length === 0 ? (
+      {isLoading && items.length === 0 ? (
         <div className="flex items-center justify-center py-24">
           <div
             className="animate-spin rounded-full"
             style={{ width: 48, height: 48, border: "2px solid var(--t-line)", borderTopColor: "var(--t-gold)" }}
           />
         </div>
-      ) : visiblePosts.length === 0 ? (
+      ) : visibleItems.length === 0 ? (
         <div className="t-empty-state">
           <div className="t-empty-state-icon">
             <ImageIcon size={24} />
@@ -153,19 +171,19 @@ export function FeedView() {
         </div>
       ) : (
         <div className="t-feed-stream">
-          {visiblePosts.map(post => (
-            <PostCard
-              key={post.id}
-              post={post}
-              currentUserId={user?.id}
-              onDelete={handleDelete}
-            />
-          ))}
+          {visibleItems.map((item, idx) =>
+            item.type === "ad" ? (
+              <AdPost key={`ad-${item.data.id}-${idx}`} ad={item.data as AdData} />
+            ) : (
+              <PostCard
+                key={(item.data as PostData).id}
+                post={item.data as PostData}
+                currentUserId={user?.id}
+                onDelete={handleDelete}
+              />
+            )
+          )}
 
-          {/* Sentinel: when this scrolls into view we load the next page.
-              Only mounted when there's more to load and we're on the
-              unfiltered feed (the Following filter is client-side and
-              can't cursor-paginate the same way). */}
           {hasMore && activeFilter !== "Following" && (
             <div ref={sentinelRef} className="t-feed-sentinel" aria-hidden="true" />
           )}

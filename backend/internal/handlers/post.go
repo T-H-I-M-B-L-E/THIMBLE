@@ -12,13 +12,39 @@ import (
 
 // ListPosts is reachable unauthenticated. If the caller has a token we
 // use their id to populate liked-by-me; otherwise the field is false.
+// When userId is empty (the home feed) ads are interleaved every 5 posts.
 func ListPosts(c *fiber.Ctx) error {
 	callerID := optionalCallerID(c)
-	posts, err := services.ListPosts(c.Context(), callerID, c.Query("before"), c.Query("userId"))
+	filterUser := c.Query("userId")
+	posts, err := services.ListPosts(c.Context(), callerID, c.Query("before"), filterUser)
 	if err != nil {
 		return respondError(c, err)
 	}
-	return c.JSON(posts)
+
+	// Profile pages (userId filter) don't inject ads.
+	if filterUser != "" {
+		items := make([]models.FeedItem, len(posts))
+		for i, p := range posts {
+			items[i] = models.FeedItem{Type: "post", Data: p}
+		}
+		return c.JSON(items)
+	}
+
+	// Home feed: inject one ad every 5 posts.
+	const adInterval = 5
+	numAds := len(posts) / adInterval
+	ads, _ := services.PickAdsForFeed(c.Context(), numAds)
+
+	items := make([]models.FeedItem, 0, len(posts)+len(ads))
+	adIdx := 0
+	for i, p := range posts {
+		items = append(items, models.FeedItem{Type: "post", Data: p})
+		if (i+1)%adInterval == 0 && adIdx < len(ads) {
+			items = append(items, models.FeedItem{Type: "ad", Data: ads[adIdx]})
+			adIdx++
+		}
+	}
+	return c.JSON(items)
 }
 
 func GetPost(c *fiber.Ctx) error {

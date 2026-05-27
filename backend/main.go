@@ -146,6 +146,16 @@ func registerRoutes(app *fiber.App, authLimiter fiber.Handler) {
 	adminGroup.Get("/email-stats", handlers.AdminEmailStats)
 	adminGroup.Get("/verification-requests", handlers.AdminListVerificationRequests)
 	adminGroup.Patch("/verification-requests/:id", handlers.AdminReviewVerification)
+	adminGroup.Post("/ads", handlers.CreateAd)
+	adminGroup.Get("/ads", handlers.ListAds)
+	adminGroup.Get("/ads/:id", handlers.GetAd)
+	adminGroup.Patch("/ads/:id", handlers.UpdateAd)
+	adminGroup.Delete("/ads/:id", handlers.DeleteAd)
+	adminGroup.Patch("/ads/:id/toggle", handlers.ToggleAd)
+
+	// ── Ads (user-facing tracking) ────────────────────────────────────────────
+	app.Post("/api/ads/:id/click", handlers.RecordAdClick)
+	app.Post("/api/ads/:id/impression", middleware.OptionalJWT, handlers.RecordAdImpression)
 
 	// ── Verification (user-facing) ────────────────────────────────────────────
 	app.Get("/api/verification/me", middleware.RequireJWT, handlers.GetMyVerification)
