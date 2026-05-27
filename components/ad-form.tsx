@@ -1,6 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
+import { ImageIcon, X } from "lucide-react";
+import { uploadFile } from "@/lib/upload";
 
 export interface AdFormValues {
   title: string;
@@ -45,6 +47,9 @@ export function AdForm({ initial, onSubmit, submitLabel }: AdFormProps) {
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [imageUploading, setImageUploading] = useState(false);
+  const [imageProgress, setImageProgress] = useState(0);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const set = (field: keyof AdFormValues) => (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
@@ -53,6 +58,23 @@ export function AdForm({ initial, onSubmit, submitLabel }: AdFormProps) {
       ? (e.target as HTMLInputElement).checked
       : e.target.value;
     setValues(v => ({ ...v, [field]: val }));
+  };
+
+  const handleImageFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = "";
+    setImageUploading(true);
+    setImageProgress(1);
+    try {
+      const url = await uploadFile(file, (p) => setImageProgress(p), "posts");
+      setValues(v => ({ ...v, imageUrl: url }));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Image upload failed");
+    } finally {
+      setImageUploading(false);
+      setImageProgress(0);
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -93,8 +115,82 @@ export function AdForm({ initial, onSubmit, submitLabel }: AdFormProps) {
       </div>
 
       <div className="t-field">
-        <label className="t-label">Image URL *</label>
-        <input className="t-input" value={values.imageUrl} onChange={set("imageUrl")} required placeholder="https://..." />
+        <label className="t-label">Image *</label>
+
+        {/* Preview / upload zone */}
+        {values.imageUrl ? (
+          <div style={{ position: "relative", display: "inline-block" }}>
+            <img
+              src={values.imageUrl}
+              alt="Ad preview"
+              style={{ width: "100%", maxHeight: 200, objectFit: "cover", borderRadius: 8, display: "block" }}
+            />
+            <button
+              type="button"
+              onClick={() => setValues(v => ({ ...v, imageUrl: "" }))}
+              style={{
+                position: "absolute", top: 6, right: 6,
+                background: "rgba(0,0,0,0.6)", border: "none", borderRadius: "50%",
+                width: 24, height: 24, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
+              }}
+              title="Remove image"
+            >
+              <X size={13} color="#fff" />
+            </button>
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              style={{
+                position: "absolute", bottom: 6, right: 6,
+                background: "rgba(0,0,0,0.6)", border: "none", borderRadius: 6,
+                padding: "4px 10px", cursor: "pointer", fontSize: 12, color: "#fff",
+              }}
+            >
+              Replace
+            </button>
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={imageUploading}
+            style={{
+              width: "100%", height: 120, border: "2px dashed var(--t-line)",
+              borderRadius: 8, background: "var(--t-surface-2)", cursor: "pointer",
+              display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 8,
+              color: "var(--t-ink-3)", fontSize: 13,
+            }}
+          >
+            {imageUploading ? (
+              <>
+                <div className="animate-spin" style={{ width: 20, height: 20, borderRadius: "50%", border: "2px solid var(--t-line)", borderTopColor: "var(--t-gold)" }} />
+                <span>{imageProgress}%</span>
+              </>
+            ) : (
+              <>
+                <ImageIcon size={22} />
+                <span>Click to upload from device</span>
+              </>
+            )}
+          </button>
+        )}
+
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          style={{ display: "none" }}
+          onChange={handleImageFile}
+        />
+
+        {/* Fallback: paste a URL directly */}
+        <input
+          className="t-input"
+          value={values.imageUrl}
+          onChange={set("imageUrl")}
+          placeholder="…or paste an image URL"
+          style={{ marginTop: 8 }}
+        />
       </div>
 
       <div className="t-field">
@@ -143,11 +239,11 @@ export function AdForm({ initial, onSubmit, submitLabel }: AdFormProps) {
 
       <button
         type="submit"
-        disabled={saving}
+        disabled={saving || imageUploading}
         className="t-btn-primary"
         style={{ alignSelf: "flex-start" }}
       >
-        {saving ? "Saving…" : submitLabel}
+        {saving ? "Saving…" : imageUploading ? "Uploading image…" : submitLabel}
       </button>
     </form>
   );
