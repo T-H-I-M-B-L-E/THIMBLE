@@ -49,6 +49,9 @@ func (in AdInput) validateForCreate() *ServiceError {
 	if in.RedirectUrl == nil || strings.TrimSpace(*in.RedirectUrl) == "" {
 		return NewError(400, "missing_redirect", "redirectUrl is required")
 	}
+	if u := strings.TrimSpace(*in.RedirectUrl); !strings.HasPrefix(u, "http://") && !strings.HasPrefix(u, "https://") {
+		return NewError(400, "bad_redirect", "redirectUrl must start with http:// or https://")
+	}
 	if in.StartDate == nil || in.EndDate == nil {
 		return NewError(400, "missing_dates", "startDate and endDate are required")
 	}

@@ -41,18 +41,21 @@ export function AdPost({ ad }: AdPostProps) {
     return () => observer.disconnect();
   }, [ad.id]);
 
+  const ensureAbsolute = (url: string) =>
+    url.startsWith("http://") || url.startsWith("https://") ? url : `https://${url}`;
+
   const handleClick = async () => {
+    let target = ensureAbsolute(ad.redirectUrl);
     try {
       const res = await fetch(`/api/ads/${ad.id}/click`, { method: "POST" });
       if (res.ok) {
         const { redirectUrl } = await res.json();
-        window.open(redirectUrl, "_blank", "noopener,noreferrer");
-        return;
+        target = ensureAbsolute(redirectUrl);
       }
     } catch {
       /* fall through */
     }
-    window.open(ad.redirectUrl, "_blank", "noopener,noreferrer");
+    window.open(target, "_blank", "noopener,noreferrer");
   };
 
   return (
