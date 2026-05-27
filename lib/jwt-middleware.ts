@@ -30,7 +30,7 @@ export async function verifyJWT(token: string): Promise<JWTPayload | null> {
 export async function getTokenFromCookie(): Promise<string | null> {
   try {
     const cookieStore = await cookies()
-    const token = cookieStore.get('auth_token')?.value
+    const token = cookieStore.get('auth_token')?.value || cookieStore.get('admin_token')?.value
     return token || null
   } catch (error) {
     console.error('Failed to get token from cookie:', error)

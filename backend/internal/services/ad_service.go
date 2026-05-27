@@ -24,16 +24,16 @@ var validPlacements = map[string]bool{
 // Pointers + the Patch flag let one type cover both flows: Create
 // requires every field, Update applies only the non-nil ones.
 type AdInput struct {
-	Title       *string
-	SponsorName *string
-	Description *string
-	ImageUrl    *string
-	VideoUrl    *string
-	RedirectUrl *string
-	Placement   *string
-	IsActive    *bool
-	StartDate   *time.Time
-	EndDate     *time.Time
+	Title       *string    `json:"title"`
+	SponsorName *string    `json:"sponsorName"`
+	Description *string    `json:"description"`
+	ImageUrl    *string    `json:"imageUrl"`
+	VideoUrl    *string    `json:"videoUrl"`
+	RedirectUrl *string    `json:"redirectUrl"`
+	Placement   *string    `json:"placement"`
+	IsActive    *bool      `json:"isActive"`
+	StartDate   *time.Time `json:"startDate"`
+	EndDate     *time.Time `json:"endDate"`
 }
 
 func (in AdInput) validateForCreate() *ServiceError {
