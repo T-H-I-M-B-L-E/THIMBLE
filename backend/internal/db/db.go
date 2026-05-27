@@ -16,7 +16,7 @@ func Init(ctx context.Context, connStr string) func() {
 		log.Fatal("Unable to parse database URL:", err)
 	}
 
-	cfg.MaxConns = 25
+	cfg.MaxConns = 80
 	cfg.MinConns = 2
 	cfg.MaxConnLifetime = 30 * time.Minute
 	cfg.MaxConnIdleTime = 10 * time.Minute
