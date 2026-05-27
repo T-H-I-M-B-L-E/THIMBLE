@@ -13,6 +13,7 @@ import (
 	"chat-app/internal/config"
 	"chat-app/internal/db"
 	"chat-app/internal/handlers"
+	"chat-app/internal/metrics"
 	"chat-app/internal/middleware"
 )
 
@@ -29,6 +30,22 @@ func main() {
 	go middleware.SweepExpiredTickets()
 
 	app := fiber.New()
+
+	// Count 2xx/4xx/5xx responses for the infra dashboard.
+	app.Use(func(c *fiber.Ctx) error {
+		err := c.Next()
+		s := c.Response().StatusCode()
+		switch {
+		case s >= 500:
+			metrics.Inc5xx()
+		case s >= 400:
+			metrics.Inc4xx()
+		default:
+			metrics.Inc2xx()
+		}
+		return err
+	})
+
 	app.Use(cors.New(cors.Config{
 		AllowOrigins:     cfg.AllowedOrigins,
 		AllowHeaders:     "Origin, Content-Type, Accept, Authorization",
@@ -146,6 +163,7 @@ func registerRoutes(app *fiber.App, authLimiter fiber.Handler) {
 	adminGroup.Get("/email-stats", handlers.AdminEmailStats)
 	adminGroup.Get("/verification-requests", handlers.AdminListVerificationRequests)
 	adminGroup.Patch("/verification-requests/:id", handlers.AdminReviewVerification)
+	adminGroup.Get("/infra", handlers.AdminInfra)
 	adminGroup.Post("/ads", handlers.CreateAd)
 	adminGroup.Get("/ads", handlers.ListAds)
 	adminGroup.Get("/ads/:id", handlers.GetAd)

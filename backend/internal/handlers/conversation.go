@@ -6,6 +6,7 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/websocket/v2"
 
+	"chat-app/internal/metrics"
 	"chat-app/internal/models"
 	"chat-app/internal/services"
 )
@@ -100,6 +101,8 @@ func RestoreConversationMessage(c *fiber.Ctx) error {
 // upgrade is already gated by middleware.RequireWSAuth, which stamped
 // c.Locals("userId"). conversationId comes from the query string.
 func ConversationWS(c *websocket.Conn) {
+	metrics.IncWS()
+	defer metrics.DecWS()
 	userId, _ := c.Locals("userId").(string)
 	var convId int
 	fmt.Sscanf(c.Query("conversationId"), "%d", &convId)
@@ -111,6 +114,8 @@ func AdminChatHistory(c *fiber.Ctx) error {
 }
 
 func AdminWS(c *websocket.Conn) {
+	metrics.IncWS()
+	defer metrics.DecWS()
 	userId, _ := c.Locals("userId").(string)
 	services.HandleAdminWS(c, userId)
 }
