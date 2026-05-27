@@ -317,18 +317,10 @@ export default function HomePage() {
             platform.
           </p>
           <div className="flex gap-5 text-xs text-neutral-600">
-            <button
-              onClick={() => router.push("/auth")}
-              className="hover:text-neutral-400 transition-colors"
-            >
-              Sign In
-            </button>
-            <button
-              onClick={() => router.push("/auth/signup")}
-              className="hover:text-neutral-400 transition-colors"
-            >
-              Sign Up
-            </button>
+            <button onClick={() => router.push("/about")} className="hover:text-neutral-400 transition-colors">About</button>
+            <button onClick={() => router.push("/help")} className="hover:text-neutral-400 transition-colors">Help</button>
+            <button onClick={() => router.push("/terms")} className="hover:text-neutral-400 transition-colors">Terms</button>
+            <button onClick={() => router.push("/auth")} className="hover:text-neutral-400 transition-colors">Sign In</button>
           </div>
         </div>
       </footer>
