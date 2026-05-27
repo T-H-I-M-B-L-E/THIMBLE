@@ -37,9 +37,12 @@ export default function UserProfilePage() {
         credentials: "include",
       })
       if (!res.ok) throw new Error(`Failed to fetch posts: ${res.status}`)
-      const arr: PostData[] = await res.json()
+      const raw = await res.json()
+      const arr: PostData[] = (Array.isArray(raw) ? raw : []).map((item: any) =>
+        item?.type === "post" ? item.data : item
+      )
       return {
-        items: Array.isArray(arr) ? arr : [],
+        items: arr,
         nextCursor: arr.length === PAGE_SIZE ? String(arr[arr.length - 1].id) : null,
       }
     },
