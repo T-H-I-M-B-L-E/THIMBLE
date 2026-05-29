@@ -313,14 +313,14 @@ export default function HomePage() {
             THIMBLE
           </span>
           <p className="text-xs text-neutral-600 text-center">
-            &copy; {new Date().getFullYear()} Thimble. The fashion creative
-            platform.
+            &copy; {new Date().getFullYear()} Thimble. All rights reserved.
           </p>
           <div className="flex gap-5 text-xs text-neutral-600">
             <button onClick={() => router.push("/about")} className="hover:text-neutral-400 transition-colors">About</button>
             <button onClick={() => router.push("/help")} className="hover:text-neutral-400 transition-colors">Help</button>
             <button onClick={() => router.push("/terms")} className="hover:text-neutral-400 transition-colors">Terms</button>
             <button onClick={() => router.push("/auth")} className="hover:text-neutral-400 transition-colors">Sign In</button>
+            <a href="mailto:support@tvimble.tech" className="hover:text-neutral-400 transition-colors">Contact</a>
           </div>
         </div>
       </footer>
