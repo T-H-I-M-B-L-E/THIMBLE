@@ -156,66 +156,6 @@ func fetchTableSizes(ctx context.Context) []tableSize {
 	return out
 }
 
-// fetchR2Stats queries the Cloudflare API for R2 bucket size and request counts.
-// Returns nil if Cloudflare credentials aren't configured.
-type r2Stats struct {
-	BucketName    string `json:"bucketName"`
-	SizeBytes     int64  `json:"sizeBytes"`
-	SizePretty    string `json:"sizePretty"`
-	ObjectCount   int64  `json:"objectCount"`
-	Configured    bool   `json:"configured"`
-}
-
-func fetchR2Stats(ctx context.Context) r2Stats {
-	accountID := os.Getenv("R2_ACCOUNT_ID")
-	apiToken := os.Getenv("CLOUDFLARE_API_TOKEN")
-	bucket := os.Getenv("R2_BUCKET_NAME")
-	if accountID == "" || apiToken == "" || bucket == "" {
-		return r2Stats{BucketName: bucket, Configured: false}
-	}
-	url := fmt.Sprintf("https://api.cloudflare.com/client/v4/accounts/%s/r2/buckets/%s/usage", accountID, bucket)
-	req, _ := http.NewRequestWithContext(ctx, "GET", url, nil)
-	req.Header.Set("Authorization", "Bearer "+apiToken)
-	client := http.Client{Timeout: 5 * time.Second}
-	res, err := client.Do(req)
-	if err != nil {
-		return r2Stats{BucketName: bucket, Configured: true}
-	}
-	defer res.Body.Close()
-	var body struct {
-		Success bool `json:"success"`
-		Result  struct {
-			PayloadSize string `json:"payloadSize"`
-			ObjectCount string `json:"objectCount"`
-		} `json:"result"`
-	}
-	if err := json.NewDecoder(res.Body).Decode(&body); err != nil || !body.Success {
-		return r2Stats{BucketName: bucket, Configured: true}
-	}
-	var size, count int64
-	fmt.Sscanf(body.Result.PayloadSize, "%d", &size)
-	fmt.Sscanf(body.Result.ObjectCount, "%d", &count)
-	return r2Stats{
-		BucketName:  bucket,
-		SizeBytes:   size,
-		SizePretty:  prettyBytes(size),
-		ObjectCount: count,
-		Configured:  true,
-	}
-}
-
-func prettyBytes(b int64) string {
-	const unit = 1024
-	if b < unit {
-		return fmt.Sprintf("%d B", b)
-	}
-	div, exp := int64(unit), 0
-	for n := b / unit; n >= unit; n /= unit {
-		div *= unit
-		exp++
-	}
-	return fmt.Sprintf("%.1f %cB", float64(b)/float64(div), "KMGTPE"[exp])
-}
 
 func AdminInfra(c *fiber.Ctx) error {
 	// DB ping + pool stats
@@ -311,7 +251,6 @@ func AdminInfra(c *fiber.Ctx) error {
 		"emailStats":     fetchEmailStats(context.Background()),
 		"userActivity":   fetchUserActivity(context.Background()),
 		"tableSizes":     fetchTableSizes(context.Background()),
-		"r2":             fetchR2Stats(context.Background()),
 		"alerts": fiber.Map{
 			"thresholds": fiber.Map{
 				"errRatePct":   10,

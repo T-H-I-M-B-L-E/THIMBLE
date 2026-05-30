@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
-import { Activity, Database, Cpu, Zap, Wifi, RefreshCw, CheckCircle, XCircle, AlertTriangle, Clock, ExternalLink, Radio, Mail, Users, HardDrive, TrendingUp } from 'lucide-react'
+import { Activity, Database, Cpu, Zap, Wifi, RefreshCw, CheckCircle, XCircle, AlertTriangle, Clock, ExternalLink, Radio, Mail, Users, TrendingUp } from 'lucide-react'
 import { adminFetch } from '@/lib/adminFetch'
 
 interface ErrorEntry { time: string; method: string; path: string; status: number; latencyMs: number }
@@ -35,7 +35,6 @@ interface InfraData {
   emailStats:    { sentToday: number; sentWeek: number; sentTotal: number; lastSentAt: string }
   userActivity:  { active24h: number; active7d: number; newToday: number; newThisWeek: number; total: number; banned: number }
   tableSizes:    TableSize[] | null
-  r2:            { bucketName: string; sizeBytes: number; sizePretty: string; objectCount: number; configured: boolean }
 }
 
 /* ── tooltip ── */
@@ -187,6 +186,14 @@ export default function InfraPage() {
 
   useEffect(() => { load(); const id = setInterval(() => load(), 30000); return () => clearInterval(id) }, [load])
 
+  const [isMobile, setIsMobile] = useState(false)
+  useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth < 768)
+    check()
+    window.addEventListener('resize', check)
+    return () => window.removeEventListener('resize', check)
+  }, [])
+
   const errRate = data ? parseFloat(data.requests.errRatePct) : 0
   const heapUsed = data ? parseFloat(data.runtime.heapAllocMB) : 0
   const heapTotal = data ? parseFloat(data.runtime.heapSysMB) : 1
@@ -198,9 +205,9 @@ export default function InfraPage() {
   )
 
   return (
-    <div style={{ padding:'28px 32px', maxWidth:960, color:'white' }}>
+    <div style={{ padding: isMobile ? '20px 16px' : '28px 32px', maxWidth:960, color:'white' }}>
       {/* Header */}
-      <div style={{ display:'flex', alignItems:'flex-start', justifyContent:'space-between', marginBottom:28 }}>
+      <div style={{ display:'flex', flexDirection: isMobile ? 'column' : 'row', alignItems: isMobile ? 'stretch' : 'flex-start', justifyContent:'space-between', gap: isMobile ? 16 : 0, marginBottom:28 }}>
         <div>
           <h1 style={{ fontSize:20, fontWeight:700, margin:0, letterSpacing:'-0.01em' }}>Infrastructure</h1>
           <p style={{ fontSize:12, color:'oklch(0.40 0.006 60)', marginTop:4, maxWidth:500 }}>
@@ -244,7 +251,7 @@ export default function InfraPage() {
       ) : data && (<>
 
         {/* Top status chips */}
-        <div style={{ display:'grid', gridTemplateColumns:'repeat(4, 1fr)', gap:12, marginBottom:20 }}>
+        <div style={{ display:'grid', gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(4, 1fr)', gap:12, marginBottom:20 }}>
           {[
             { label:'Backend',    ok: data.backend.ok,       detail: data.backend.uptime,                          tooltip:'Go server uptime since last restart' },
             { label:'Database',   ok: data.database.ok,      detail: data.database.ok ? `${data.database.latencyMs}ms ping` : 'DOWN', tooltip:'Postgres ping latency — under 50ms is healthy' },
@@ -263,7 +270,7 @@ export default function InfraPage() {
         </div>
 
         {/* Detail cards */}
-        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:16, marginBottom:20 }}>
+        <div style={{ display:'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap:16, marginBottom:20 }}>
           <Card title="Database" icon={Database} status={data.database.ok}
             tooltip="Postgres connection health. Ping latency is measured on every /admin/infra request. Pool shows how many connections the Go backend has open to the DB.">
             <Row label="Ping latency" value={`${data.database.latencyMs} ms`} warn={data.database.latencyMs > 100}
@@ -314,8 +321,8 @@ export default function InfraPage() {
           </Card>
         </div>
 
-        {/* Second row: Users, Email, R2 */}
-        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:16, marginBottom:20 }}>
+        {/* Second row: Users + Email */}
+        <div style={{ display:'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap:16, marginBottom:20 }}>
           <Card title="Users" icon={Users}
             tooltip="Live counts from the users table. Active = users who logged in within the window.">
             <Row label="Active (24h)" value={data.userActivity.active24h}
@@ -345,24 +352,6 @@ export default function InfraPage() {
               tooltip="Timestamp of the most recent email dispatch." />
           </Card>
 
-          <Card title="R2 Storage" icon={HardDrive}
-            tooltip="Cloudflare R2 object storage. Hosts profile photos, post images, and ad creatives.">
-            {!data.r2.configured ? (
-              <p style={{ fontSize:12, color:'oklch(0.45 0.006 60)', margin:0 }}>
-                Cloudflare API token not configured. Add CLOUDFLARE_API_TOKEN secret to enable live R2 stats.
-              </p>
-            ) : (
-              <>
-                <Row label="Bucket" value={data.r2.bucketName || '—'}
-                  tooltip="Name of the R2 bucket storing uploads." />
-                <Row label="Storage used" value={data.r2.sizePretty || '0 B'}
-                  tooltip="Total bytes stored. Cloudflare R2 free tier includes 10 GB/month." />
-                <Row label="Object count" value={data.r2.objectCount.toLocaleString()}
-                  tooltip="Number of stored objects (images, etc.)." />
-                <MiniBar value={data.r2.sizeBytes} max={10 * 1024 * 1024 * 1024} color={data.r2.sizeBytes > 8*1024*1024*1024 ? '#ef4444' : '#22c55e'} />
-              </>
-            )}
-          </Card>
         </div>
 
         {/* Recent errors + slow requests */}
