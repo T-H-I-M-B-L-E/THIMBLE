@@ -2,6 +2,8 @@ package repositories
 
 import (
 	"context"
+	"fmt"
+	"strings"
 	"time"
 
 	"chat-app/internal/db"
@@ -52,10 +54,50 @@ func GetPendingSignup(ctx context.Context, email string) (passwordHash, fullName
 }
 
 func CreateUser(ctx context.Context, userId, email, passwordHash, fullName string) error {
-	_, err := db.Pool.Exec(ctx,
-		"INSERT INTO users (id, email, password_hash, full_name, role) VALUES ($1, $2, $3, $4, $5)",
-		userId, email, passwordHash, fullName, "")
-	return err
+	// Derive a username from the email local part, sanitised. If a row already
+	// exists with the same lowercase username, append a short suffix and retry.
+	base := usernameFromEmail(email)
+	for attempt := 0; attempt < 5; attempt++ {
+		candidate := base
+		if attempt > 0 {
+			candidate = fmt.Sprintf("%s%d", base, 100+attempt*17)
+		}
+		_, err := db.Pool.Exec(ctx,
+			"INSERT INTO users (id, email, password_hash, full_name, role, username) VALUES ($1, $2, $3, $4, $5, $6)",
+			userId, email, passwordHash, fullName, "", candidate)
+		if err == nil {
+			return nil
+		}
+		// 23505 = unique_violation. Retry with a new candidate.
+		if !strings.Contains(err.Error(), "uq_users_username_lower") {
+			return err
+		}
+	}
+	return fmt.Errorf("could not generate a unique username after 5 attempts")
+}
+
+// usernameFromEmail returns a safe, lowercase username derived from the local
+// part of an email. Strips anything that isn't [a-z0-9_], pads short results.
+func usernameFromEmail(email string) string {
+	local := email
+	if at := strings.Index(email, "@"); at > 0 {
+		local = email[:at]
+	}
+	local = strings.ToLower(local)
+	var b strings.Builder
+	for _, r := range local {
+		if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') || r == '_' {
+			b.WriteRune(r)
+		}
+	}
+	out := b.String()
+	if len(out) < 3 {
+		out = out + "user"
+	}
+	if len(out) > 24 {
+		out = out[:24]
+	}
+	return out
 }
 
 func DeletePendingSignup(ctx context.Context, email string) {
