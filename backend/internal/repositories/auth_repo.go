@@ -36,14 +36,25 @@ func SaveVerificationCode(ctx context.Context, email, code string, expiresAt tim
 }
 
 // GetLatestVerificationCode returns the most recently issued code for
-// email along with its expiry. Used by both signup-verify and forgot-password.
-func GetLatestVerificationCode(ctx context.Context, email string) (string, time.Time, error) {
-	var storedCode string
-	var expiresAt time.Time
-	err := db.Pool.QueryRow(ctx,
-		"SELECT code, expires_at FROM email_verification_codes WHERE email = $1 ORDER BY created_at DESC LIMIT 1",
-		email).Scan(&storedCode, &expiresAt)
-	return storedCode, expiresAt, err
+// email along with its expiry and how many guesses have been made against it.
+// Used by both signup-verify and forgot-password.
+func GetLatestVerificationCode(ctx context.Context, email string) (code string, expiresAt time.Time, attempts int, id int64, err error) {
+	err = db.Pool.QueryRow(ctx,
+		"SELECT id, code, expires_at, attempts FROM email_verification_codes WHERE email = $1 ORDER BY created_at DESC LIMIT 1",
+		email).Scan(&id, &code, &expiresAt, &attempts)
+	return
+}
+
+// IncrementVerificationAttempts bumps the attempts counter for a specific code
+// row so we can lock it out after too many wrong guesses.
+func IncrementVerificationAttempts(ctx context.Context, id int64) {
+	db.Pool.Exec(ctx, "UPDATE email_verification_codes SET attempts = attempts + 1 WHERE id = $1", id)
+}
+
+// InvalidateVerificationCode marks a code as unusable by setting expires_at to
+// the past. Used after too many failed attempts so the user must request a new one.
+func InvalidateVerificationCode(ctx context.Context, id int64) {
+	db.Pool.Exec(ctx, "UPDATE email_verification_codes SET expires_at = NOW() - INTERVAL '1 second' WHERE id = $1", id)
 }
 
 func GetPendingSignup(ctx context.Context, email string) (passwordHash, fullName string, err error) {

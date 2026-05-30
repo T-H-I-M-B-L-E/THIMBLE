@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"time"
 
@@ -62,9 +63,26 @@ func VerifyEmail(ctx context.Context, req models.VerifyEmailRequest) (*VerifyEma
 		return nil, NewError(400, "missing_fields", "email and code are required")
 	}
 
-	storedCode, expiresAt, err := repositories.GetLatestVerificationCode(ctx, req.Email)
-	if err != nil || storedCode != req.Code || time.Now().After(expiresAt) {
+	storedCode, expiresAt, attempts, codeID, err := repositories.GetLatestVerificationCode(ctx, req.Email)
+	if err != nil {
 		return nil, NewError(400, "invalid_code", "invalid or expired verification code")
+	}
+	const maxAttempts = 5
+	if attempts >= maxAttempts {
+		repositories.InvalidateVerificationCode(ctx, codeID)
+		return nil, NewError(429, "too_many_attempts", "too many incorrect attempts — request a new code")
+	}
+	if time.Now().After(expiresAt) {
+		return nil, NewError(400, "invalid_code", "invalid or expired verification code")
+	}
+	if storedCode != req.Code {
+		repositories.IncrementVerificationAttempts(ctx, codeID)
+		remaining := maxAttempts - (attempts + 1)
+		if remaining <= 0 {
+			repositories.InvalidateVerificationCode(ctx, codeID)
+			return nil, NewError(429, "too_many_attempts", "too many incorrect attempts — request a new code")
+		}
+		return nil, NewError(400, "invalid_code", fmt.Sprintf("invalid code (%d attempts remaining)", remaining))
 	}
 
 	hashedPassword, fullName, err := repositories.GetPendingSignup(ctx, req.Email)
@@ -145,9 +163,26 @@ func ForgotPassword(ctx context.Context, addr string) *ServiceError {
 }
 
 func ResetPassword(ctx context.Context, email, code, newPassword string) *ServiceError {
-	storedCode, expiresAt, err := repositories.GetLatestVerificationCode(ctx, email)
-	if err != nil || storedCode != code || time.Now().After(expiresAt) {
+	storedCode, expiresAt, attempts, codeID, err := repositories.GetLatestVerificationCode(ctx, email)
+	if err != nil {
 		return NewError(400, "invalid_code", "invalid or expired reset code")
+	}
+	const maxAttempts = 5
+	if attempts >= maxAttempts {
+		repositories.InvalidateVerificationCode(ctx, codeID)
+		return NewError(429, "too_many_attempts", "too many incorrect attempts — request a new reset code")
+	}
+	if time.Now().After(expiresAt) {
+		return NewError(400, "invalid_code", "invalid or expired reset code")
+	}
+	if storedCode != code {
+		repositories.IncrementVerificationAttempts(ctx, codeID)
+		remaining := maxAttempts - (attempts + 1)
+		if remaining <= 0 {
+			repositories.InvalidateVerificationCode(ctx, codeID)
+			return NewError(429, "too_many_attempts", "too many incorrect attempts — request a new reset code")
+		}
+		return NewError(400, "invalid_code", fmt.Sprintf("invalid code (%d attempts remaining)", remaining))
 	}
 
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(newPassword), bcrypt.DefaultCost)
