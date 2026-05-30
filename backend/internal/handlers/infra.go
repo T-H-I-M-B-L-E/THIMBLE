@@ -2,8 +2,13 @@ package handlers
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"net/http"
+	"net/url"
+	"os"
 	"runtime"
+	"strings"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
@@ -12,6 +17,49 @@ import (
 	"chat-app/internal/metrics"
 	"chat-app/internal/services"
 )
+
+type uptimeMonitor struct {
+	ID                  int64  `json:"id"`
+	FriendlyName        string `json:"friendly_name"`
+	URL                 string `json:"url"`
+	Status              int    `json:"status"`
+	CustomUptimeRatio   string `json:"custom_uptime_ratio"`
+	AverageResponseTime string `json:"average_response_time"`
+}
+
+type uptimeResp struct {
+	Stat     string          `json:"stat"`
+	Monitors []uptimeMonitor `json:"monitors"`
+}
+
+// fetchUptimeRobot queries the UptimeRobot API for current monitor status.
+// Returns nil if the key is unset so the dashboard degrades gracefully.
+func fetchUptimeRobot() *uptimeResp {
+	key := os.Getenv("UPTIMEROBOT_API_KEY")
+	if key == "" {
+		return nil
+	}
+	form := url.Values{}
+	form.Set("api_key", key)
+	form.Set("format", "json")
+	form.Set("custom_uptime_ratios", "1-7-30")
+	client := http.Client{Timeout: 5 * time.Second}
+	req, _ := http.NewRequest("POST", "https://api.uptimerobot.com/v2/getMonitors", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	res, err := client.Do(req)
+	if err != nil {
+		return nil
+	}
+	defer res.Body.Close()
+	var out uptimeResp
+	if err := json.NewDecoder(res.Body).Decode(&out); err != nil {
+		return nil
+	}
+	if out.Stat != "ok" {
+		return nil
+	}
+	return &out
+}
 
 // AdminTestAlert fires a manual test alert email so admins can verify the
 // alerting pipeline without waiting for a real outage.
@@ -111,6 +159,7 @@ func AdminInfra(c *fiber.Ctx) error {
 		"recentErrors": metrics.RecentErrors(),
 		"recentSlows":  metrics.RecentSlows(),
 		"slowQueries":  slowQueries,
+		"uptimeRobot":  fetchUptimeRobot(),
 		"alerts": fiber.Map{
 			"thresholds": fiber.Map{
 				"errRatePct":   10,

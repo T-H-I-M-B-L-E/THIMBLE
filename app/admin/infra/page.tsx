@@ -8,6 +8,15 @@ interface ErrorEntry { time: string; method: string; path: string; status: numbe
 interface SlowEntry  { time: string; method: string; path: string; status: number; latencyMs: number }
 interface QueryRow   { query: string; calls: number; meanMs: number; totalMs: number; stddevMs: number }
 
+interface UptimeMonitor {
+  id: number
+  friendly_name: string
+  url: string
+  status: number               // 2 = up, 8/9 = down, 0 = paused, 1 = not checked
+  custom_uptime_ratio: string  // "100.000-99.987-99.954" (1d-7d-30d)
+  average_response_time: string
+}
+
 interface InfraData {
   backend:      { ok: boolean; uptime: string; uptimeSec: number }
   database:     { ok: boolean; error: string; latencyMs: number; connsOpen: number; connsIdle: number; connsTotal: number }
@@ -18,6 +27,7 @@ interface InfraData {
   recentSlows:  SlowEntry[]
   slowQueries:  QueryRow[] | null
   alerts:       { thresholds: { errRatePct: number; slowMs: number } }
+  uptimeRobot:  { monitors: UptimeMonitor[] } | null
 }
 
 /* ── tooltip ── */
@@ -355,21 +365,56 @@ export default function InfraPage() {
         {/* Vercel status */}
         <VercelStatus />
 
-        {/* UptimeRobot status page */}
-        <a
-          href="https://stats.uptimerobot.com/XRXOPqyDWb"
-          target="_blank"
-          rel="noopener noreferrer"
-          style={{ marginTop:12, padding:'14px 20px', borderRadius:10, background:'oklch(0.10 0.003 60)', border:'1px solid oklch(0.18 0.005 60)', display:'flex', alignItems:'center', gap:10, textDecoration:'none' }}
-        >
-          <Radio size={14} style={{ color:'#22c55e' }} />
-          <span style={{ fontSize:11, fontWeight:600, letterSpacing:'0.06em', textTransform:'uppercase', color:'oklch(0.50 0.006 60)' }}>UptimeRobot</span>
-          <StatusDot ok={true} />
-          <span style={{ fontSize:13, color:'oklch(0.80 0.004 60)' }}>External uptime monitor — 24/7 ping every 5 min</span>
-          <span style={{ marginLeft:'auto', display:'flex', alignItems:'center', gap:6, fontSize:12, color:'oklch(0.55 0.006 60)' }}>
-            View status page <ExternalLink size={12} />
-          </span>
-        </a>
+        {/* UptimeRobot live status */}
+        {data.uptimeRobot && data.uptimeRobot.monitors.length > 0 && (
+          <div style={{ marginTop:12, background:'oklch(0.10 0.003 60)', border:'1px solid oklch(0.18 0.005 60)', borderRadius:12, padding:'20px 24px' }}>
+            <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:14 }}>
+              <Radio size={14} style={{ color:'oklch(0.65 0.010 60)' }} />
+              <span style={{ fontSize:12, fontWeight:600, letterSpacing:'0.08em', textTransform:'uppercase', color:'oklch(0.55 0.008 60)' }}>UptimeRobot — External Monitor</span>
+              <Tooltip text="Independent uptime checks pinging your backend from outside every 5 minutes. Catches outages the internal monitor can't (because it would be down too)." />
+              <a href="https://stats.uptimerobot.com/XRXOPqyDWb" target="_blank" rel="noopener noreferrer" style={{ marginLeft:'auto', display:'flex', alignItems:'center', gap:5, fontSize:11, color:'oklch(0.50 0.006 60)', textDecoration:'none' }}>
+                Public status page <ExternalLink size={11} />
+              </a>
+            </div>
+            <div style={{ overflowX:'auto' }}>
+              <table style={{ width:'100%', borderCollapse:'collapse', fontSize:12 }}>
+                <thead>
+                  <tr style={{ color:'oklch(0.45 0.006 60)', textAlign:'left' }}>
+                    {['Monitor','Status','24h','7d','30d','Avg response'].map(h => (
+                      <th key={h} style={{ padding:'4px 8px', fontWeight:600, letterSpacing:'0.06em', textTransform:'uppercase', fontSize:10, borderBottom:'1px solid oklch(0.18 0.005 60)' }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.uptimeRobot.monitors.map(m => {
+                    const up = m.status === 2
+                    const ratios = (m.custom_uptime_ratio || '').split('-')
+                    const r24 = parseFloat(ratios[0] || '0')
+                    const r7d = parseFloat(ratios[1] || '0')
+                    const r30 = parseFloat(ratios[2] || '0')
+                    const fmt = (n:number) => `${n.toFixed(2)}%`
+                    const color = (n:number) => n >= 99.9 ? '#22c55e' : n >= 99 ? '#f59e0b' : '#ef4444'
+                    return (
+                      <tr key={m.id} style={{ borderBottom:'1px solid oklch(0.14 0.003 60)' }}>
+                        <td style={{ padding:'8px', color:'oklch(0.85 0.005 60)' }}>{m.friendly_name}</td>
+                        <td style={{ padding:'8px' }}>
+                          <span style={{ display:'inline-flex', alignItems:'center', gap:5 }}>
+                            <StatusDot ok={up} />
+                            <span style={{ fontSize:12, color: up ? '#22c55e' : '#ef4444', fontWeight:600 }}>{up ? 'UP' : m.status === 0 ? 'PAUSED' : 'DOWN'}</span>
+                          </span>
+                        </td>
+                        <td style={{ padding:'8px', fontVariantNumeric:'tabular-nums', color: color(r24), fontWeight:600 }}>{fmt(r24)}</td>
+                        <td style={{ padding:'8px', fontVariantNumeric:'tabular-nums', color: color(r7d), fontWeight:600 }}>{fmt(r7d)}</td>
+                        <td style={{ padding:'8px', fontVariantNumeric:'tabular-nums', color: color(r30), fontWeight:600 }}>{fmt(r30)}</td>
+                        <td style={{ padding:'8px', fontVariantNumeric:'tabular-nums', color:'oklch(0.75 0.005 60)' }}>{parseFloat(m.average_response_time || '0').toFixed(0)} ms</td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
       </>)}
 
       <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
