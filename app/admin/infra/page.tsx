@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
-import { Activity, Database, Cpu, Zap, Wifi, RefreshCw, CheckCircle, XCircle, AlertTriangle, Clock } from 'lucide-react'
+import { Activity, Database, Cpu, Zap, Wifi, RefreshCw, CheckCircle, XCircle, AlertTriangle, Clock, ExternalLink, Radio } from 'lucide-react'
 import { adminFetch } from '@/lib/adminFetch'
 
 interface ErrorEntry { time: string; method: string; path: string; status: number; latencyMs: number }
@@ -354,6 +354,22 @@ export default function InfraPage() {
 
         {/* Vercel status */}
         <VercelStatus />
+
+        {/* UptimeRobot status page */}
+        <a
+          href="https://stats.uptimerobot.com/XRXOPqyDWb"
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{ marginTop:12, padding:'14px 20px', borderRadius:10, background:'oklch(0.10 0.003 60)', border:'1px solid oklch(0.18 0.005 60)', display:'flex', alignItems:'center', gap:10, textDecoration:'none' }}
+        >
+          <Radio size={14} style={{ color:'#22c55e' }} />
+          <span style={{ fontSize:11, fontWeight:600, letterSpacing:'0.06em', textTransform:'uppercase', color:'oklch(0.50 0.006 60)' }}>UptimeRobot</span>
+          <StatusDot ok={true} />
+          <span style={{ fontSize:13, color:'oklch(0.80 0.004 60)' }}>External uptime monitor — 24/7 ping every 5 min</span>
+          <span style={{ marginLeft:'auto', display:'flex', alignItems:'center', gap:6, fontSize:12, color:'oklch(0.55 0.006 60)' }}>
+            View status page <ExternalLink size={12} />
+          </span>
+        </a>
       </>)}
 
       <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
