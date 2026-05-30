@@ -98,6 +98,15 @@ func main() {
 // registerRoutes is kept separate from main() so the route table is the
 // one thing you read to understand the public API.
 func registerRoutes(app *fiber.App, authLimiter fiber.Handler, apiLimiter fiber.Handler) {
+	// ── Health check ──────────────────────────────────────────────────────────
+	// External uptime monitors hit this. Returns 200 only if DB is reachable.
+	app.Get("/health", func(c *fiber.Ctx) error {
+		if err := db.Pool.Ping(c.Context()); err != nil {
+			return c.Status(503).JSON(fiber.Map{"status": "down", "db": err.Error()})
+		}
+		return c.JSON(fiber.Map{"status": "ok"})
+	})
+
 	// ── Auth ──────────────────────────────────────────────────────────────────
 	app.Post("/auth/signup", authLimiter, handlers.Signup)
 	app.Post("/auth/verify-email", authLimiter, handlers.VerifyEmail)
