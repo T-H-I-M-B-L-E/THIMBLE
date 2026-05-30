@@ -205,6 +205,7 @@ func registerRoutes(app *fiber.App, authLimiter fiber.Handler, apiLimiter fiber.
 	adminGroup.Get("/verification-requests", handlers.AdminListVerificationRequests)
 	adminGroup.Patch("/verification-requests/:id", handlers.AdminReviewVerification)
 	adminGroup.Get("/infra", handlers.AdminInfra)
+	adminGroup.Post("/infra/test-alert", handlers.AdminTestAlert)
 	adminGroup.Post("/ads", handlers.CreateAd)
 	adminGroup.Get("/ads", handlers.ListAds)
 	adminGroup.Get("/ads/:id", handlers.GetAd)

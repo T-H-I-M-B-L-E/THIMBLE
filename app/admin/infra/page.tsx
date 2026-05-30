@@ -132,6 +132,24 @@ export default function InfraPage() {
   const [lastRefresh, setLastRefresh] = useState<Date | null>(null)
   const [refreshing, setRefreshing] = useState(false)
   const [tab, setTab] = useState<'errors'|'slow'>('errors')
+  const [testingAlert, setTestingAlert] = useState(false)
+  const [testAlertMsg, setTestAlertMsg] = useState('')
+
+  async function fireTestAlert() {
+    if (!confirm('Send a test alert email to all admins?')) return
+    setTestingAlert(true)
+    setTestAlertMsg('')
+    try {
+      const res = await adminFetch('/api/admin/infra/test-alert', { method: 'POST' })
+      const data = await res.json().catch(() => ({}))
+      setTestAlertMsg(res.ok ? '✓ Test alert email sent — check your inbox' : `✗ ${data.error || 'Failed to send'}`)
+    } catch {
+      setTestAlertMsg('✗ Network error')
+    } finally {
+      setTestingAlert(false)
+      setTimeout(() => setTestAlertMsg(''), 6000)
+    }
+  }
 
   const load = useCallback(async (manual = false) => {
     if (manual) setRefreshing(true)
@@ -172,11 +190,22 @@ export default function InfraPage() {
           </p>
           {lastRefresh && <p style={{ fontSize:11, color:'oklch(0.35 0.006 60)', marginTop:2 }}>Last updated {lastRefresh.toLocaleTimeString([], { hour:'2-digit', minute:'2-digit', second:'2-digit' })}</p>}
         </div>
-        <button onClick={() => load(true)} disabled={refreshing} style={{ display:'flex', alignItems:'center', gap:6, padding:'8px 14px', background:'oklch(0.15 0.005 60)', border:'1px solid oklch(0.22 0.005 60)', borderRadius:8, color:'oklch(0.75 0.006 60)', fontSize:13, cursor:'pointer', flexShrink:0 }}>
-          <RefreshCw size={13} style={{ animation: refreshing ? 'spin 0.8s linear infinite' : 'none' }} />
-          Refresh
-        </button>
+        <div style={{ display:'flex', gap:8, flexShrink:0 }}>
+          <button onClick={fireTestAlert} disabled={testingAlert} style={{ display:'flex', alignItems:'center', gap:6, padding:'8px 14px', background:'rgba(245,158,11,0.1)', border:'1px solid rgba(245,158,11,0.3)', borderRadius:8, color:'#f59e0b', fontSize:13, cursor:'pointer' }}>
+            <AlertTriangle size={13} />
+            {testingAlert ? 'Sending…' : 'Fire Test Alert'}
+          </button>
+          <button onClick={() => load(true)} disabled={refreshing} style={{ display:'flex', alignItems:'center', gap:6, padding:'8px 14px', background:'oklch(0.15 0.005 60)', border:'1px solid oklch(0.22 0.005 60)', borderRadius:8, color:'oklch(0.75 0.006 60)', fontSize:13, cursor:'pointer' }}>
+            <RefreshCw size={13} style={{ animation: refreshing ? 'spin 0.8s linear infinite' : 'none' }} />
+            Refresh
+          </button>
+        </div>
       </div>
+      {testAlertMsg && (
+        <div style={{ marginBottom:16, padding:'10px 14px', borderRadius:8, background:'oklch(0.12 0.005 60)', border:'1px solid oklch(0.20 0.005 60)', fontSize:13, color: testAlertMsg.startsWith('✓') ? '#22c55e' : '#fca5a5' }}>
+          {testAlertMsg}
+        </div>
+      )}
 
       {/* Alert banner */}
       {hasAlert && (

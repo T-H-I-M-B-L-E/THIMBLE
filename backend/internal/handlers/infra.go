@@ -10,7 +10,17 @@ import (
 
 	"chat-app/internal/db"
 	"chat-app/internal/metrics"
+	"chat-app/internal/services"
 )
+
+// AdminTestAlert fires a manual test alert email so admins can verify the
+// alerting pipeline without waiting for a real outage.
+func AdminTestAlert(c *fiber.Ctx) error {
+	if err := services.SendTestAlert(c.Context()); err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+	}
+	return c.JSON(fiber.Map{"ok": true, "message": "Test alert email sent to all admins"})
+}
 
 func AdminInfra(c *fiber.Ctx) error {
 	// DB ping + pool stats

@@ -83,6 +83,18 @@ func checkAndAlert(ctx context.Context) {
 	// Skip for now — the infra page covers this visually.
 }
 
+// SendTestAlert fires a fake alert email bypassing cooldown. Used by the
+// "Fire Test Alert" button in the admin panel to verify the email pipeline.
+func SendTestAlert(ctx context.Context) error {
+	adminEmails, err := repositories.ListAdminEmails(ctx)
+	if err != nil || len(adminEmails) == 0 {
+		return fmt.Errorf("no admin emails found")
+	}
+	sendAlertRaw(ctx, adminEmails, "🧪 Test alert — pipeline check",
+		fmt.Sprintf("This is a manual test alert fired from the admin panel at %s.\n\nIf you received this, your alerting pipeline is working correctly.\n\nNo action needed.", time.Now().UTC().Format(time.RFC3339)))
+	return nil
+}
+
 func sendAlert(ctx context.Context, key, subject, body string) {
 	if !canAlert(key) {
 		return
@@ -92,6 +104,14 @@ func sendAlert(ctx context.Context, key, subject, body string) {
 		log.Printf("alert: no admin emails found for alert %q", key)
 		return
 	}
+	if err := sendAlertRaw(ctx, adminEmails, subject, body); err != nil {
+		log.Printf("alert: failed to send %q: %v", key, err)
+		return
+	}
+	log.Printf("alert: sent %q to %d admins", key, len(adminEmails))
+}
+
+func sendAlertRaw(ctx context.Context, to []string, subject, body string) error {
 	client := resend.NewClient(config.ResendKey())
 	html := fmt.Sprintf(`
 		<div style="font-family:monospace;max-width:600px;margin:0 auto;padding:24px;background:#0a0a0a;color:#e5e5e5;border-radius:8px">
@@ -102,16 +122,15 @@ func sendAlert(ctx context.Context, key, subject, body string) {
 		</div>`,
 		subject, body, time.Now().UTC().Format(time.RFC1123))
 
-	_, sendErr := client.Emails.Send(&resend.SendEmailRequest{
+	_, err := client.Emails.Send(&resend.SendEmailRequest{
 		From:    "alerts@tvimble.tech",
-		To:      adminEmails,
+		To:      to,
 		Subject: "[THIMBLE] " + subject,
 		Html:    html,
 	})
-	if sendErr != nil {
-		log.Printf("alert: failed to send %q: %v", key, sendErr)
-		return
+	if err != nil {
+		return err
 	}
-	db.Pool.Exec(ctx, "INSERT INTO email_log (type, recipients) VALUES ('infra_alert', $1)", len(adminEmails))
-	log.Printf("alert: sent %q to %d admins", key, len(adminEmails))
+	db.Pool.Exec(ctx, "INSERT INTO email_log (type, recipients) VALUES ('infra_alert', $1)", len(to))
+	return nil
 }
