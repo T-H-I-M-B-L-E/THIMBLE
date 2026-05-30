@@ -70,6 +70,153 @@ func AdminTestAlert(c *fiber.Ctx) error {
 	return c.JSON(fiber.Map{"ok": true, "message": "Test alert email sent to all admins"})
 }
 
+// fetchEmailStats counts email_log rows grouped by day window.
+type emailStats struct {
+	SentToday  int64  `json:"sentToday"`
+	SentWeek   int64  `json:"sentWeek"`
+	SentTotal  int64  `json:"sentTotal"`
+	LastSentAt string `json:"lastSentAt"`
+}
+
+func fetchEmailStats(ctx context.Context) emailStats {
+	var s emailStats
+	var lastTime *time.Time
+	db.Pool.QueryRow(ctx, `
+		SELECT
+			COUNT(*) FILTER (WHERE sent_at > NOW() - INTERVAL '24 hours'),
+			COUNT(*) FILTER (WHERE sent_at > NOW() - INTERVAL '7 days'),
+			COUNT(*),
+			MAX(sent_at)
+		FROM email_log
+	`).Scan(&s.SentToday, &s.SentWeek, &s.SentTotal, &lastTime)
+	if lastTime != nil {
+		s.LastSentAt = lastTime.UTC().Format(time.RFC3339)
+	}
+	return s
+}
+
+// fetchUserActivity returns active-user counts based on last_login_at.
+type userActivity struct {
+	Active24h   int64 `json:"active24h"`
+	Active7d    int64 `json:"active7d"`
+	NewToday    int64 `json:"newToday"`
+	NewThisWeek int64 `json:"newThisWeek"`
+	Total       int64 `json:"total"`
+	Banned      int64 `json:"banned"`
+}
+
+func fetchUserActivity(ctx context.Context) userActivity {
+	var u userActivity
+	db.Pool.QueryRow(ctx, `
+		SELECT
+			COUNT(*) FILTER (WHERE last_login_at > NOW() - INTERVAL '24 hours'),
+			COUNT(*) FILTER (WHERE last_login_at > NOW() - INTERVAL '7 days'),
+			COUNT(*) FILTER (WHERE created_at > NOW() - INTERVAL '24 hours'),
+			COUNT(*) FILTER (WHERE created_at > NOW() - INTERVAL '7 days'),
+			COUNT(*),
+			COUNT(*) FILTER (WHERE is_banned = TRUE)
+		FROM users
+	`).Scan(&u.Active24h, &u.Active7d, &u.NewToday, &u.NewThisWeek, &u.Total, &u.Banned)
+	return u
+}
+
+// fetchTableSizes returns the top 10 largest tables by total size.
+type tableSize struct {
+	Name      string `json:"name"`
+	Size      string `json:"size"`
+	SizeBytes int64  `json:"sizeBytes"`
+	RowCount  int64  `json:"rowCount"`
+}
+
+func fetchTableSizes(ctx context.Context) []tableSize {
+	rows, err := db.Pool.Query(ctx, `
+		SELECT
+			relname,
+			pg_size_pretty(pg_total_relation_size(c.oid)) AS size,
+			pg_total_relation_size(c.oid) AS size_bytes,
+			COALESCE(n_live_tup, 0) AS row_count
+		FROM pg_class c
+		LEFT JOIN pg_stat_user_tables s ON s.relid = c.oid
+		WHERE c.relkind = 'r'
+		  AND c.relnamespace = 'public'::regnamespace
+		ORDER BY pg_total_relation_size(c.oid) DESC
+		LIMIT 10
+	`)
+	if err != nil {
+		return nil
+	}
+	defer rows.Close()
+	var out []tableSize
+	for rows.Next() {
+		var t tableSize
+		if err := rows.Scan(&t.Name, &t.Size, &t.SizeBytes, &t.RowCount); err == nil {
+			out = append(out, t)
+		}
+	}
+	return out
+}
+
+// fetchR2Stats queries the Cloudflare API for R2 bucket size and request counts.
+// Returns nil if Cloudflare credentials aren't configured.
+type r2Stats struct {
+	BucketName    string `json:"bucketName"`
+	SizeBytes     int64  `json:"sizeBytes"`
+	SizePretty    string `json:"sizePretty"`
+	ObjectCount   int64  `json:"objectCount"`
+	Configured    bool   `json:"configured"`
+}
+
+func fetchR2Stats(ctx context.Context) r2Stats {
+	accountID := os.Getenv("R2_ACCOUNT_ID")
+	apiToken := os.Getenv("CLOUDFLARE_API_TOKEN")
+	bucket := os.Getenv("R2_BUCKET_NAME")
+	if accountID == "" || apiToken == "" || bucket == "" {
+		return r2Stats{BucketName: bucket, Configured: false}
+	}
+	url := fmt.Sprintf("https://api.cloudflare.com/client/v4/accounts/%s/r2/buckets/%s/usage", accountID, bucket)
+	req, _ := http.NewRequestWithContext(ctx, "GET", url, nil)
+	req.Header.Set("Authorization", "Bearer "+apiToken)
+	client := http.Client{Timeout: 5 * time.Second}
+	res, err := client.Do(req)
+	if err != nil {
+		return r2Stats{BucketName: bucket, Configured: true}
+	}
+	defer res.Body.Close()
+	var body struct {
+		Success bool `json:"success"`
+		Result  struct {
+			PayloadSize string `json:"payloadSize"`
+			ObjectCount string `json:"objectCount"`
+		} `json:"result"`
+	}
+	if err := json.NewDecoder(res.Body).Decode(&body); err != nil || !body.Success {
+		return r2Stats{BucketName: bucket, Configured: true}
+	}
+	var size, count int64
+	fmt.Sscanf(body.Result.PayloadSize, "%d", &size)
+	fmt.Sscanf(body.Result.ObjectCount, "%d", &count)
+	return r2Stats{
+		BucketName:  bucket,
+		SizeBytes:   size,
+		SizePretty:  prettyBytes(size),
+		ObjectCount: count,
+		Configured:  true,
+	}
+}
+
+func prettyBytes(b int64) string {
+	const unit = 1024
+	if b < unit {
+		return fmt.Sprintf("%d B", b)
+	}
+	div, exp := int64(unit), 0
+	for n := b / unit; n >= unit; n /= unit {
+		div *= unit
+		exp++
+	}
+	return fmt.Sprintf("%.1f %cB", float64(b)/float64(div), "KMGTPE"[exp])
+}
+
 func AdminInfra(c *fiber.Ctx) error {
 	// DB ping + pool stats
 	dbStart := time.Now()
@@ -156,10 +303,15 @@ func AdminInfra(c *fiber.Ctx) error {
 		"websockets": fiber.Map{
 			"activeConns": snap.WSConns,
 		},
-		"recentErrors": metrics.RecentErrors(),
-		"recentSlows":  metrics.RecentSlows(),
-		"slowQueries":  slowQueries,
-		"uptimeRobot":  fetchUptimeRobot(),
+		"recentErrors":   metrics.RecentErrors(),
+		"recentSlows":    metrics.RecentSlows(),
+		"slowQueries":    slowQueries,
+		"slowestRoutes":  metrics.TopSlowestRoutes(10, 3),
+		"uptimeRobot":    fetchUptimeRobot(),
+		"emailStats":     fetchEmailStats(context.Background()),
+		"userActivity":   fetchUserActivity(context.Background()),
+		"tableSizes":     fetchTableSizes(context.Background()),
+		"r2":             fetchR2Stats(context.Background()),
 		"alerts": fiber.Map{
 			"thresholds": fiber.Map{
 				"errRatePct":   10,

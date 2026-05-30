@@ -62,6 +62,11 @@ func main() {
 				Path: c.Path(), Status: s, LatencyMs: latencyMs,
 			})
 		}
+		// Per-route latency tracker — uses route template (e.g. /api/posts/:id)
+		// not the concrete path so IDs don't fragment the bucket.
+		if route := c.Route(); route != nil && route.Path != "" {
+			metrics.RecordRoute(c.Method(), route.Path, latencyMs)
+		}
 		return err
 	})
 

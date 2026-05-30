@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
-import { Activity, Database, Cpu, Zap, Wifi, RefreshCw, CheckCircle, XCircle, AlertTriangle, Clock, ExternalLink, Radio } from 'lucide-react'
+import { Activity, Database, Cpu, Zap, Wifi, RefreshCw, CheckCircle, XCircle, AlertTriangle, Clock, ExternalLink, Radio, Mail, Users, HardDrive, TrendingUp } from 'lucide-react'
 import { adminFetch } from '@/lib/adminFetch'
 
 interface ErrorEntry { time: string; method: string; path: string; status: number; latencyMs: number }
@@ -17,17 +17,25 @@ interface UptimeMonitor {
   average_response_time: string
 }
 
+interface RouteRow { method: string; path: string; hits: number; avgMs: number; maxMs: number; totalMs: number }
+interface TableSize { name: string; size: string; sizeBytes: number; rowCount: number }
+
 interface InfraData {
-  backend:      { ok: boolean; uptime: string; uptimeSec: number }
-  database:     { ok: boolean; error: string; latencyMs: number; connsOpen: number; connsIdle: number; connsTotal: number }
-  runtime:      { goroutines: number; heapAllocMB: string; heapSysMB: string; gcPauseLastMs: string; gcRuns: number }
-  requests:     { total: number; ok: number; err4xx: number; err5xx: number; errRatePct: string }
-  websockets:   { activeConns: number }
-  recentErrors: ErrorEntry[]
-  recentSlows:  SlowEntry[]
-  slowQueries:  QueryRow[] | null
-  alerts:       { thresholds: { errRatePct: number; slowMs: number } }
-  uptimeRobot:  { monitors: UptimeMonitor[] } | null
+  backend:       { ok: boolean; uptime: string; uptimeSec: number }
+  database:      { ok: boolean; error: string; latencyMs: number; connsOpen: number; connsIdle: number; connsTotal: number }
+  runtime:       { goroutines: number; heapAllocMB: string; heapSysMB: string; gcPauseLastMs: string; gcRuns: number }
+  requests:      { total: number; ok: number; err4xx: number; err5xx: number; errRatePct: string }
+  websockets:    { activeConns: number }
+  recentErrors:  ErrorEntry[]
+  recentSlows:   SlowEntry[]
+  slowQueries:   QueryRow[] | null
+  slowestRoutes: RouteRow[] | null
+  alerts:        { thresholds: { errRatePct: number; slowMs: number } }
+  uptimeRobot:   { monitors: UptimeMonitor[] } | null
+  emailStats:    { sentToday: number; sentWeek: number; sentTotal: number; lastSentAt: string }
+  userActivity:  { active24h: number; active7d: number; newToday: number; newThisWeek: number; total: number; banned: number }
+  tableSizes:    TableSize[] | null
+  r2:            { bucketName: string; sizeBytes: number; sizePretty: string; objectCount: number; configured: boolean }
 }
 
 /* ── tooltip ── */
@@ -306,6 +314,57 @@ export default function InfraPage() {
           </Card>
         </div>
 
+        {/* Second row: Users, Email, R2 */}
+        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:16, marginBottom:20 }}>
+          <Card title="Users" icon={Users}
+            tooltip="Live counts from the users table. Active = users who logged in within the window.">
+            <Row label="Active (24h)" value={data.userActivity.active24h}
+              tooltip="Users who logged in within the last 24 hours." />
+            <Row label="Active (7d)" value={data.userActivity.active7d}
+              tooltip="Users who logged in within the last 7 days." />
+            <Row label="New today" value={data.userActivity.newToday}
+              tooltip="Accounts created in the last 24 hours." />
+            <Row label="New this week" value={data.userActivity.newThisWeek}
+              tooltip="Accounts created in the last 7 days." />
+            <Row label="Total users" value={data.userActivity.total.toLocaleString()}
+              tooltip="All registered accounts." />
+            <Row label="Banned" value={data.userActivity.banned} warn={data.userActivity.banned > 0}
+              tooltip="Users currently banned by admins." />
+          </Card>
+
+          <Card title="Email Delivery" icon={Mail}
+            tooltip="Email send activity via Resend. Tracks transactional emails (verification, notifications, alerts).">
+            <Row label="Sent (24h)" value={data.emailStats.sentToday}
+              tooltip="Emails dispatched in the last 24 hours." />
+            <Row label="Sent (7d)" value={data.emailStats.sentWeek}
+              tooltip="Emails dispatched in the last 7 days." />
+            <Row label="Total sent" value={data.emailStats.sentTotal.toLocaleString()}
+              tooltip="All emails dispatched since launch." />
+            <Row label="Last sent"
+              value={data.emailStats.lastSentAt ? new Date(data.emailStats.lastSentAt).toLocaleString([], { month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' }) : '—'}
+              tooltip="Timestamp of the most recent email dispatch." />
+          </Card>
+
+          <Card title="R2 Storage" icon={HardDrive}
+            tooltip="Cloudflare R2 object storage. Hosts profile photos, post images, and ad creatives.">
+            {!data.r2.configured ? (
+              <p style={{ fontSize:12, color:'oklch(0.45 0.006 60)', margin:0 }}>
+                Cloudflare API token not configured. Add CLOUDFLARE_API_TOKEN secret to enable live R2 stats.
+              </p>
+            ) : (
+              <>
+                <Row label="Bucket" value={data.r2.bucketName || '—'}
+                  tooltip="Name of the R2 bucket storing uploads." />
+                <Row label="Storage used" value={data.r2.sizePretty || '0 B'}
+                  tooltip="Total bytes stored. Cloudflare R2 free tier includes 10 GB/month." />
+                <Row label="Object count" value={data.r2.objectCount.toLocaleString()}
+                  tooltip="Number of stored objects (images, etc.)." />
+                <MiniBar value={data.r2.sizeBytes} max={10 * 1024 * 1024 * 1024} color={data.r2.sizeBytes > 8*1024*1024*1024 ? '#ef4444' : '#22c55e'} />
+              </>
+            )}
+          </Card>
+        </div>
+
         {/* Recent errors + slow requests */}
         <div style={{ background:'oklch(0.10 0.003 60)', border:'1px solid oklch(0.18 0.005 60)', borderRadius:12, padding:'20px 24px', marginBottom:16 }}>
           <div style={{ display:'flex', alignItems:'center', gap:16, marginBottom:16 }}>
@@ -356,6 +415,77 @@ export default function InfraPage() {
                       <td style={{ padding:'6px 8px', fontVariantNumeric:'tabular-nums' }}>{(q.totalMs/1000).toFixed(1)}s</td>
                     </tr>
                   ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* Slowest API routes */}
+        {data.slowestRoutes && data.slowestRoutes.length > 0 && (
+          <div style={{ background:'oklch(0.10 0.003 60)', border:'1px solid oklch(0.18 0.005 60)', borderRadius:12, padding:'20px 24px', marginBottom:16 }}>
+            <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:16 }}>
+              <TrendingUp size={14} style={{ color:'oklch(0.65 0.010 60)' }} />
+              <span style={{ fontSize:12, fontWeight:600, letterSpacing:'0.08em', textTransform:'uppercase', color:'oklch(0.55 0.008 60)' }}>Slowest API Routes</span>
+              <Tooltip text="Top 10 API endpoints ranked by average response time. Helps find which routes need optimisation. Excludes routes hit fewer than 3 times since restart." />
+            </div>
+            <div style={{ overflowX:'auto' }}>
+              <table style={{ width:'100%', borderCollapse:'collapse', fontSize:12 }}>
+                <thead>
+                  <tr style={{ color:'oklch(0.45 0.006 60)', textAlign:'left' }}>
+                    {['Method','Route','Hits','Avg ms','Max ms'].map(h => (
+                      <th key={h} style={{ padding:'4px 8px', fontWeight:600, letterSpacing:'0.06em', textTransform:'uppercase', fontSize:10, borderBottom:'1px solid oklch(0.18 0.005 60)' }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.slowestRoutes.map((r, i) => (
+                    <tr key={i} style={{ borderBottom:'1px solid oklch(0.14 0.003 60)' }}>
+                      <td style={{ padding:'6px 8px' }}><Pill label={r.method} color={r.method==='GET'?'#6366f1':r.method==='POST'?'#22c55e':'#f59e0b'} /></td>
+                      <td style={{ padding:'6px 8px', color:'oklch(0.80 0.005 60)', fontFamily:'monospace' }}>{r.path}</td>
+                      <td style={{ padding:'6px 8px', fontVariantNumeric:'tabular-nums', color:'oklch(0.65 0.005 60)' }}>{r.hits.toLocaleString()}</td>
+                      <td style={{ padding:'6px 8px', fontVariantNumeric:'tabular-nums', fontWeight:600, color: r.avgMs > 500 ? '#ef4444' : r.avgMs > 200 ? '#f59e0b' : 'oklch(0.80 0.005 60)' }}>{r.avgMs.toFixed(0)}</td>
+                      <td style={{ padding:'6px 8px', fontVariantNumeric:'tabular-nums', color:'oklch(0.65 0.005 60)' }}>{r.maxMs}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* Table sizes */}
+        {data.tableSizes && data.tableSizes.length > 0 && (
+          <div style={{ background:'oklch(0.10 0.003 60)', border:'1px solid oklch(0.18 0.005 60)', borderRadius:12, padding:'20px 24px', marginBottom:16 }}>
+            <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:16 }}>
+              <Database size={14} style={{ color:'oklch(0.65 0.010 60)' }} />
+              <span style={{ fontSize:12, fontWeight:600, letterSpacing:'0.08em', textTransform:'uppercase', color:'oklch(0.55 0.008 60)' }}>Largest Tables</span>
+              <Tooltip text="Top 10 tables by total disk usage including indexes. Helps spot growth patterns and identify candidates for archival or partitioning." />
+            </div>
+            <div style={{ overflowX:'auto' }}>
+              <table style={{ width:'100%', borderCollapse:'collapse', fontSize:12 }}>
+                <thead>
+                  <tr style={{ color:'oklch(0.45 0.006 60)', textAlign:'left' }}>
+                    {['Table','Size','Rows','% of total'].map(h => (
+                      <th key={h} style={{ padding:'4px 8px', fontWeight:600, letterSpacing:'0.06em', textTransform:'uppercase', fontSize:10, borderBottom:'1px solid oklch(0.18 0.005 60)' }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {(() => {
+                    const totalBytes = data.tableSizes!.reduce((a, t) => a + t.sizeBytes, 0)
+                    return data.tableSizes!.map((t, i) => {
+                      const pct = totalBytes > 0 ? (t.sizeBytes / totalBytes) * 100 : 0
+                      return (
+                        <tr key={i} style={{ borderBottom:'1px solid oklch(0.14 0.003 60)' }}>
+                          <td style={{ padding:'6px 8px', color:'oklch(0.80 0.005 60)', fontFamily:'monospace' }}>{t.name}</td>
+                          <td style={{ padding:'6px 8px', fontVariantNumeric:'tabular-nums', fontWeight:600 }}>{t.size}</td>
+                          <td style={{ padding:'6px 8px', fontVariantNumeric:'tabular-nums', color:'oklch(0.65 0.005 60)' }}>{t.rowCount.toLocaleString()}</td>
+                          <td style={{ padding:'6px 8px', fontVariantNumeric:'tabular-nums', color:'oklch(0.55 0.005 60)' }}>{pct.toFixed(1)}%</td>
+                        </tr>
+                      )
+                    })
+                  })()}
                 </tbody>
               </table>
             </div>
