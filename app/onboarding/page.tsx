@@ -86,8 +86,7 @@ export default function OnboardingPage() {
     setSubmitError("")
 
     try {
-      const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8080'
-      const res = await fetch(`${apiBaseUrl}/users/${user.id}`, {
+      const res = await fetch(`/api/users/${user.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -328,7 +327,7 @@ export default function OnboardingPage() {
               <Button 
                 onClick={() => nextStep("social")}
                 disabled={!username}
-                className="flex-[2] h-16 rounded-none bg-black text-white hover:bg-neutral-800 uppercase tracking-widest text-xs"
+                className="flex-2 h-16 rounded-none bg-black text-white hover:bg-neutral-800 uppercase tracking-widest text-xs"
               >
                 Next Step
               </Button>
