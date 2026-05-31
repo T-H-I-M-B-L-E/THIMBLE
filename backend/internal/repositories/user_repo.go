@@ -108,21 +108,62 @@ type SuggestedUser struct {
 	Location  string `json:"location"`
 }
 
-// SuggestUsers returns up to 5 users the caller is not yet following,
-// ordered by popularity.
+// SuggestUsers returns up to 5 users the caller is not yet following.
+// The ranking score combines four signals:
+//
+//	+10  per mutual follow (someone you follow also follows them)
+//	+5   if same role as you (designer→designer etc.)
+//	+3   if same location (city-level string match)
+//	+1   per follower they have (popularity tiebreaker, capped log scale)
+//
+// Excludes self, anyone you already follow, and anyone in either direction
+// of a block. A small random component breaks ties so the same user isn't
+// always #1 and newer accounts get occasional surfacing.
 func SuggestUsers(ctx context.Context, userId string) ([]SuggestedUser, error) {
-	rows, err := db.Pool.Query(ctx,
-		`SELECT id, full_name, COALESCE(avatar_url,''), COALESCE(role,''), COALESCE(location,'')
-		 FROM users
-		 WHERE id != $1
-		   AND id NOT IN (SELECT following_id FROM follows WHERE follower_id = $1)
-		   AND NOT EXISTS (
-		     SELECT 1 FROM blocks b
-		     WHERE (b.blocker_id = $1 AND b.blocked_id = users.id)
-		        OR (b.blocker_id = users.id AND b.blocked_id = $1)
-		   )
-		 ORDER BY followers DESC
-		 LIMIT 5`, userId)
+	rows, err := db.Pool.Query(ctx, `
+		WITH me AS (
+			SELECT role, location FROM users WHERE id = $1
+		),
+		my_follows AS (
+			SELECT following_id FROM follows WHERE follower_id = $1
+		)
+		SELECT
+			u.id,
+			u.full_name,
+			COALESCE(u.avatar_url,''),
+			COALESCE(u.role,''),
+			COALESCE(u.location,''),
+			(
+				-- mutual follows: people my follows are also following
+				10 * COALESCE((
+					SELECT COUNT(*) FROM follows f
+					WHERE f.following_id = u.id
+					  AND f.follower_id IN (SELECT following_id FROM my_follows)
+				), 0)
+				-- same role boost
+				+ CASE WHEN u.role IS NOT NULL
+				         AND u.role <> ''
+				         AND u.role = (SELECT role FROM me) THEN 5 ELSE 0 END
+				-- same location boost
+				+ CASE WHEN u.location IS NOT NULL
+				         AND u.location <> ''
+				         AND LOWER(TRIM(u.location)) = LOWER(TRIM((SELECT location FROM me))) THEN 3 ELSE 0 END
+				-- popularity, log-scaled so megastars don't dominate
+				+ LEAST(10, LN(GREATEST(u.followers, 0) + 1))
+				-- small jitter so ties shuffle and newer accounts appear
+				+ RANDOM() * 2
+			) AS score
+		FROM users u
+		WHERE u.id <> $1
+		  AND u.id NOT IN (SELECT following_id FROM my_follows)
+		  AND NOT EXISTS (
+		    SELECT 1 FROM blocks b
+		    WHERE (b.blocker_id = $1 AND b.blocked_id = u.id)
+		       OR (b.blocker_id = u.id AND b.blocked_id = $1)
+		  )
+		ORDER BY score DESC
+		LIMIT 5
+	`, userId)
 	if err != nil {
 		return nil, err
 	}
@@ -130,7 +171,8 @@ func SuggestUsers(ctx context.Context, userId string) ([]SuggestedUser, error) {
 	var users []SuggestedUser
 	for rows.Next() {
 		var u SuggestedUser
-		rows.Scan(&u.ID, &u.FullName, &u.AvatarUrl, &u.Role, &u.Location)
+		var score float64
+		rows.Scan(&u.ID, &u.FullName, &u.AvatarUrl, &u.Role, &u.Location, &score)
 		users = append(users, u)
 	}
 	if users == nil {
