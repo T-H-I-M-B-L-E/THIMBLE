@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { Plus, ToggleLeft, ToggleRight, Pencil, Trash2 } from 'lucide-react'
 import { useNotify } from '@/components/notify-provider'
 import { adminFetch } from '@/lib/adminFetch'
+import { Page, Card, Pill, C } from '../_ui'
 
 interface Ad {
   id: string
@@ -67,110 +68,53 @@ export default function AdminAdsPage() {
   const fmtDate = (d: string) => new Date(d).toLocaleDateString([], { month: 'short', day: 'numeric', year: '2-digit' })
 
   return (
-    <div style={{ padding: '24px 32px', maxWidth: 960 }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
-        <div>
-          <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0 }}>Advertisements</h1>
-          <p style={{ fontSize: 13, color: 'var(--t-ink-3)', marginTop: 4 }}>{ads.length} ad{ads.length !== 1 ? 's' : ''} total</p>
-        </div>
-        <Link
-          href="/admin/ads/new"
-          className="t-btn-primary"
-          style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13 }}
-        >
+    <Page
+      title="Ads"
+      subtitle={`${ads.length} ad${ads.length !== 1 ? 's' : ''}`}
+      action={
+        <Link href="/admin/ads/new" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 16px', background: C.accent, color: '#1a1400', borderRadius: 8, fontSize: 13, fontWeight: 600, textDecoration: 'none', whiteSpace: 'nowrap' }}>
           <Plus size={15} /> New Ad
         </Link>
-      </div>
-
+      }
+    >
       {loading ? (
         <div style={{ display: 'flex', justifyContent: 'center', paddingTop: 48 }}>
-          <div className="animate-spin" style={{ width: 32, height: 32, borderRadius: '50%', border: '2px solid var(--t-line)', borderTopColor: 'var(--t-gold)' }} />
+          <div style={{ width: 24, height: 24, border: `2px solid ${C.line}`, borderTopColor: C.accent, borderRadius: '50%', animation: 'spin 0.7s linear infinite' }} />
+          <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
         </div>
       ) : ads.length === 0 ? (
-        <div className="t-empty-state" style={{ paddingTop: 48 }}>
-          <p>No ads yet. Create one to get started.</p>
-        </div>
+        <Card><p style={{ textAlign: 'center', color: C.faint, fontSize: 13, margin: 0 }}>No ads yet. Create one to get started.</p></Card>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {ads.map(ad => (
             <div
               key={ad.id}
               style={{
-                display: 'grid',
-                gridTemplateColumns: '56px 1fr auto',
-                gap: 16,
-                alignItems: 'center',
-                padding: '12px 16px',
-                background: 'var(--t-surface)',
-                border: '1px solid var(--t-line)',
-                borderRadius: 10,
+                display: 'grid', gridTemplateColumns: '48px 1fr auto', gap: 14, alignItems: 'center',
+                padding: '12px 14px', background: C.surface, border: `1px solid ${C.line}`, borderRadius: 12,
               }}
             >
-              {/* Thumbnail */}
-              <img
-                src={ad.imageUrl}
-                alt={ad.title}
-                style={{ width: 56, height: 56, objectFit: 'cover', borderRadius: 6, flexShrink: 0 }}
-              />
+              <img src={ad.imageUrl} alt={ad.title} style={{ width: 48, height: 48, objectFit: 'cover', borderRadius: 8 }} />
 
-              {/* Info */}
               <div style={{ minWidth: 0 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                   <span style={{ fontWeight: 600, fontSize: 14 }}>{ad.title}</span>
-                  <span
-                    style={{
-                      fontSize: 11,
-                      padding: '1px 7px',
-                      borderRadius: 4,
-                      fontWeight: 500,
-                      background: ad.isActive ? 'rgba(34,197,94,.15)' : 'var(--t-surface-2)',
-                      color: ad.isActive ? '#16a34a' : 'var(--t-ink-3)',
-                    }}
-                  >
-                    {ad.isActive ? 'Active' : 'Paused'}
-                  </span>
-                  <span
-                    style={{
-                      fontSize: 11,
-                      padding: '1px 7px',
-                      borderRadius: 4,
-                      background: 'var(--t-surface-2)',
-                      color: 'var(--t-ink-3)',
-                      fontWeight: 500,
-                    }}
-                  >
-                    {ad.placement}
-                  </span>
+                  <Pill tone={ad.isActive ? 'good' : 'default'}>{ad.isActive ? 'Active' : 'Paused'}</Pill>
+                  <Pill>{ad.placement}</Pill>
                 </div>
-                <p style={{ fontSize: 12, color: 'var(--t-ink-3)', margin: '3px 0 0' }}>
-                  {ad.sponsorName} · {fmtDate(ad.startDate)} – {fmtDate(ad.endDate)}
-                </p>
-                <p style={{ fontSize: 12, color: 'var(--t-ink-3)', margin: '2px 0 0' }}>
-                  {ad.impressionCount.toLocaleString()} impressions · {ad.clickCount.toLocaleString()} clicks
+                <p style={{ fontSize: 12, color: C.faint, margin: '3px 0 0' }}>
+                  {ad.sponsorName} · {ad.impressionCount.toLocaleString()} views · {ad.clickCount.toLocaleString()} clicks
                 </p>
               </div>
 
-              {/* Actions */}
-              <div style={{ display: 'flex', gap: 4 }}>
-                <button
-                  onClick={() => handleToggle(ad.id)}
-                  title={ad.isActive ? 'Pause' : 'Activate'}
-                  style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 6, color: 'var(--t-ink-2)' }}
-                >
+              <div style={{ display: 'flex', gap: 2 }}>
+                <button onClick={() => handleToggle(ad.id)} title={ad.isActive ? 'Pause' : 'Activate'} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 6, color: C.dim }}>
                   {ad.isActive ? <ToggleRight size={18} /> : <ToggleLeft size={18} />}
                 </button>
-                <Link
-                  href={`/admin/ads/${ad.id}`}
-                  title="Edit"
-                  style={{ display: 'flex', alignItems: 'center', padding: 6, color: 'var(--t-ink-2)' }}
-                >
+                <Link href={`/admin/ads/${ad.id}`} title="Edit" style={{ display: 'flex', alignItems: 'center', padding: 6, color: C.dim }}>
                   <Pencil size={15} />
                 </Link>
-                <button
-                  onClick={() => handleDelete(ad.id, ad.title)}
-                  title="Delete"
-                  style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 6, color: 'var(--t-danger)' }}
-                >
+                <button onClick={() => handleDelete(ad.id, ad.title)} title="Delete" style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 6, color: C.red }}>
                   <Trash2 size={15} />
                 </button>
               </div>
@@ -178,6 +122,6 @@ export default function AdminAdsPage() {
           ))}
         </div>
       )}
-    </div>
+    </Page>
   )
 }

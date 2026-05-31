@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { CheckCircle2, XCircle, ExternalLink, Loader2 } from 'lucide-react'
 import { useNotify } from '@/components/notify-provider'
 import { adminFetch } from '@/lib/adminFetch'
+import { Page, Card, Pill, Button, C } from '../_ui'
 
 interface VerificationRequest {
   id: number
@@ -15,8 +16,6 @@ interface VerificationRequest {
   idDocumentUrl: string
   reason: string
   adminNote?: string
-  reviewedBy?: string
-  reviewedAt?: string
   createdAt: string
   userFullName?: string
   userEmail?: string
@@ -25,12 +24,6 @@ interface VerificationRequest {
 }
 
 const STATUS_TABS: Array<'pending' | 'approved' | 'rejected' | 'all'> = ['pending', 'approved', 'rejected', 'all']
-
-const statusColor: Record<string, string> = {
-  pending: 'text-yellow-400 bg-yellow-400/10',
-  approved: 'text-emerald-400 bg-emerald-400/10',
-  rejected: 'text-red-400 bg-red-400/10',
-}
 
 function timeAgo(iso: string) {
   const diff = Date.now() - new Date(iso).getTime()
@@ -56,10 +49,7 @@ export default function AdminVerificationPage() {
     setLoading(true)
     const q = filter === 'all' ? '' : `?status=${filter}`
     adminFetch(`/api/admin/verification-requests${q}`)
-      .then(r => {
-        if (r.status === 403) { router.push('/admin/login'); return [] }
-        return r.json()
-      })
+      .then(r => { if (r.status === 403) { router.push('/admin/login'); return [] } return r.json() })
       .then(d => setRequests(Array.isArray(d) ? d : []))
       .catch(() => setRequests([]))
       .finally(() => setLoading(false))
@@ -71,17 +61,10 @@ export default function AdminVerificationPage() {
     setReviewing({ id, action })
     try {
       const res = await adminFetch(`/api/admin/verification-requests/${id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action, adminNote }),
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action, adminNote }),
       })
       if (!res.ok) throw new Error('Failed')
-      // Optimistically remove from pending list / reload
-      setRequests(prev => prev.map(r => r.id === id
-        ? { ...r, status: action === 'approve' ? 'approved' : 'rejected', adminNote: adminNote || r.adminNote }
-        : r
-      ))
-      // Re-sort if on a filtered view
+      setRequests(prev => prev.map(r => r.id === id ? { ...r, status: action === 'approve' ? 'approved' : 'rejected', adminNote: adminNote || r.adminNote } : r))
       if (filter !== 'all') load()
     } catch {
       notify.error('Failed to update request')
@@ -90,130 +73,68 @@ export default function AdminVerificationPage() {
     }
   }
 
-  const counts = {
-    pending: requests.filter(r => r.status === 'pending').length,
-    approved: requests.filter(r => r.status === 'approved').length,
-    rejected: requests.filter(r => r.status === 'rejected').length,
-  }
-
   return (
-    <div className="p-6 sm:p-8 space-y-6 pb-32">
-      <div>
-        <h1 className="text-3xl font-light tracking-tight">Verification Requests</h1>
-        <p className="text-neutral-500 text-sm mt-2">Review and approve user verification applications</p>
-      </div>
-
+    <Page title="Verification" subtitle="Review user verification applications">
       {/* Filter tabs */}
-      <div className="flex gap-2 flex-wrap">
+      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 16 }}>
         {STATUS_TABS.map(tab => (
           <button
             key={tab}
             onClick={() => setFilter(tab)}
-            className={`px-4 py-2 rounded-full text-sm capitalize transition-colors ${
-              filter === tab
-                ? 'bg-white/20 text-white'
-                : 'bg-white/5 text-neutral-400 hover:bg-white/10'
-            }`}
+            style={{
+              padding: '6px 14px', borderRadius: 999, fontSize: 13, textTransform: 'capitalize', cursor: 'pointer',
+              background: filter === tab ? C.surfaceHover : 'transparent',
+              border: `1px solid ${filter === tab ? C.line : 'transparent'}`,
+              color: filter === tab ? C.text : C.faint,
+            }}
           >
             {tab}
-            {tab !== 'all' && counts[tab as 'pending' | 'approved' | 'rejected'] > 0 && (
-              <span className="ml-2 text-xs text-neutral-500">{counts[tab as 'pending' | 'approved' | 'rejected']}</span>
-            )}
           </button>
         ))}
       </div>
 
       {loading ? (
-        <div className="flex items-center justify-center py-16">
-          <Loader2 size={20} className="animate-spin text-neutral-500" />
+        <div style={{ display: 'flex', justifyContent: 'center', padding: 48 }}>
+          <Loader2 size={20} style={{ color: C.faint, animation: 'spin 0.8s linear infinite' }} />
+          <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
         </div>
       ) : requests.length === 0 ? (
-        <div className="bg-white/5 border border-white/10 rounded-2xl p-12 text-center">
-          <p className="text-neutral-500">No {filter === 'all' ? '' : filter} requests</p>
-        </div>
+        <Card><p style={{ textAlign: 'center', color: C.faint, fontSize: 13, margin: 0 }}>No {filter === 'all' ? '' : filter} requests</p></Card>
       ) : (
-        <div className="grid gap-3">
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           {requests.map(r => (
-            <div key={r.id} className="bg-white/8 backdrop-blur-xl border border-white/10 rounded-2xl p-5">
-              <div className="flex items-start gap-4">
-                {/* Avatar */}
-                <div className="w-12 h-12 rounded-full overflow-hidden bg-white/10 flex items-center justify-center flex-shrink-0 text-sm font-semibold">
-                  {r.userAvatar ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={r.userAvatar} alt={r.userFullName || r.fullName} className="w-full h-full object-cover" />
-                  ) : (
-                    <span>{(r.userFullName || r.fullName)?.[0]?.toUpperCase()}</span>
-                  )}
+            <div key={r.id} style={{ background: C.surface, border: `1px solid ${C.line}`, borderRadius: 12, padding: 16 }}>
+              <div style={{ display: 'flex', gap: 12 }}>
+                <div style={{ width: 40, height: 40, borderRadius: '50%', overflow: 'hidden', background: C.surfaceHover, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 600 }}>
+                  {r.userAvatar ? <img src={r.userAvatar} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : (r.userFullName || r.fullName)?.[0]?.toUpperCase()}
                 </div>
-
-                {/* Main */}
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-start justify-between gap-3 flex-wrap mb-2">
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap', alignItems: 'flex-start' }}>
                     <div>
-                      <p className="text-white font-medium">{r.userFullName || r.fullName}</p>
-                      <p className="text-xs text-neutral-400">
-                        {r.userEmail || r.email}
-                        {r.userRole && <span className="capitalize"> · {r.userRole}</span>}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span style={{ fontSize: 14, fontWeight: 600 }}>{r.userFullName || r.fullName}</span>
+                        <Pill tone={r.status === 'approved' ? 'good' : r.status === 'rejected' ? 'bad' : 'warn'}>{r.status}</Pill>
+                      </div>
+                      <p style={{ fontSize: 12, color: C.faint, margin: '2px 0 0' }}>
+                        {r.userEmail || r.email}{r.userRole && <span style={{ textTransform: 'capitalize' }}> · {r.userRole}</span>}
                       </p>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <span className={`text-xs px-2 py-1 rounded-full ${statusColor[r.status]}`}>
-                        {r.status}
-                      </span>
-                      <span className="text-xs text-neutral-500">{timeAgo(r.createdAt)}</span>
-                    </div>
+                    <span style={{ fontSize: 12, color: C.faint, whiteSpace: 'nowrap' }}>{timeAgo(r.createdAt)}</span>
                   </div>
 
-                  {/* Submitted details */}
-                  <div className="mt-3 grid sm:grid-cols-2 gap-3 text-xs">
-                    <div>
-                      <p className="text-neutral-500 uppercase tracking-widest mb-1">Submitted name</p>
-                      <p className="text-neutral-200">{r.fullName}</p>
-                    </div>
-                    <div>
-                      <p className="text-neutral-500 uppercase tracking-widest mb-1">Submitted email</p>
-                      <p className="text-neutral-200 break-all">{r.email}</p>
-                    </div>
-                    <div className="sm:col-span-2">
-                      <p className="text-neutral-500 uppercase tracking-widest mb-1">Reason</p>
-                      <p className="text-neutral-200 whitespace-pre-wrap">{r.reason}</p>
-                    </div>
-                    {r.adminNote && (
-                      <div className="sm:col-span-2">
-                        <p className="text-neutral-500 uppercase tracking-widest mb-1">Admin note</p>
-                        <p className="text-neutral-300 italic">{r.adminNote}</p>
-                      </div>
-                    )}
-                  </div>
+                  <p style={{ fontSize: 13, color: C.dim, margin: '10px 0 0', whiteSpace: 'pre-wrap' }}>{r.reason}</p>
+                  {r.adminNote && <p style={{ fontSize: 12, color: C.faint, margin: '6px 0 0', fontStyle: 'italic' }}>Note: {r.adminNote}</p>}
 
-                  {/* Actions */}
-                  <div className="mt-4 flex items-center gap-2 flex-wrap">
-                    <a
-                      href={r.idDocumentUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1 text-xs text-neutral-300 hover:text-white px-3 py-1.5 bg-white/5 hover:bg-white/10 rounded-full transition-colors"
-                    >
+                  <div style={{ display: 'flex', gap: 8, marginTop: 14, flexWrap: 'wrap' }}>
+                    <a href={r.idDocumentUrl} target="_blank" rel="noopener noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, color: C.dim, padding: '6px 12px', background: C.surfaceHover, borderRadius: 8, textDecoration: 'none' }}>
                       <ExternalLink size={12} /> View ID
                     </a>
-
                     {r.status === 'pending' && (
                       <>
-                        <button
-                          onClick={() => review(r.id, 'approve')}
-                          disabled={reviewing?.id === r.id}
-                          className="inline-flex items-center gap-1 text-xs text-emerald-300 hover:text-emerald-200 px-3 py-1.5 bg-emerald-500/10 hover:bg-emerald-500/20 rounded-full transition-colors disabled:opacity-50"
-                        >
-                          {reviewing?.id === r.id && reviewing.action === 'approve'
-                            ? <Loader2 size={12} className="animate-spin" />
-                            : <CheckCircle2 size={12} />}
-                          Approve
+                        <button onClick={() => review(r.id, 'approve')} disabled={reviewing?.id === r.id} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, color: C.green, padding: '6px 12px', background: 'rgba(63,207,142,0.1)', border: 'none', borderRadius: 8, cursor: 'pointer' }}>
+                          {reviewing?.id === r.id && reviewing.action === 'approve' ? <Loader2 size={12} style={{ animation: 'spin 0.8s linear infinite' }} /> : <CheckCircle2 size={12} />} Approve
                         </button>
-                        <button
-                          onClick={() => { setRejectModal(r); setRejectNote('') }}
-                          disabled={reviewing?.id === r.id}
-                          className="inline-flex items-center gap-1 text-xs text-red-300 hover:text-red-200 px-3 py-1.5 bg-red-500/10 hover:bg-red-500/20 rounded-full transition-colors disabled:opacity-50"
-                        >
+                        <button onClick={() => { setRejectModal(r); setRejectNote('') }} disabled={reviewing?.id === r.id} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, color: C.red, padding: '6px 12px', background: 'rgba(240,97,109,0.1)', border: 'none', borderRadius: 8, cursor: 'pointer' }}>
                           <XCircle size={12} /> Reject
                         </button>
                       </>
@@ -228,50 +149,27 @@ export default function AdminVerificationPage() {
 
       {/* Reject modal */}
       {rejectModal && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4"
-          style={{ background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }}
-          onClick={() => !reviewing && setRejectModal(null)}
-        >
-          <div
-            className="bg-neutral-900 border border-white/10 rounded-2xl p-6 max-w-md w-full"
-            onClick={e => e.stopPropagation()}
-          >
-            <p className="text-lg font-medium text-white mb-1">Reject verification</p>
-            <p className="text-xs text-neutral-400 mb-4">
-              Optional note for the user explaining why their request was rejected.
-            </p>
+        <div style={{ position: 'fixed', inset: 0, zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16, background: 'rgba(0,0,0,0.7)' }} onClick={() => !reviewing && setRejectModal(null)}>
+          <div style={{ background: C.surface, border: `1px solid ${C.line}`, borderRadius: 14, padding: 20, maxWidth: 420, width: '100%' }} onClick={e => e.stopPropagation()}>
+            <p style={{ fontSize: 15, fontWeight: 600, margin: 0 }}>Reject verification</p>
+            <p style={{ fontSize: 12, color: C.faint, margin: '4px 0 14px' }}>Optional note explaining why.</p>
             <textarea
               value={rejectNote}
               onChange={e => setRejectNote(e.target.value)}
               placeholder="e.g. ID photo was unclear — please re-submit"
-              rows={4}
+              rows={3}
               maxLength={500}
-              className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-sm text-white placeholder-neutral-600 resize-none focus:outline-none focus:border-white/30"
+              style={{ width: '100%', background: C.bg, border: `1px solid ${C.line}`, borderRadius: 8, padding: '10px 12px', fontSize: 13, color: C.text, resize: 'vertical', boxSizing: 'border-box', fontFamily: 'inherit' }}
             />
-            <div className="flex items-center justify-end gap-2 mt-4">
-              <button
-                onClick={() => setRejectModal(null)}
-                disabled={!!reviewing}
-                className="px-4 py-2 text-sm text-neutral-400 hover:text-white"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={async () => {
-                  if (!rejectModal) return
-                  await review(rejectModal.id, 'reject', rejectNote.trim())
-                  setRejectModal(null)
-                }}
-                disabled={!!reviewing}
-                className="px-4 py-2 text-sm bg-red-500/20 text-red-200 hover:bg-red-500/30 rounded-full disabled:opacity-50"
-              >
-                {reviewing?.action === 'reject' ? <Loader2 size={12} className="animate-spin inline" /> : 'Reject request'}
-              </button>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 14 }}>
+              <Button onClick={() => setRejectModal(null)} disabled={!!reviewing}>Cancel</Button>
+              <Button tone="danger" disabled={!!reviewing} onClick={async () => { if (!rejectModal) return; await review(rejectModal.id, 'reject', rejectNote.trim()); setRejectModal(null) }}>
+                {reviewing?.action === 'reject' ? 'Rejecting…' : 'Reject request'}
+              </Button>
             </div>
           </div>
         </div>
       )}
-    </div>
+    </Page>
   )
 }
