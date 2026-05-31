@@ -142,17 +142,17 @@ export default function BroadcastPage() {
   return (
     <div style={{ padding: '28px 32px', maxWidth: 960, color: 'white' }}>
       <h1 style={{ fontSize: 20, fontWeight: 700, margin: 0, letterSpacing: '-0.01em' }}>Broadcast</h1>
-      <p style={{ fontSize: 12, color: 'oklch(0.40 0.006 60)', marginTop: 4, marginBottom: 28 }}>
+      <p style={{ fontSize: 12, color: '#5a5a60', marginTop: 4, marginBottom: 28 }}>
         Send a one-off email and/or show a site-wide banner. Audiences can be all users, specific roles, or verified-only.
       </p>
 
       {/* Active banner card */}
       {activeBanner && (
-        <div style={{ marginBottom: 24, padding: 16, background: 'oklch(0.10 0.003 60)', border: '1px solid oklch(0.18 0.005 60)', borderRadius: 12 }}>
+        <div style={{ marginBottom: 24, padding: 16, background: '#141416', border: '1px solid #232326', borderRadius: 12 }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <Megaphone size={14} style={{ color: '#22c55e' }} />
-              <span style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'oklch(0.55 0.008 60)' }}>Active Banner</span>
+              <span style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#8a8a90' }}>Active Banner</span>
             </div>
             <button onClick={takeDownBanner} style={{ padding: '6px 12px', background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 6, color: '#fca5a5', fontSize: 12, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}>
               <X size={11} /> Take Down
@@ -161,7 +161,7 @@ export default function BroadcastPage() {
           <div style={{ padding: '10px 14px', borderRadius: 8, background: BANNER_TYPES.find(t => t.value === activeBanner.type)?.bg, color: BANNER_TYPES.find(t => t.value === activeBanner.type)?.fg, fontSize: 13 }}>
             {activeBanner.message}
           </div>
-          <p style={{ fontSize: 11, color: 'oklch(0.50 0.006 60)', marginTop: 8 }}>
+          <p style={{ fontSize: 11, color: '#8a8a90', marginTop: 8 }}>
             {activeBanner.expiresAt ? `Expires ${new Date(activeBanner.expiresAt).toLocaleString()}` : 'No expiry — until taken down'}
             {' · '}
             {activeBanner.audience.roles.length ? activeBanner.audience.roles.join(', ') : 'all roles'}
@@ -171,11 +171,11 @@ export default function BroadcastPage() {
       )}
 
       {/* Compose form */}
-      <div style={{ background: 'oklch(0.10 0.003 60)', border: '1px solid oklch(0.18 0.005 60)', borderRadius: 12, padding: 24, marginBottom: 24 }}>
+      <div style={{ background: '#141416', border: '1px solid #232326', borderRadius: 12, padding: 24, marginBottom: 24 }}>
 
         {/* Channels */}
         <div style={{ marginBottom: 24 }}>
-          <p style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'oklch(0.55 0.008 60)', marginBottom: 10 }}>Channels</p>
+          <p style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#8a8a90', marginBottom: 10 }}>Channels</p>
           <div style={{ display: 'flex', gap: 8 }}>
             <ToggleChip icon={Mail} label="Send Email" checked={sendEmail} onClick={() => setSendEmail(s => !s)} />
             <ToggleChip icon={Megaphone} label="Show Banner" checked={showBanner} onClick={() => setShowBanner(s => !s)} />
@@ -184,8 +184,8 @@ export default function BroadcastPage() {
 
         {/* Audience */}
         <div style={{ marginBottom: 24 }}>
-          <p style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'oklch(0.55 0.008 60)', marginBottom: 10 }}>
-            Audience {preview && <span style={{ color: 'oklch(0.45 0.006 60)', fontWeight: 400, marginLeft: 8 }}>· {preview.recipients} recipients · {preview.label}</span>}
+          <p style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#8a8a90', marginBottom: 10 }}>
+            Audience {preview && <span style={{ color: '#5a5a60', fontWeight: 400, marginLeft: 8 }}>· {preview.recipients} recipients · {preview.label}</span>}
           </p>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 10 }}>
             {ROLES.map(r => (
@@ -193,15 +193,15 @@ export default function BroadcastPage() {
             ))}
           </div>
           <ToggleChip label="Verified only" checked={audience.verifiedOnly} onClick={() => setAudience(a => ({ ...a, verifiedOnly: !a.verifiedOnly }))} />
-          <p style={{ fontSize: 11, color: 'oklch(0.45 0.006 60)', marginTop: 8 }}>
+          <p style={{ fontSize: 11, color: '#5a5a60', marginTop: 8 }}>
             Leave all roles unchecked to target everyone.
           </p>
         </div>
 
         {/* Email content */}
         {sendEmail && (
-          <div style={{ marginBottom: 24, paddingTop: 20, borderTop: '1px solid oklch(0.18 0.005 60)' }}>
-            <p style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'oklch(0.55 0.008 60)', marginBottom: 10 }}>Email</p>
+          <div style={{ marginBottom: 24, paddingTop: 20, borderTop: '1px solid #232326' }}>
+            <p style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#8a8a90', marginBottom: 10 }}>Email</p>
             <input
               value={subject}
               onChange={e => setSubject(e.target.value)}
@@ -220,8 +220,8 @@ export default function BroadcastPage() {
 
         {/* Banner content */}
         {showBanner && (
-          <div style={{ marginBottom: 24, paddingTop: 20, borderTop: '1px solid oklch(0.18 0.005 60)' }}>
-            <p style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'oklch(0.55 0.008 60)', marginBottom: 10 }}>Banner</p>
+          <div style={{ marginBottom: 24, paddingTop: 20, borderTop: '1px solid #232326' }}>
+            <p style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#8a8a90', marginBottom: 10 }}>Banner</p>
             <input
               value={bannerMessage}
               onChange={e => setBannerMessage(e.target.value)}
@@ -242,14 +242,14 @@ export default function BroadcastPage() {
                 Preview: {bannerMessage}
               </div>
             )}
-            <p style={{ fontSize: 11, color: 'oklch(0.45 0.006 60)', marginTop: 8 }}>
+            <p style={{ fontSize: 11, color: '#5a5a60', marginTop: 8 }}>
               Critical banners can't be dismissed by users. Warnings dismiss per-session. Info/success dismiss permanently.
             </p>
           </div>
         )}
 
         {/* Send */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 14, paddingTop: 20, borderTop: '1px solid oklch(0.18 0.005 60)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14, paddingTop: 20, borderTop: '1px solid #232326' }}>
           <button
             onClick={send}
             disabled={sending}
@@ -267,29 +267,29 @@ export default function BroadcastPage() {
       </div>
 
       {/* History */}
-      <div style={{ background: 'oklch(0.10 0.003 60)', border: '1px solid oklch(0.18 0.005 60)', borderRadius: 12, padding: '20px 24px' }}>
-        <p style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'oklch(0.55 0.008 60)', marginBottom: 14 }}>
+      <div style={{ background: '#141416', border: '1px solid #232326', borderRadius: 12, padding: '20px 24px' }}>
+        <p style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#8a8a90', marginBottom: 14 }}>
           Recent Broadcasts
         </p>
         {history.length === 0 ? (
-          <p style={{ fontSize: 13, color: 'oklch(0.45 0.006 60)', margin: 0 }}>No broadcasts sent yet.</p>
+          <p style={{ fontSize: 13, color: '#5a5a60', margin: 0 }}>No broadcasts sent yet.</p>
         ) : (
           <div style={{ overflowX: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
               <thead>
-                <tr style={{ color: 'oklch(0.45 0.006 60)', textAlign: 'left' }}>
+                <tr style={{ color: '#5a5a60', textAlign: 'left' }}>
                   {['Sent', 'Subject', 'Audience', 'Sent by', 'Delivered'].map(h => (
-                    <th key={h} style={{ padding: '4px 8px', fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase', fontSize: 10, borderBottom: '1px solid oklch(0.18 0.005 60)' }}>{h}</th>
+                    <th key={h} style={{ padding: '4px 8px', fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase', fontSize: 10, borderBottom: '1px solid #232326' }}>{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {history.map(b => (
-                  <tr key={b.id} style={{ borderBottom: '1px solid oklch(0.14 0.003 60)' }}>
-                    <td style={{ padding: '8px', color: 'oklch(0.65 0.005 60)', whiteSpace: 'nowrap' }}>{new Date(b.createdAt).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</td>
-                    <td style={{ padding: '8px', color: 'oklch(0.85 0.005 60)' }}>{b.subject}</td>
-                    <td style={{ padding: '8px', color: 'oklch(0.65 0.005 60)' }}>{b.audience}</td>
-                    <td style={{ padding: '8px', color: 'oklch(0.65 0.005 60)' }}>{b.sentBy}</td>
+                  <tr key={b.id} style={{ borderBottom: '1px solid #232326' }}>
+                    <td style={{ padding: '8px', color: '#8a8a90', whiteSpace: 'nowrap' }}>{new Date(b.createdAt).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</td>
+                    <td style={{ padding: '8px', color: '#ededef' }}>{b.subject}</td>
+                    <td style={{ padding: '8px', color: '#8a8a90' }}>{b.audience}</td>
+                    <td style={{ padding: '8px', color: '#8a8a90' }}>{b.sentBy}</td>
                     <td style={{ padding: '8px', fontVariantNumeric: 'tabular-nums' }}>
                       {b.failed > 0 ? (
                         <span style={{ color: '#f59e0b', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
@@ -315,8 +315,8 @@ export default function BroadcastPage() {
 const inputStyle: React.CSSProperties = {
   width: '100%',
   padding: '10px 12px',
-  background: 'oklch(0.13 0.005 60)',
-  border: '1px solid oklch(0.22 0.005 60)',
+  background: '#0a0a0b',
+  border: '1px solid #232326',
   borderRadius: 6,
   color: 'white',
   fontSize: 13,
@@ -333,10 +333,10 @@ function ToggleChip({ label, checked, onClick, icon: Icon }: { label: string; ch
         alignItems: 'center',
         gap: 6,
         padding: '6px 12px',
-        background: checked ? 'rgba(34,197,94,0.12)' : 'oklch(0.13 0.005 60)',
-        border: `1px solid ${checked ? 'rgba(34,197,94,0.4)' : 'oklch(0.22 0.005 60)'}`,
+        background: checked ? 'rgba(34,197,94,0.12)' : '#0a0a0b',
+        border: `1px solid ${checked ? 'rgba(34,197,94,0.4)' : '#232326'}`,
         borderRadius: 999,
-        color: checked ? '#86efac' : 'oklch(0.65 0.006 60)',
+        color: checked ? '#86efac' : '#8a8a90',
         fontSize: 12,
         fontWeight: 500,
         cursor: 'pointer',

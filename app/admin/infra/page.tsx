@@ -46,13 +46,13 @@ function Tooltip({ text }: { text: string }) {
       onMouseEnter={() => setShow(true)}
       onMouseLeave={() => setShow(false)}
     >
-      <span style={{ display:'inline-flex', alignItems:'center', justifyContent:'center', width:14, height:14, borderRadius:'50%', border:'1px solid oklch(0.32 0.006 60)', color:'oklch(0.45 0.006 60)', fontSize:9, fontWeight:700, cursor:'help', lineHeight:1, fontFamily:'sans-serif' }}>i</span>
+      <span style={{ display:'inline-flex', alignItems:'center', justifyContent:'center', width:14, height:14, borderRadius:'50%', border:'1px solid #3a3a40', color:'#5a5a60', fontSize:9, fontWeight:700, cursor:'help', lineHeight:1, fontFamily:'sans-serif' }}>i</span>
       {show && (
         <span style={{
           position:'absolute', bottom:'calc(100% + 6px)', left:'50%', transform:'translateX(-50%)',
-          background:'oklch(0.16 0.005 60)', border:'1px solid oklch(0.24 0.006 60)',
+          background:'#1a1a1d', border:'1px solid #2a2a2e',
           borderRadius:8, padding:'8px 12px', fontSize:12, lineHeight:1.5,
-          color:'oklch(0.78 0.005 60)', whiteSpace:'normal', width:240,
+          color:'#cfcfd3', whiteSpace:'normal', width:240,
           boxShadow:'0 4px 20px rgba(0,0,0,0.5)', zIndex:50, pointerEvents:'none',
           textAlign:'left', fontWeight:400, letterSpacing:'normal', textTransform:'none',
         }}>
@@ -72,10 +72,10 @@ function Card({ title, icon: Icon, children, status, tooltip }: {
   title: string; icon: React.ElementType; children: React.ReactNode; status?: boolean; tooltip?: string
 }) {
   return (
-    <div style={{ background:'oklch(0.10 0.003 60)', border:`1px solid ${status===false ? 'rgba(239,68,68,0.4)' : 'oklch(0.18 0.005 60)'}`, borderRadius:12, padding:'20px 24px' }}>
+    <div style={{ background:'#141416', border:`1px solid ${status===false ? 'rgba(239,68,68,0.4)' : '#232326'}`, borderRadius:12, padding:'20px 24px' }}>
       <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:16 }}>
-        <Icon size={15} style={{ color:'oklch(0.65 0.010 60)' }} />
-        <span style={{ fontSize:12, fontWeight:600, letterSpacing:'0.08em', textTransform:'uppercase', color:'oklch(0.55 0.008 60)' }}>{title}</span>
+        <Icon size={15} style={{ color:'#8a8a90' }} />
+        <span style={{ fontSize:12, fontWeight:600, letterSpacing:'0.08em', textTransform:'uppercase', color:'#8a8a90' }}>{title}</span>
         {tooltip && <span style={{ marginLeft:2 }}><Tooltip text={tooltip} /></span>}
         {status !== undefined && <span style={{ marginLeft:'auto' }}>{status ? <CheckCircle size={14} color="#22c55e" /> : <XCircle size={14} color="#ef4444" />}</span>}
       </div>
@@ -87,18 +87,18 @@ function Card({ title, icon: Icon, children, status, tooltip }: {
 function Row({ label, value, warn, tooltip }: { label: string; value: React.ReactNode; warn?: boolean; tooltip?: string }) {
   return (
     <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-      <span style={{ fontSize:13, color:'oklch(0.50 0.006 60)', display:'flex', alignItems:'center', gap:4 }}>
+      <span style={{ fontSize:13, color:'#8a8a90', display:'flex', alignItems:'center', gap:4 }}>
         {label}
         {tooltip && <Tooltip text={tooltip} />}
       </span>
-      <span style={{ fontSize:13, fontWeight:600, color: warn ? '#f59e0b' : 'oklch(0.90 0.004 60)', fontVariantNumeric:'tabular-nums' }}>{value}</span>
+      <span style={{ fontSize:13, fontWeight:600, color: warn ? '#f59e0b' : '#ededef', fontVariantNumeric:'tabular-nums' }}>{value}</span>
     </div>
   )
 }
 
 function MiniBar({ value, max, color='#22c55e' }: { value:number; max:number; color?:string }) {
   const pct = Math.min(100, Math.round((value / Math.max(max,1)) * 100))
-  return <div style={{ height:4, background:'oklch(0.18 0.005 60)', borderRadius:2, overflow:'hidden' }}><div style={{ width:`${pct}%`, height:'100%', background:color, borderRadius:2, transition:'width 0.5s ease' }} /></div>
+  return <div style={{ height:4, background:'#232326', borderRadius:2, overflow:'hidden' }}><div style={{ width:`${pct}%`, height:'100%', background:color, borderRadius:2, transition:'width 0.5s ease' }} /></div>
 }
 
 function Pill({ label, color }: { label: string; color: string }) {
@@ -114,25 +114,25 @@ function timeAgo(iso: string) {
 }
 
 function LogTable({ rows, emptyMsg }: { rows: (ErrorEntry|SlowEntry)[]; emptyMsg: string }) {
-  if (!rows.length) return <p style={{ fontSize:13, color:'oklch(0.38 0.006 60)', margin:0 }}>{emptyMsg}</p>
+  if (!rows.length) return <p style={{ fontSize:13, color:'#5a5a60', margin:0 }}>{emptyMsg}</p>
   return (
     <div style={{ overflowX:'auto' }}>
       <table style={{ width:'100%', borderCollapse:'collapse', fontSize:12 }}>
         <thead>
-          <tr style={{ color:'oklch(0.45 0.006 60)', textAlign:'left' }}>
+          <tr style={{ color:'#5a5a60', textAlign:'left' }}>
             {['Time','Method','Path','Status','Latency'].map(h => (
-              <th key={h} style={{ padding:'4px 8px', fontWeight:600, letterSpacing:'0.06em', textTransform:'uppercase', fontSize:10, borderBottom:'1px solid oklch(0.18 0.005 60)' }}>{h}</th>
+              <th key={h} style={{ padding:'4px 8px', fontWeight:600, letterSpacing:'0.06em', textTransform:'uppercase', fontSize:10, borderBottom:'1px solid #232326' }}>{h}</th>
             ))}
           </tr>
         </thead>
         <tbody>
           {rows.map((r, i) => (
-            <tr key={i} style={{ borderBottom:'1px solid oklch(0.14 0.003 60)' }}>
-              <td style={{ padding:'6px 8px', color:'oklch(0.45 0.006 60)', whiteSpace:'nowrap' }}>{timeAgo(r.time)}</td>
+            <tr key={i} style={{ borderBottom:'1px solid #232326' }}>
+              <td style={{ padding:'6px 8px', color:'#5a5a60', whiteSpace:'nowrap' }}>{timeAgo(r.time)}</td>
               <td style={{ padding:'6px 8px' }}><Pill label={r.method} color={r.method==='GET'?'#6366f1':'#f59e0b'} /></td>
-              <td style={{ padding:'6px 8px', color:'oklch(0.75 0.005 60)', maxWidth:220, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{r.path}</td>
+              <td style={{ padding:'6px 8px', color:'#b5b5ba', maxWidth:220, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{r.path}</td>
               <td style={{ padding:'6px 8px' }}><Pill label={String(r.status)} color={r.status>=500?'#ef4444':r.status>=400?'#f59e0b':'#22c55e'} /></td>
-              <td style={{ padding:'6px 8px', fontVariantNumeric:'tabular-nums', color: r.latencyMs>500?'#f59e0b':'oklch(0.75 0.005 60)' }}>{r.latencyMs}ms</td>
+              <td style={{ padding:'6px 8px', fontVariantNumeric:'tabular-nums', color: r.latencyMs>500?'#f59e0b':'#b5b5ba' }}>{r.latencyMs}ms</td>
             </tr>
           ))}
         </tbody>
@@ -210,24 +210,24 @@ export default function InfraPage() {
       <div style={{ display:'flex', flexDirection: isMobile ? 'column' : 'row', alignItems: isMobile ? 'stretch' : 'flex-start', justifyContent:'space-between', gap: isMobile ? 16 : 0, marginBottom:28 }}>
         <div>
           <h1 style={{ fontSize:20, fontWeight:700, margin:0, letterSpacing:'-0.01em' }}>Infrastructure</h1>
-          <p style={{ fontSize:12, color:'oklch(0.40 0.006 60)', marginTop:4, maxWidth:500 }}>
+          <p style={{ fontSize:12, color:'#5a5a60', marginTop:4, maxWidth:500 }}>
             Live metrics from the Go backend, Postgres, and Vercel. Alerts email all admins when error rate &gt;10%, 5xx &gt;5, or DB goes down. Auto-refreshes every 30s.
           </p>
-          {lastRefresh && <p style={{ fontSize:11, color:'oklch(0.35 0.006 60)', marginTop:2 }}>Last updated {lastRefresh.toLocaleTimeString([], { hour:'2-digit', minute:'2-digit', second:'2-digit' })}</p>}
+          {lastRefresh && <p style={{ fontSize:11, color:'#5a5a60', marginTop:2 }}>Last updated {lastRefresh.toLocaleTimeString([], { hour:'2-digit', minute:'2-digit', second:'2-digit' })}</p>}
         </div>
         <div style={{ display:'flex', gap:8, flexShrink:0 }}>
           <button onClick={fireTestAlert} disabled={testingAlert} style={{ display:'flex', alignItems:'center', gap:6, padding:'8px 14px', background:'rgba(245,158,11,0.1)', border:'1px solid rgba(245,158,11,0.3)', borderRadius:8, color:'#f59e0b', fontSize:13, cursor:'pointer' }}>
             <AlertTriangle size={13} />
             {testingAlert ? 'Sending…' : 'Fire Test Alert'}
           </button>
-          <button onClick={() => load(true)} disabled={refreshing} style={{ display:'flex', alignItems:'center', gap:6, padding:'8px 14px', background:'oklch(0.15 0.005 60)', border:'1px solid oklch(0.22 0.005 60)', borderRadius:8, color:'oklch(0.75 0.006 60)', fontSize:13, cursor:'pointer' }}>
+          <button onClick={() => load(true)} disabled={refreshing} style={{ display:'flex', alignItems:'center', gap:6, padding:'8px 14px', background:'#1a1a1d', border:'1px solid #232326', borderRadius:8, color:'#b5b5ba', fontSize:13, cursor:'pointer' }}>
             <RefreshCw size={13} style={{ animation: refreshing ? 'spin 0.8s linear infinite' : 'none' }} />
             Refresh
           </button>
         </div>
       </div>
       {testAlertMsg && (
-        <div style={{ marginBottom:16, padding:'10px 14px', borderRadius:8, background:'oklch(0.12 0.005 60)', border:'1px solid oklch(0.20 0.005 60)', fontSize:13, color: testAlertMsg.startsWith('✓') ? '#22c55e' : '#fca5a5' }}>
+        <div style={{ marginBottom:16, padding:'10px 14px', borderRadius:8, background:'#141416', border:'1px solid #232326', fontSize:13, color: testAlertMsg.startsWith('✓') ? '#22c55e' : '#fca5a5' }}>
           {testAlertMsg}
         </div>
       )}
@@ -242,7 +242,7 @@ export default function InfraPage() {
 
       {loading ? (
         <div style={{ display:'flex', justifyContent:'center', paddingTop:64 }}>
-          <div className="animate-spin" style={{ width:32, height:32, borderRadius:'50%', border:'2px solid oklch(0.20 0.005 60)', borderTopColor:'#f5c842' }} />
+          <div className="animate-spin" style={{ width:32, height:32, borderRadius:'50%', border:'2px solid #232326', borderTopColor:'#f5c842' }} />
         </div>
       ) : error ? (
         <div style={{ padding:24, background:'rgba(239,68,68,0.1)', border:'1px solid rgba(239,68,68,0.3)', borderRadius:12, color:'#fca5a5', fontSize:14 }}>
@@ -258,13 +258,13 @@ export default function InfraPage() {
             { label:'Error Rate', ok: errRate < 10,          detail: `${data.requests.errRatePct}%`,               tooltip:'(4xx+5xx) ÷ total requests. Alert fires above 10%' },
             { label:'WebSockets', ok: true,                  detail: `${data.websockets.activeConns} live`,         tooltip:'Open WebSocket connections right now' },
           ].map(item => (
-            <div key={item.label} style={{ padding:'14px 18px', background:'oklch(0.10 0.003 60)', border:`1px solid ${item.ok ? 'oklch(0.18 0.005 60)' : 'rgba(239,68,68,0.35)'}`, borderRadius:10 }}>
+            <div key={item.label} style={{ padding:'14px 18px', background:'#141416', border:`1px solid ${item.ok ? '#232326' : 'rgba(239,68,68,0.35)'}`, borderRadius:10 }}>
               <div style={{ display:'flex', alignItems:'center', gap:6, marginBottom:6 }}>
                 <StatusDot ok={item.ok} />
-                <span style={{ fontSize:11, color:'oklch(0.50 0.006 60)', fontWeight:600, letterSpacing:'0.06em', textTransform:'uppercase' }}>{item.label}</span>
+                <span style={{ fontSize:11, color:'#8a8a90', fontWeight:600, letterSpacing:'0.06em', textTransform:'uppercase' }}>{item.label}</span>
                 <span style={{ marginLeft:'auto' }}><Tooltip text={item.tooltip} /></span>
               </div>
-              <span style={{ fontSize:18, fontWeight:700, color: item.ok ? 'oklch(0.92 0.004 60)' : '#fca5a5' }}>{item.detail}</span>
+              <span style={{ fontSize:18, fontWeight:700, color: item.ok ? '#ededef' : '#fca5a5' }}>{item.detail}</span>
             </div>
           ))}
         </div>
@@ -355,20 +355,20 @@ export default function InfraPage() {
         </div>
 
         {/* Recent errors + slow requests */}
-        <div style={{ background:'oklch(0.10 0.003 60)', border:'1px solid oklch(0.18 0.005 60)', borderRadius:12, padding:'20px 24px', marginBottom:16 }}>
+        <div style={{ background:'#141416', border:'1px solid #232326', borderRadius:12, padding:'20px 24px', marginBottom:16 }}>
           <div style={{ display:'flex', alignItems:'center', gap:16, marginBottom:16 }}>
             <div style={{ display:'flex', gap:2 }}>
               {(['errors','slow'] as const).map(t => (
-                <button key={t} onClick={() => setTab(t)} style={{ padding:'6px 14px', borderRadius:6, border:'none', cursor:'pointer', fontSize:12, fontWeight:600, background: tab===t ? 'oklch(0.20 0.005 60)' : 'transparent', color: tab===t ? 'oklch(0.90 0.004 60)' : 'oklch(0.45 0.006 60)' }}>
+                <button key={t} onClick={() => setTab(t)} style={{ padding:'6px 14px', borderRadius:6, border:'none', cursor:'pointer', fontSize:12, fontWeight:600, background: tab===t ? '#232326' : 'transparent', color: tab===t ? '#ededef' : '#5a5a60' }}>
                   {t === 'errors' ? (
-                    <span style={{ display:'flex', alignItems:'center', gap:5 }}><XCircle size={12} color={data.recentErrors.length ? '#ef4444' : 'oklch(0.45 0.006 60)'} /> Server Errors ({data.recentErrors.length})</span>
+                    <span style={{ display:'flex', alignItems:'center', gap:5 }}><XCircle size={12} color={data.recentErrors.length ? '#ef4444' : '#5a5a60'} /> Server Errors ({data.recentErrors.length})</span>
                   ) : (
                     <span style={{ display:'flex', alignItems:'center', gap:5 }}><Clock size={12} /> Slow Requests ({data.recentSlows.length})</span>
                   )}
                 </button>
               ))}
             </div>
-            <span style={{ fontSize:11, color:'oklch(0.38 0.006 60)', marginLeft:'auto' }}>
+            <span style={{ fontSize:11, color:'#5a5a60', marginLeft:'auto' }}>
               {tab === 'errors' ? 'Last 50 5xx responses — resets on redeploy' : `Last 50 requests over ${data.alerts.thresholds.slowMs}ms`}
             </span>
           </div>
@@ -380,27 +380,27 @@ export default function InfraPage() {
 
         {/* pg_stat_statements */}
         {data.slowQueries && data.slowQueries.length > 0 && (
-          <div style={{ background:'oklch(0.10 0.003 60)', border:'1px solid oklch(0.18 0.005 60)', borderRadius:12, padding:'20px 24px', marginBottom:16 }}>
+          <div style={{ background:'#141416', border:'1px solid #232326', borderRadius:12, padding:'20px 24px', marginBottom:16 }}>
             <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:16 }}>
-              <Database size={14} style={{ color:'oklch(0.65 0.010 60)' }} />
-              <span style={{ fontSize:12, fontWeight:600, letterSpacing:'0.08em', textTransform:'uppercase', color:'oklch(0.55 0.008 60)' }}>Slowest DB Queries</span>
+              <Database size={14} style={{ color:'#8a8a90' }} />
+              <span style={{ fontSize:12, fontWeight:600, letterSpacing:'0.08em', textTransform:'uppercase', color:'#8a8a90' }}>Slowest DB Queries</span>
               <Tooltip text="Top 10 slowest queries by average execution time from pg_stat_statements. Requires the extension to be enabled on your Postgres instance." />
             </div>
             <div style={{ overflowX:'auto' }}>
               <table style={{ width:'100%', borderCollapse:'collapse', fontSize:12 }}>
                 <thead>
-                  <tr style={{ color:'oklch(0.45 0.006 60)', textAlign:'left' }}>
+                  <tr style={{ color:'#5a5a60', textAlign:'left' }}>
                     {['Query','Calls','Avg ms','Total ms'].map(h => (
-                      <th key={h} style={{ padding:'4px 8px', fontWeight:600, letterSpacing:'0.06em', textTransform:'uppercase', fontSize:10, borderBottom:'1px solid oklch(0.18 0.005 60)', whiteSpace:'nowrap' }}>{h}</th>
+                      <th key={h} style={{ padding:'4px 8px', fontWeight:600, letterSpacing:'0.06em', textTransform:'uppercase', fontSize:10, borderBottom:'1px solid #232326', whiteSpace:'nowrap' }}>{h}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
                   {data.slowQueries.map((q, i) => (
-                    <tr key={i} style={{ borderBottom:'1px solid oklch(0.14 0.003 60)' }}>
-                      <td style={{ padding:'6px 8px', color:'oklch(0.70 0.005 60)', maxWidth:340, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', fontFamily:'monospace' }} title={q.query}>{q.query}</td>
+                    <tr key={i} style={{ borderBottom:'1px solid #232326' }}>
+                      <td style={{ padding:'6px 8px', color:'#b5b5ba', maxWidth:340, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', fontFamily:'monospace' }} title={q.query}>{q.query}</td>
                       <td style={{ padding:'6px 8px', fontVariantNumeric:'tabular-nums' }}>{q.calls.toLocaleString()}</td>
-                      <td style={{ padding:'6px 8px', fontVariantNumeric:'tabular-nums', color: q.meanMs > 100 ? '#f59e0b' : 'oklch(0.75 0.005 60)' }}>{q.meanMs.toFixed(1)}</td>
+                      <td style={{ padding:'6px 8px', fontVariantNumeric:'tabular-nums', color: q.meanMs > 100 ? '#f59e0b' : '#b5b5ba' }}>{q.meanMs.toFixed(1)}</td>
                       <td style={{ padding:'6px 8px', fontVariantNumeric:'tabular-nums' }}>{(q.totalMs/1000).toFixed(1)}s</td>
                     </tr>
                   ))}
@@ -412,29 +412,29 @@ export default function InfraPage() {
 
         {/* Slowest API routes */}
         {data.slowestRoutes && data.slowestRoutes.length > 0 && (
-          <div style={{ background:'oklch(0.10 0.003 60)', border:'1px solid oklch(0.18 0.005 60)', borderRadius:12, padding:'20px 24px', marginBottom:16 }}>
+          <div style={{ background:'#141416', border:'1px solid #232326', borderRadius:12, padding:'20px 24px', marginBottom:16 }}>
             <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:16 }}>
-              <TrendingUp size={14} style={{ color:'oklch(0.65 0.010 60)' }} />
-              <span style={{ fontSize:12, fontWeight:600, letterSpacing:'0.08em', textTransform:'uppercase', color:'oklch(0.55 0.008 60)' }}>Slowest API Routes</span>
+              <TrendingUp size={14} style={{ color:'#8a8a90' }} />
+              <span style={{ fontSize:12, fontWeight:600, letterSpacing:'0.08em', textTransform:'uppercase', color:'#8a8a90' }}>Slowest API Routes</span>
               <Tooltip text="Top 10 API endpoints ranked by average response time. Helps find which routes need optimisation. Excludes routes hit fewer than 3 times since restart." />
             </div>
             <div style={{ overflowX:'auto' }}>
               <table style={{ width:'100%', borderCollapse:'collapse', fontSize:12 }}>
                 <thead>
-                  <tr style={{ color:'oklch(0.45 0.006 60)', textAlign:'left' }}>
+                  <tr style={{ color:'#5a5a60', textAlign:'left' }}>
                     {['Method','Route','Hits','Avg ms','Max ms'].map(h => (
-                      <th key={h} style={{ padding:'4px 8px', fontWeight:600, letterSpacing:'0.06em', textTransform:'uppercase', fontSize:10, borderBottom:'1px solid oklch(0.18 0.005 60)' }}>{h}</th>
+                      <th key={h} style={{ padding:'4px 8px', fontWeight:600, letterSpacing:'0.06em', textTransform:'uppercase', fontSize:10, borderBottom:'1px solid #232326' }}>{h}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
                   {data.slowestRoutes.map((r, i) => (
-                    <tr key={i} style={{ borderBottom:'1px solid oklch(0.14 0.003 60)' }}>
+                    <tr key={i} style={{ borderBottom:'1px solid #232326' }}>
                       <td style={{ padding:'6px 8px' }}><Pill label={r.method} color={r.method==='GET'?'#6366f1':r.method==='POST'?'#22c55e':'#f59e0b'} /></td>
-                      <td style={{ padding:'6px 8px', color:'oklch(0.80 0.005 60)', fontFamily:'monospace' }}>{r.path}</td>
-                      <td style={{ padding:'6px 8px', fontVariantNumeric:'tabular-nums', color:'oklch(0.65 0.005 60)' }}>{r.hits.toLocaleString()}</td>
-                      <td style={{ padding:'6px 8px', fontVariantNumeric:'tabular-nums', fontWeight:600, color: r.avgMs > 500 ? '#ef4444' : r.avgMs > 200 ? '#f59e0b' : 'oklch(0.80 0.005 60)' }}>{r.avgMs.toFixed(0)}</td>
-                      <td style={{ padding:'6px 8px', fontVariantNumeric:'tabular-nums', color:'oklch(0.65 0.005 60)' }}>{r.maxMs}</td>
+                      <td style={{ padding:'6px 8px', color:'#cfcfd3', fontFamily:'monospace' }}>{r.path}</td>
+                      <td style={{ padding:'6px 8px', fontVariantNumeric:'tabular-nums', color:'#8a8a90' }}>{r.hits.toLocaleString()}</td>
+                      <td style={{ padding:'6px 8px', fontVariantNumeric:'tabular-nums', fontWeight:600, color: r.avgMs > 500 ? '#ef4444' : r.avgMs > 200 ? '#f59e0b' : '#cfcfd3' }}>{r.avgMs.toFixed(0)}</td>
+                      <td style={{ padding:'6px 8px', fontVariantNumeric:'tabular-nums', color:'#8a8a90' }}>{r.maxMs}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -445,18 +445,18 @@ export default function InfraPage() {
 
         {/* Table sizes */}
         {data.tableSizes && data.tableSizes.length > 0 && (
-          <div style={{ background:'oklch(0.10 0.003 60)', border:'1px solid oklch(0.18 0.005 60)', borderRadius:12, padding:'20px 24px', marginBottom:16 }}>
+          <div style={{ background:'#141416', border:'1px solid #232326', borderRadius:12, padding:'20px 24px', marginBottom:16 }}>
             <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:16 }}>
-              <Database size={14} style={{ color:'oklch(0.65 0.010 60)' }} />
-              <span style={{ fontSize:12, fontWeight:600, letterSpacing:'0.08em', textTransform:'uppercase', color:'oklch(0.55 0.008 60)' }}>Largest Tables</span>
+              <Database size={14} style={{ color:'#8a8a90' }} />
+              <span style={{ fontSize:12, fontWeight:600, letterSpacing:'0.08em', textTransform:'uppercase', color:'#8a8a90' }}>Largest Tables</span>
               <Tooltip text="Top 10 tables by total disk usage including indexes. Helps spot growth patterns and identify candidates for archival or partitioning." />
             </div>
             <div style={{ overflowX:'auto' }}>
               <table style={{ width:'100%', borderCollapse:'collapse', fontSize:12 }}>
                 <thead>
-                  <tr style={{ color:'oklch(0.45 0.006 60)', textAlign:'left' }}>
+                  <tr style={{ color:'#5a5a60', textAlign:'left' }}>
                     {['Table','Size','Rows','% of total'].map(h => (
-                      <th key={h} style={{ padding:'4px 8px', fontWeight:600, letterSpacing:'0.06em', textTransform:'uppercase', fontSize:10, borderBottom:'1px solid oklch(0.18 0.005 60)' }}>{h}</th>
+                      <th key={h} style={{ padding:'4px 8px', fontWeight:600, letterSpacing:'0.06em', textTransform:'uppercase', fontSize:10, borderBottom:'1px solid #232326' }}>{h}</th>
                     ))}
                   </tr>
                 </thead>
@@ -466,11 +466,11 @@ export default function InfraPage() {
                     return data.tableSizes!.map((t, i) => {
                       const pct = totalBytes > 0 ? (t.sizeBytes / totalBytes) * 100 : 0
                       return (
-                        <tr key={i} style={{ borderBottom:'1px solid oklch(0.14 0.003 60)' }}>
-                          <td style={{ padding:'6px 8px', color:'oklch(0.80 0.005 60)', fontFamily:'monospace' }}>{t.name}</td>
+                        <tr key={i} style={{ borderBottom:'1px solid #232326' }}>
+                          <td style={{ padding:'6px 8px', color:'#cfcfd3', fontFamily:'monospace' }}>{t.name}</td>
                           <td style={{ padding:'6px 8px', fontVariantNumeric:'tabular-nums', fontWeight:600 }}>{t.size}</td>
-                          <td style={{ padding:'6px 8px', fontVariantNumeric:'tabular-nums', color:'oklch(0.65 0.005 60)' }}>{t.rowCount.toLocaleString()}</td>
-                          <td style={{ padding:'6px 8px', fontVariantNumeric:'tabular-nums', color:'oklch(0.55 0.005 60)' }}>{pct.toFixed(1)}%</td>
+                          <td style={{ padding:'6px 8px', fontVariantNumeric:'tabular-nums', color:'#8a8a90' }}>{t.rowCount.toLocaleString()}</td>
+                          <td style={{ padding:'6px 8px', fontVariantNumeric:'tabular-nums', color:'#8a8a90' }}>{pct.toFixed(1)}%</td>
                         </tr>
                       )
                     })
@@ -486,21 +486,21 @@ export default function InfraPage() {
 
         {/* UptimeRobot live status */}
         {data.uptimeRobot && data.uptimeRobot.monitors.length > 0 && (
-          <div style={{ marginTop:12, background:'oklch(0.10 0.003 60)', border:'1px solid oklch(0.18 0.005 60)', borderRadius:12, padding:'20px 24px' }}>
+          <div style={{ marginTop:12, background:'#141416', border:'1px solid #232326', borderRadius:12, padding:'20px 24px' }}>
             <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:14 }}>
-              <Radio size={14} style={{ color:'oklch(0.65 0.010 60)' }} />
-              <span style={{ fontSize:12, fontWeight:600, letterSpacing:'0.08em', textTransform:'uppercase', color:'oklch(0.55 0.008 60)' }}>UptimeRobot — External Monitor</span>
+              <Radio size={14} style={{ color:'#8a8a90' }} />
+              <span style={{ fontSize:12, fontWeight:600, letterSpacing:'0.08em', textTransform:'uppercase', color:'#8a8a90' }}>UptimeRobot — External Monitor</span>
               <Tooltip text="Independent uptime checks pinging your backend from outside every 5 minutes. Catches outages the internal monitor can't (because it would be down too)." />
-              <a href="https://stats.uptimerobot.com/XRXOPqyDWb" target="_blank" rel="noopener noreferrer" style={{ marginLeft:'auto', display:'flex', alignItems:'center', gap:5, fontSize:11, color:'oklch(0.50 0.006 60)', textDecoration:'none' }}>
+              <a href="https://stats.uptimerobot.com/XRXOPqyDWb" target="_blank" rel="noopener noreferrer" style={{ marginLeft:'auto', display:'flex', alignItems:'center', gap:5, fontSize:11, color:'#8a8a90', textDecoration:'none' }}>
                 Public status page <ExternalLink size={11} />
               </a>
             </div>
             <div style={{ overflowX:'auto' }}>
               <table style={{ width:'100%', borderCollapse:'collapse', fontSize:12 }}>
                 <thead>
-                  <tr style={{ color:'oklch(0.45 0.006 60)', textAlign:'left' }}>
+                  <tr style={{ color:'#5a5a60', textAlign:'left' }}>
                     {['Monitor','Status','24h','7d','30d','Avg response'].map(h => (
-                      <th key={h} style={{ padding:'4px 8px', fontWeight:600, letterSpacing:'0.06em', textTransform:'uppercase', fontSize:10, borderBottom:'1px solid oklch(0.18 0.005 60)' }}>{h}</th>
+                      <th key={h} style={{ padding:'4px 8px', fontWeight:600, letterSpacing:'0.06em', textTransform:'uppercase', fontSize:10, borderBottom:'1px solid #232326' }}>{h}</th>
                     ))}
                   </tr>
                 </thead>
@@ -514,8 +514,8 @@ export default function InfraPage() {
                     const fmt = (n:number) => `${n.toFixed(2)}%`
                     const color = (n:number) => n >= 99.9 ? '#22c55e' : n >= 99 ? '#f59e0b' : '#ef4444'
                     return (
-                      <tr key={m.id} style={{ borderBottom:'1px solid oklch(0.14 0.003 60)' }}>
-                        <td style={{ padding:'8px', color:'oklch(0.85 0.005 60)' }}>{m.friendly_name}</td>
+                      <tr key={m.id} style={{ borderBottom:'1px solid #232326' }}>
+                        <td style={{ padding:'8px', color:'#ededef' }}>{m.friendly_name}</td>
                         <td style={{ padding:'8px' }}>
                           <span style={{ display:'inline-flex', alignItems:'center', gap:5 }}>
                             <StatusDot ok={up} />
@@ -525,7 +525,7 @@ export default function InfraPage() {
                         <td style={{ padding:'8px', fontVariantNumeric:'tabular-nums', color: color(r24), fontWeight:600 }}>{fmt(r24)}</td>
                         <td style={{ padding:'8px', fontVariantNumeric:'tabular-nums', color: color(r7d), fontWeight:600 }}>{fmt(r7d)}</td>
                         <td style={{ padding:'8px', fontVariantNumeric:'tabular-nums', color: color(r30), fontWeight:600 }}>{fmt(r30)}</td>
-                        <td style={{ padding:'8px', fontVariantNumeric:'tabular-nums', color:'oklch(0.75 0.005 60)' }}>{parseFloat(m.average_response_time || '0').toFixed(0)} ms</td>
+                        <td style={{ padding:'8px', fontVariantNumeric:'tabular-nums', color:'#b5b5ba' }}>{parseFloat(m.average_response_time || '0').toFixed(0)} ms</td>
                       </tr>
                     )
                   })}
@@ -549,11 +549,11 @@ function VercelStatus() {
   if (!status) return null
   const ok = status.indicator === 'none'
   return (
-    <div style={{ padding:'14px 20px', borderRadius:10, background:'oklch(0.10 0.003 60)', border:`1px solid ${ok ? 'oklch(0.18 0.005 60)' : 'rgba(239,68,68,0.35)'}`, display:'flex', alignItems:'center', gap:10 }}>
+    <div style={{ padding:'14px 20px', borderRadius:10, background:'#141416', border:`1px solid ${ok ? '#232326' : 'rgba(239,68,68,0.35)'}`, display:'flex', alignItems:'center', gap:10 }}>
       <Zap size={14} style={{ color: ok ? '#22c55e' : '#f59e0b' }} />
-      <span style={{ fontSize:11, fontWeight:600, letterSpacing:'0.06em', textTransform:'uppercase', color:'oklch(0.50 0.006 60)' }}>Vercel</span>
+      <span style={{ fontSize:11, fontWeight:600, letterSpacing:'0.06em', textTransform:'uppercase', color:'#8a8a90' }}>Vercel</span>
       <StatusDot ok={ok} />
-      <span style={{ fontSize:13, color: ok ? 'oklch(0.80 0.004 60)' : '#fca5a5' }}>{status.description}</span>
+      <span style={{ fontSize:13, color: ok ? '#cfcfd3' : '#fca5a5' }}>{status.description}</span>
       <span style={{ marginLeft:'auto' }}><Tooltip text="Pulled from Vercel's public status API — reflects global Vercel platform health, not just your deployment." /></span>
     </div>
   )

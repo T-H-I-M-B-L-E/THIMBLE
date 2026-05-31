@@ -97,11 +97,8 @@ export default function AdminChatPage() {
     <div className="flex flex-col h-full bg-neutral-950 pb-32">
 
       {/* Header */}
-      <div className="shrink-0 flex items-center justify-between px-6 py-4 border-b border-white/10 bg-white/5 backdrop-blur-xl">
-        <div>
-          <p className="text-xs uppercase tracking-[0.2em] text-neutral-500 mb-0.5 font-medium">Admin</p>
-          <h1 className="text-lg font-light tracking-wide text-white">Team Chat</h1>
-        </div>
+      <div className="shrink-0 flex items-center justify-between px-6 py-4" style={{ borderBottom: '1px solid #232326' }}>
+        <h1 className="text-base font-semibold tracking-tight text-white">Team Chat</h1>
         <div className="flex items-center gap-2">
           <div className={`w-2 h-2 rounded-full ${connected ? 'bg-emerald-400' : 'bg-neutral-600'}`} />
           <span className="text-xs text-neutral-400">{connected ? 'Live' : 'Connecting…'}</span>
@@ -179,7 +176,8 @@ export default function AdminChatPage() {
       {/* Input bar */}
       <form
         onSubmit={e => { e.preventDefault(); send() }}
-        className="shrink-0 flex items-center gap-3 px-4 py-3 border-t border-white/10 bg-white/5 backdrop-blur-xl fixed bottom-20 left-0 right-0"
+        className="shrink-0 flex items-center gap-3 px-4 py-3 fixed bottom-20 left-0 right-0"
+        style={{ borderTop: '1px solid #232326', background: '#0c0c0d' }}
       >
         <input
           ref={inputRef}
