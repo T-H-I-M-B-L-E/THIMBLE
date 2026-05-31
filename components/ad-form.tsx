@@ -25,6 +25,30 @@ interface AdFormProps {
 
 const PLACEMENTS = ["feed", "banner", "sidebar"];
 
+// Flat dark palette — mirrors app/admin/_ui.tsx so the ad form matches the
+// rest of the admin surface.
+const C = {
+  surface: "#141416",
+  bg: "#0a0a0b",
+  line: "#232326",
+  text: "#ededef",
+  dim: "#8a8a90",
+  faint: "#5a5a60",
+  accent: "#e5b94e",
+  red: "#f0616d",
+};
+
+const labelStyle: React.CSSProperties = {
+  fontSize: 11, textTransform: "uppercase", letterSpacing: "0.06em",
+  color: C.faint, fontWeight: 600, display: "block", marginBottom: 6,
+};
+
+const fieldInputStyle: React.CSSProperties = {
+  width: "100%", background: C.bg, border: `1px solid ${C.line}`,
+  borderRadius: 8, padding: "10px 12px", fontSize: 13, color: C.text,
+  outline: "none", boxSizing: "border-box", fontFamily: "inherit",
+};
+
 const today = () => new Date().toISOString().slice(0, 10);
 const oneMonth = () => {
   const d = new Date();
@@ -92,34 +116,33 @@ export function AdForm({ initial, onSubmit, submitLabel }: AdFormProps) {
 
   return (
     <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 16, maxWidth: 560 }}>
-      <div className="t-field">
-        <label className="t-label">Title *</label>
-        <input className="t-input" value={values.title} onChange={set("title")} required placeholder="Ad headline" />
+      <div>
+        <label style={labelStyle}>Title *</label>
+        <input style={fieldInputStyle} value={values.title} onChange={set("title")} required placeholder="Ad headline" />
       </div>
 
-      <div className="t-field">
-        <label className="t-label">Sponsor Name *</label>
-        <input className="t-input" value={values.sponsorName} onChange={set("sponsorName")} required placeholder="Brand or company name" />
+      <div>
+        <label style={labelStyle}>Sponsor Name *</label>
+        <input style={fieldInputStyle} value={values.sponsorName} onChange={set("sponsorName")} required placeholder="Brand or company name" />
       </div>
 
-      <div className="t-field">
-        <label className="t-label">Description</label>
+      <div>
+        <label style={labelStyle}>Description</label>
         <textarea
-          className="t-input"
+          style={{ ...fieldInputStyle, resize: "vertical" }}
           value={values.description}
           onChange={set("description")}
           placeholder="Short ad copy (optional)"
           rows={3}
-          style={{ resize: "vertical" }}
         />
       </div>
 
-      <div className="t-field">
-        <label className="t-label">Image *</label>
+      <div>
+        <label style={labelStyle}>Image *</label>
 
         {/* Preview / upload zone */}
         {values.imageUrl ? (
-          <div style={{ position: "relative", display: "inline-block" }}>
+          <div style={{ position: "relative", display: "inline-block", width: "100%" }}>
             <img
               src={values.imageUrl}
               alt="Ad preview"
@@ -155,15 +178,15 @@ export function AdForm({ initial, onSubmit, submitLabel }: AdFormProps) {
             onClick={() => fileInputRef.current?.click()}
             disabled={imageUploading}
             style={{
-              width: "100%", height: 120, border: "2px dashed var(--t-line)",
-              borderRadius: 8, background: "var(--t-surface-2)", cursor: "pointer",
+              width: "100%", height: 120, border: `2px dashed ${C.line}`,
+              borderRadius: 8, background: C.bg, cursor: "pointer",
               display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 8,
-              color: "var(--t-ink-3)", fontSize: 13,
+              color: C.dim, fontSize: 13,
             }}
           >
             {imageUploading ? (
               <>
-                <div className="animate-spin" style={{ width: 20, height: 20, borderRadius: "50%", border: "2px solid var(--t-line)", borderTopColor: "var(--t-gold)" }} />
+                <div className="animate-spin" style={{ width: 20, height: 20, borderRadius: "50%", border: `2px solid ${C.line}`, borderTopColor: C.accent }} />
                 <span>{imageProgress}%</span>
               </>
             ) : (
@@ -185,27 +208,26 @@ export function AdForm({ initial, onSubmit, submitLabel }: AdFormProps) {
 
         {/* Fallback: paste a URL directly */}
         <input
-          className="t-input"
+          style={{ ...fieldInputStyle, marginTop: 8 }}
           value={values.imageUrl}
           onChange={set("imageUrl")}
           placeholder="…or paste an image URL"
-          style={{ marginTop: 8 }}
         />
       </div>
 
-      <div className="t-field">
-        <label className="t-label">Video URL</label>
-        <input className="t-input" value={values.videoUrl} onChange={set("videoUrl")} placeholder="https://... (optional)" />
+      <div>
+        <label style={labelStyle}>Video URL</label>
+        <input style={fieldInputStyle} value={values.videoUrl} onChange={set("videoUrl")} placeholder="https://... (optional)" />
       </div>
 
-      <div className="t-field">
-        <label className="t-label">Redirect URL *</label>
-        <input className="t-input" value={values.redirectUrl} onChange={set("redirectUrl")} required placeholder="https://..." />
+      <div>
+        <label style={labelStyle}>Redirect URL *</label>
+        <input style={fieldInputStyle} value={values.redirectUrl} onChange={set("redirectUrl")} required placeholder="https://..." />
       </div>
 
-      <div className="t-field">
-        <label className="t-label">Placement</label>
-        <select className="t-input" value={values.placement} onChange={set("placement")}>
+      <div>
+        <label style={labelStyle}>Placement</label>
+        <select style={{ ...fieldInputStyle, cursor: "pointer" }} value={values.placement} onChange={set("placement")}>
           {PLACEMENTS.map(p => (
             <option key={p} value={p}>{p}</option>
           ))}
@@ -213,35 +235,39 @@ export function AdForm({ initial, onSubmit, submitLabel }: AdFormProps) {
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-        <div className="t-field">
-          <label className="t-label">Start Date *</label>
-          <input className="t-input" type="date" value={values.startDate} onChange={set("startDate")} required />
+        <div>
+          <label style={labelStyle}>Start Date *</label>
+          <input style={fieldInputStyle} type="date" value={values.startDate} onChange={set("startDate")} required />
         </div>
-        <div className="t-field">
-          <label className="t-label">End Date *</label>
-          <input className="t-input" type="date" value={values.endDate} onChange={set("endDate")} required />
+        <div>
+          <label style={labelStyle}>End Date *</label>
+          <input style={fieldInputStyle} type="date" value={values.endDate} onChange={set("endDate")} required />
         </div>
       </div>
 
-      <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: 14 }}>
+      <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: 14, color: C.text }}>
         <input
           type="checkbox"
           checked={values.isActive}
           onChange={set("isActive")}
-          style={{ width: 16, height: 16 }}
+          style={{ width: 16, height: 16, accentColor: C.accent }}
         />
         Active (visible in feed immediately)
       </label>
 
       {error && (
-        <p style={{ fontSize: 13, color: "var(--t-danger)", margin: 0 }}>{error}</p>
+        <p style={{ fontSize: 13, color: C.red, margin: 0 }}>{error}</p>
       )}
 
       <button
         type="submit"
         disabled={saving || imageUploading}
-        className="t-btn-primary"
-        style={{ alignSelf: "flex-start" }}
+        style={{
+          alignSelf: "flex-start", padding: "10px 18px", background: C.accent,
+          color: "#1a1400", border: "none", borderRadius: 8, fontSize: 13,
+          fontWeight: 600, cursor: saving || imageUploading ? "not-allowed" : "pointer",
+          opacity: saving || imageUploading ? 0.5 : 1,
+        }}
       >
         {saving ? "Saving…" : imageUploading ? "Uploading image…" : submitLabel}
       </button>

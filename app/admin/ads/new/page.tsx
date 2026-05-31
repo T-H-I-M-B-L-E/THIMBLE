@@ -35,14 +35,14 @@ export default function NewAdPage() {
   }
 
   return (
-    <div style={{ padding: '24px 32px', maxWidth: 620 }}>
+    <div style={{ padding: '24px 20px 120px', maxWidth: 620, margin: '0 auto', color: '#ededef' }}>
       <Link
         href="/admin/ads"
-        style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 13, color: 'var(--t-ink-3)', marginBottom: 20 }}
+        style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 13, color: '#8a8a90', marginBottom: 20, textDecoration: 'none' }}
       >
         <ChevronLeft size={14} /> Back to Ads
       </Link>
-      <h1 style={{ fontSize: 20, fontWeight: 700, marginBottom: 24 }}>New Ad</h1>
+      <h1 style={{ fontSize: 22, fontWeight: 600, marginBottom: 24, letterSpacing: '-0.02em' }}>New Ad</h1>
       <AdForm onSubmit={handleSubmit} submitLabel="Create Ad" />
     </div>
   )

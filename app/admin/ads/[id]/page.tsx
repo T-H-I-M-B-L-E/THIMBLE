@@ -62,16 +62,16 @@ export default function EditAdPage() {
   if (loading) {
     return (
       <div style={{ display: 'flex', justifyContent: 'center', paddingTop: 64 }}>
-        <div className="animate-spin" style={{ width: 32, height: 32, borderRadius: '50%', border: '2px solid var(--t-line)', borderTopColor: 'var(--t-gold)' }} />
+        <div className="animate-spin" style={{ width: 32, height: 32, borderRadius: '50%', border: '2px solid #232326', borderTopColor: '#e5b94e' }} />
       </div>
     )
   }
 
   if (!ad) {
     return (
-      <div style={{ padding: '24px 32px' }}>
-        <p style={{ color: 'var(--t-danger)' }}>Ad not found.</p>
-        <Link href="/admin/ads" style={{ fontSize: 13, color: 'var(--t-ink-3)' }}>← Back to Ads</Link>
+      <div style={{ padding: '24px 20px', maxWidth: 620, margin: '0 auto', color: '#ededef' }}>
+        <p style={{ color: '#f0616d' }}>Ad not found.</p>
+        <Link href="/admin/ads" style={{ fontSize: 13, color: '#8a8a90', textDecoration: 'none' }}>← Back to Ads</Link>
       </div>
     )
   }
@@ -81,14 +81,14 @@ export default function EditAdPage() {
   }
 
   return (
-    <div style={{ padding: '24px 32px', maxWidth: 620 }}>
+    <div style={{ padding: '24px 20px 120px', maxWidth: 620, margin: '0 auto', color: '#ededef' }}>
       <Link
         href="/admin/ads"
-        style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 13, color: 'var(--t-ink-3)', marginBottom: 20 }}
+        style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 13, color: '#8a8a90', marginBottom: 20, textDecoration: 'none' }}
       >
         <ChevronLeft size={14} /> Back to Ads
       </Link>
-      <h1 style={{ fontSize: 20, fontWeight: 700, marginBottom: 24 }}>Edit Ad</h1>
+      <h1 style={{ fontSize: 22, fontWeight: 600, marginBottom: 24, letterSpacing: '-0.02em' }}>Edit Ad</h1>
       <AdForm
         initial={{
           title: ad.title,
