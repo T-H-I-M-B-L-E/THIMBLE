@@ -5,6 +5,7 @@ import { NotifyProvider } from "@/components/notify-provider";
 import { UserSync } from "@/components/user-sync";
 import { WelcomeOverlay } from "@/components/welcome-overlay";
 import { GrainientBackground } from "@/components/grainient-background";
+import { SiteBanner } from "@/components/SiteBanner";
 import { headers } from "next/headers";
 import "./globals.css";
 
@@ -54,6 +55,7 @@ export default async function RootLayout({
         {!isAdmin && <GrainientBackground />}
         <ThemeProvider>
           <NotifyProvider>
+            {!isAdmin && <SiteBanner />}
             {!isAdmin && <UserSync />}
             {!isAdmin && <WelcomeOverlay />}
             {!isAdmin ? (

@@ -194,6 +194,8 @@ func registerRoutes(app *fiber.App, authLimiter fiber.Handler, apiLimiter fiber.
 	api.Get("/verification/me", middleware.RequireJWT, handlers.GetMyVerification)
 	api.Post("/verification", middleware.RequireJWT, handlers.SubmitVerification)
 
+	api.Get("/banner", middleware.OptionalJWT, handlers.PublicActiveBanner)
+
 	// ── Admin ─────────────────────────────────────────────────────────────────
 	adminGroup := app.Group("/admin", middleware.RequireJWT, middleware.RequireAdmin)
 	adminGroup.Get("/stats", handlers.AdminStats)
@@ -211,6 +213,11 @@ func registerRoutes(app *fiber.App, authLimiter fiber.Handler, apiLimiter fiber.
 	adminGroup.Patch("/verification-requests/:id", handlers.AdminReviewVerification)
 	adminGroup.Get("/infra", handlers.AdminInfra)
 	adminGroup.Post("/infra/test-alert", handlers.AdminTestAlert)
+	adminGroup.Get("/broadcast/preview", handlers.AdminBroadcastPreview)
+	adminGroup.Get("/broadcast/history", handlers.AdminBroadcastHistory)
+	adminGroup.Post("/broadcast", handlers.AdminBroadcast)
+	adminGroup.Get("/banner/current", handlers.AdminBannerCurrent)
+	adminGroup.Post("/banner/take-down", handlers.AdminBannerTakeDown)
 	adminGroup.Post("/ads", handlers.CreateAd)
 	adminGroup.Get("/ads", handlers.ListAds)
 	adminGroup.Get("/ads/:id", handlers.GetAd)
