@@ -4,22 +4,6 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { usePathname } from 'next/navigation'
 import { adminFetch } from '@/lib/adminFetch'
 
-interface Commit {
-  sha: string
-  message: string
-  author: string
-  date: string
-  url: string
-}
-
-interface EmailStats {
-  thisMonth: number
-  lastMonth: number
-  monthlyLimit: number
-  remaining: number
-  breakdown: Record<string, number>
-}
-
 interface ChatMsg {
   id: number
   userId: string
@@ -33,20 +17,7 @@ interface MsgNotif {
   visible: boolean
 }
 
-function timeAgo(iso: string) {
-  const diff = Date.now() - new Date(iso).getTime()
-  const m = Math.floor(diff / 60000)
-  if (m < 60) return `${m}m ago`
-  const h = Math.floor(m / 60)
-  if (h < 24) return `${h}h ago`
-  return `${Math.floor(h / 24)}d ago`
-}
-
 function AdminLayoutInner({ children }: { children: React.ReactNode }) {
-  const [commits, setCommits] = useState<Commit[]>([])
-  const [commitEmailsEnabled, setCommitEmailsEnabled] = useState(true)
-  const [emailStats, setEmailStats] = useState<EmailStats | null>(null)
-  const [togglingEmail, setTogglingEmail] = useState(false)
   const [adminName, setAdminName] = useState('')
   const [adminId, setAdminId] = useState('')
   const [authChecked, setAuthChecked] = useState(false)
@@ -77,16 +48,6 @@ function AdminLayoutInner({ children }: { children: React.ReactNode }) {
       .catch(() => setAuthChecked(true))
   }, [])
 
-  // Commits
-  useEffect(() => {
-    const load = () =>
-      adminFetch('/api/admin/commits')
-        .then(r => r.ok ? r.json() : []).then(setCommits).catch(() => {})
-    load()
-    const id = setInterval(load, 60000)
-    return () => clearInterval(id)
-  }, [])
-
   // Pending verifications count (polls every 60s)
   useEffect(() => {
     if (!authChecked) return
@@ -99,19 +60,6 @@ function AdminLayoutInner({ children }: { children: React.ReactNode }) {
     const id = setInterval(load, 60000)
     return () => clearInterval(id)
   }, [authChecked])
-
-  // Settings + email stats
-  useEffect(() => {
-    adminFetch('/api/admin/settings')
-      .then(r => r.ok ? r.json() : {} as Record<string, string>)
-      .then((s: Record<string, string>) => {
-        if (s.commit_emails_enabled !== undefined)
-          setCommitEmailsEnabled(s.commit_emails_enabled === 'true')
-      }).catch(() => {})
-    adminFetch('/api/admin/email-stats')
-      .then(r => r.ok ? r.json() : null)
-      .then(s => { if (s) setEmailStats(s) }).catch(() => {})
-  }, [])
 
   // Background WS — only for tracking unread count + splash notification
   const connectAdminChat = useCallback(async () => {
@@ -165,18 +113,6 @@ function AdminLayoutInner({ children }: { children: React.ReactNode }) {
     window.location.href = '/admin/login'
   }
 
-  async function toggleCommitEmails() {
-    setTogglingEmail(true)
-    const next = !commitEmailsEnabled
-    setCommitEmailsEnabled(next)
-    await adminFetch('/api/admin/settings', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ commit_emails_enabled: next ? 'true' : 'false' }),
-    }).catch(() => setCommitEmailsEnabled(!next))
-    setTogglingEmail(false)
-  }
-
   const navLinks: { href: string; label: string; badge?: number }[] = [
     { href: '/admin', label: 'Dashboard' },
     { href: '/admin/users', label: 'Users' },
@@ -190,80 +126,54 @@ function AdminLayoutInner({ children }: { children: React.ReactNode }) {
   const isActive = (href: string) =>
     href === '/admin' ? pathname === '/admin' : pathname.startsWith(href)
 
-  if (!authChecked) return <div className="min-h-screen bg-neutral-950" />
+  if (!authChecked) return <div style={{ minHeight: '100vh', background: '#0a0a0b' }} />
 
   return (
-    <div className="min-h-screen bg-neutral-950 text-white flex flex-col">
-      {/* Header */}
-      <header className="border-b border-white/5 backdrop-blur-xl bg-black/20">
-        <div className="px-6 py-4 flex items-center justify-between">
-          <div>
-            <p className="text-xs uppercase tracking-[0.2em] text-neutral-500 font-medium">THIMBLE</p>
-            <p className="text-sm font-light text-white mt-0.5">Admin</p>
-          </div>
-          <div className="flex items-center gap-4">
-            {adminName && <p className="text-xs text-neutral-400">{adminName}</p>}
-            <button
-              onClick={handleLogout}
-              className="text-xs text-neutral-500 hover:text-neutral-300 transition-colors"
-              title="Sign out"
-            >
-              ⎙
-            </button>
-          </div>
+    <div style={{ minHeight: '100vh', background: '#0a0a0b', color: '#ededef', display: 'flex', flexDirection: 'column' }}>
+      {/* Minimal header */}
+      <header style={{ borderBottom: '1px solid #232326', padding: '14px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <span style={{ fontSize: 13, fontWeight: 600, letterSpacing: '0.18em', color: '#ededef' }}>THIMBLE</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+          {adminName && <span style={{ fontSize: 12, color: '#8a8a90' }}>{adminName}</span>}
+          <button
+            onClick={handleLogout}
+            title="Sign out"
+            style={{ background: 'transparent', border: 'none', color: '#5a5a60', fontSize: 12, cursor: 'pointer' }}
+          >
+            Sign out
+          </button>
         </div>
       </header>
 
       {/* Main content */}
-      <main className="flex-1 overflow-auto">
-        {children}
-      </main>
+      <main style={{ flex: 1, overflow: 'auto' }}>{children}</main>
 
-      {/* Bottom Navigation Pills */}
-      <div className="border-t border-white/5 backdrop-blur-xl bg-black/20 sticky bottom-0">
-        <div className="px-6 py-4 flex items-center justify-center gap-3">
-          {navLinks.map(link => (
+      {/* Bottom nav */}
+      <nav style={{ position: 'sticky', bottom: 0, borderTop: '1px solid #232326', background: '#0c0c0d', display: 'flex', justifyContent: 'center', gap: 2, padding: '8px 8px', overflowX: 'auto' }}>
+        {navLinks.map(link => {
+          const active = isActive(link.href)
+          return (
             <a
               key={link.href}
               href={link.href}
-              className={`relative px-4 py-2.5 rounded-full text-sm font-medium transition-all duration-300 ${
-                isActive(link.href)
-                  ? 'bg-white/15 backdrop-blur-sm text-white shadow-lg'
-                  : 'text-neutral-400 hover:text-white hover:bg-white/8'
-              }`}
+              style={{
+                position: 'relative', display: 'flex', alignItems: 'center', gap: 6,
+                padding: '8px 14px', borderRadius: 8, fontSize: 13, fontWeight: 500,
+                textDecoration: 'none', whiteSpace: 'nowrap',
+                color: active ? '#ededef' : '#7a7a80',
+                background: active ? '#1a1a1d' : 'transparent',
+              }}
             >
-              <span className="flex items-center gap-2">
-                {link.label}
-                {link.badge != null && link.badge > 0 && (
-                  <span className="ml-1 min-w-5 h-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center font-bold px-1">
-                    {link.badge > 9 ? '9+' : link.badge}
-                  </span>
-                )}
-              </span>
+              {link.label}
+              {link.badge != null && link.badge > 0 && (
+                <span style={{ minWidth: 16, height: 16, padding: '0 4px', background: '#f0616d', color: '#fff', fontSize: 10, fontWeight: 700, borderRadius: 999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  {link.badge > 9 ? '9+' : link.badge}
+                </span>
+              )}
             </a>
-          ))}
-        </div>
-      </div>
-
-      {/* Quick Settings Panel */}
-      {emailStats && (
-        <div className="px-6 pb-4 text-xs text-neutral-500 space-y-2">
-          <div className="flex items-center justify-between">
-            <span>Commit emails: {commitEmailsEnabled ? 'Sending' : 'Paused'}</span>
-            <button
-              onClick={toggleCommitEmails}
-              disabled={togglingEmail}
-              className={`relative w-8 h-4 rounded-full transition-colors ${commitEmailsEnabled ? 'bg-white/30' : 'bg-white/10'}`}
-            >
-              <span className={`absolute top-0.5 left-0.5 w-3 h-3 bg-white rounded-full shadow transition-transform ${commitEmailsEnabled ? 'translate-x-3.5' : ''}`} />
-            </button>
-          </div>
-          <div className="flex justify-between text-xs">
-            <span>Emails: {emailStats.thisMonth} / {emailStats.monthlyLimit}</span>
-            <span>{emailStats.remaining} remaining</span>
-          </div>
-        </div>
-      )}
+          )
+        })}
+      </nav>
 
       {/* ── New message splash notification ── */}
       <div
