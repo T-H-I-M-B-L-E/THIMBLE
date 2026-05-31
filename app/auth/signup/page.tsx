@@ -175,6 +175,8 @@ export default function SignupPage() {
       // User verified and logged in. Forward any preserved redirect through
       // onboarding so the final destination is the original post.
       signup({ ...formData, phone: '' })
+      // Flag the onboarding page to show its welcome splash. Cleared on first read.
+      sessionStorage.setItem('thimble_just_authed', '1')
       const redirect = getPostLoginRedirect()
       router.push(redirect ? `/onboarding?redirect=${encodeURIComponent(redirect)}` : "/onboarding")
     } catch (err: any) {

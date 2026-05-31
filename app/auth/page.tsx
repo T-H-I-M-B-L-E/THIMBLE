@@ -69,6 +69,8 @@ export default function LoginPage() {
 
       // Redirect to original location (if AuthGate preserved one) or dashboard
       const redirectPath = getPostLoginRedirect() ?? getPostAuthPath(data.user)
+      // Flag the onboarding page to show its welcome splash. Cleared on first read.
+      sessionStorage.setItem('thimble_just_authed', '1')
       router.push(redirectPath)
       router.refresh()
     } catch (err: any) {

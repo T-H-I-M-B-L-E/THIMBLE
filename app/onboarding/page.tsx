@@ -52,6 +52,16 @@ export default function OnboardingPage() {
   useEffect(() => {
     setMounted(true)
     if (user?.fullName) setUsername(user.fullName)
+    // Only show the welcome splash right after login/signup. On any subsequent
+    // visit (refresh, manual nav back) skip straight to role selection.
+    if (typeof window !== 'undefined') {
+      const justAuthed = sessionStorage.getItem('thimble_just_authed')
+      if (justAuthed) {
+        sessionStorage.removeItem('thimble_just_authed')
+      } else {
+        setCurrentStep('role')
+      }
+    }
   }, [user])
 
   useEffect(() => {
