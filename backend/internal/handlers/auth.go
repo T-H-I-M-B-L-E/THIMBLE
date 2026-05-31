@@ -71,7 +71,7 @@ func Logout(c *fiber.Ctx) error {
 		Expires:  time.Now().Add(-time.Hour),
 		HTTPOnly: true,
 		Secure:   config.IsProduction(),
-		SameSite: "Lax",
+		SameSite: cookieSameSite(),
 	})
 	return c.Status(200).JSON(fiber.Map{"success": true})
 }
@@ -96,7 +96,7 @@ func LogoutAll(c *fiber.Ctx) error {
 		Expires:  time.Now().Add(7 * 24 * time.Hour),
 		HTTPOnly: true,
 		Secure:   config.IsProduction(),
-		SameSite: "Lax",
+		SameSite: cookieSameSite(),
 		Path:     "/",
 	})
 	return c.JSON(fiber.Map{"success": true, "token": result.Token})
@@ -206,6 +206,16 @@ func MakeAdmin(c *fiber.Ctx) error {
 	return c.JSON(fiber.Map{"success": true})
 }
 
+// cookieSameSite returns "None" in production so the auth cookie is sent on
+// cross-origin requests from the Vercel frontend to the Fly backend. In dev
+// (everything on localhost) "Lax" is fine and avoids needing HTTPS.
+func cookieSameSite() string {
+	if config.IsProduction() {
+		return "None"
+	}
+	return "Lax"
+}
+
 func setAuthCookie(c *fiber.Ctx, token string) {
 	c.Cookie(&fiber.Cookie{
 		Name:     "auth_token",
@@ -213,6 +223,6 @@ func setAuthCookie(c *fiber.Ctx, token string) {
 		Expires:  time.Now().Add(7 * 24 * time.Hour),
 		HTTPOnly: true,
 		Secure:   config.IsProduction(),
-		SameSite: "Lax",
+		SameSite: cookieSameSite(),
 	})
 }
