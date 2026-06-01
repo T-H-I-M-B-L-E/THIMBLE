@@ -186,7 +186,11 @@ func registerRoutes(app *fiber.App, authLimiter fiber.Handler, apiLimiter fiber.
 	api.Patch("/notifications/:id/read", middleware.RequireJWT, handlers.MarkNotificationRead)
 
 	api.Get("/gigs", middleware.OptionalJWT, handlers.ListGigs)
+	api.Post("/gigs", middleware.RequireJWT, handlers.CreateGig)
 	api.Post("/gigs/:id/apply", middleware.RequireJWT, handlers.ApplyToGig)
+	api.Patch("/gigs/:id/close", middleware.RequireJWT, handlers.CloseGig)
+	api.Delete("/gigs/:id", middleware.RequireJWT, handlers.DeleteGig)
+	api.Get("/gigs/:id/applicants", middleware.RequireJWT, handlers.GigApplicants)
 
 	api.Post("/ads/:id/click", handlers.RecordAdClick)
 	api.Post("/ads/:id/impression", middleware.OptionalJWT, handlers.RecordAdImpression)

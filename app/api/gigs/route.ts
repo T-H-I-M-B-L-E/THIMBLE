@@ -7,7 +7,19 @@ export async function GET(request: NextRequest) {
   const token = getToken(request)
   const headers: Record<string, string> = {}
   if (token) headers.Authorization = `Bearer ${token}`
-
   const res = await fetch(`${api()}/api/gigs`, { headers })
   return NextResponse.json(await res.json().catch(() => []), { status: res.status })
+}
+
+export async function POST(request: NextRequest) {
+  const token = getToken(request)
+  if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const body = await request.text()
+  const res = await fetch(`${api()}/api/gigs`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body,
+  })
+  const data = await res.json().catch(() => ({}))
+  return NextResponse.json(data, { status: res.status })
 }
