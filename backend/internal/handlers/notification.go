@@ -7,7 +7,11 @@ import (
 )
 
 func ListNotifications(c *fiber.Ctx) error {
-	notifications, err := services.ListNotifications(c.Context(), c.Query("userId"))
+	userID, ok := c.Locals("userId").(string)
+	if !ok || userID == "" {
+		return c.Status(401).JSON(fiber.Map{"error": "unauthorized"})
+	}
+	notifications, err := services.ListNotifications(c.Context(), userID)
 	if err != nil {
 		return respondError(c, err)
 	}

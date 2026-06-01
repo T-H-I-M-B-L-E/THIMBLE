@@ -12,9 +12,9 @@ import (
 )
 
 func ListConversations(c *fiber.Ctx) error {
-	userId := c.Query("userId")
-	if userId == "" {
-		userId, _ = c.Locals("userId").(string)
+	userId, ok := c.Locals("userId").(string)
+	if !ok || userId == "" {
+		return c.Status(401).JSON(fiber.Map{"error": "unauthorized"})
 	}
 	return c.JSON(services.ListConversations(c.Context(), userId))
 }

@@ -10,6 +10,12 @@ next.user-config.*
 # Environment variables
 .env*.local
 
+# Database dumps / backups (may contain PII + password hashes — never commit)
+*.sql.bak
+thimble_backup.sql
+*_backup.sql
+*_dump.sql
+
 # Common ignores
 node_modules
 .next/
