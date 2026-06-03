@@ -34,7 +34,7 @@ jobs:
       # errcheck (via golangci-lint) — fails the build when an error return is
       # silently discarded. Config: backend/.golangci.yml
       - name: golangci-lint
-        uses: golangci/golangci-lint-action@v6
+        uses: golangci/golangci-lint-action@v7
         with:
           version: v2.12.2
           working-directory: backend
@@ -72,3 +72,11 @@ jobs:
         run: pnpm build
         env:
           NEXT_PUBLIC_API_BASE_URL: https://thimble-backend.fly.dev
+          # Dummy values: the R2 S3 client and a few routes read these at
+          # module load during build-time page-data collection. They only
+          # need to be non-empty here — no real R2 calls happen in a build.
+          R2_ACCOUNT_ID: ci-dummy
+          R2_ACCESS_KEY_ID: ci-dummy
+          R2_SECRET_ACCESS_KEY: ci-dummy
+          R2_BUCKET_NAME: ci-dummy
+          R2_PUBLIC_URL: https://ci-dummy.example.com
