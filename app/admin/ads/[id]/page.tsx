@@ -29,7 +29,7 @@ export default function EditAdPage() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    adminFetch(`/api/admin/ads/${id}`)
+    void adminFetch(`/api/admin/ads/${id}`)
       .then(r => r.json())
       .then(data => setAd(data))
       .finally(() => setLoading(false))

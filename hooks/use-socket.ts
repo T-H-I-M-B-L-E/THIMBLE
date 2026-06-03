@@ -153,7 +153,7 @@ export function useSocket(
       retryTimeout = setTimeout(connect, delay)
     }
 
-    connect()
+    void connect()
 
     return () => {
       cancelled = true

@@ -111,7 +111,7 @@ export function SearchBar({ role: _role }: SearchBarProps) {
         ref={inputRef}
         value={query}
         onChange={e => { setQuery(e.target.value); setOpen(true) }}
-        onFocus={() => { loadUsers(); if (query) setOpen(true) }}
+        onFocus={() => { void loadUsers(); if (query) setOpen(true) }}
         placeholder="Search people, gigs, tags…"
         aria-label="Search"
         aria-expanded={open}

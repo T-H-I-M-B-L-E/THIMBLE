@@ -60,7 +60,7 @@ export default function SettingsPage() {
             {active === "account" && <AccountSection user={user} />}
             {active === "notifications" && <NotificationsSection />}
             {active === "privacy" && <PrivacySection />}
-            {active === "danger" && <DangerSection onLoggedOut={() => { logout(); router.push("/auth") }} />}
+            {active === "danger" && <DangerSection onLoggedOut={() => { void logout(); router.push("/auth") }} />}
           </div>
         </div>
       </div>

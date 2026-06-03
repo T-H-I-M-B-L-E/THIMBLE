@@ -53,7 +53,7 @@ export function useUsers() {
     }
     const sub = (list: UserSummary[]) => setUsers(list)
     subscribers.add(sub)
-    fetchUsers().finally(() => setIsLoading(false))
+    void fetchUsers().finally(() => setIsLoading(false))
     return () => { subscribers.delete(sub) }
   }, [])
 

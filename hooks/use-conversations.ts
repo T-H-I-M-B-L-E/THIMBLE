@@ -71,7 +71,7 @@ export function useConversations(userId: string | undefined) {
   }
 
   useEffect(() => {
-    fetchConversations()
+    void fetchConversations()
   }, [userId])
 
   return { conversations, setConversations, isLoading, error, refresh: fetchConversations, createConversation }
@@ -98,7 +98,7 @@ export function useMessages(conversationId: number | null, userId: string | unde
   }
 
   useEffect(() => {
-    fetchMessages()
+    void fetchMessages()
   }, [conversationId, userId])
 
   return { messages, isLoading, refresh: fetchMessages, setMessages }

@@ -132,7 +132,7 @@ export function DashboardLayout({ children, role: roleProp, showRail = false, fu
                   <button
                     role="menuitem"
                     className="t-avatar-dropdown-item t-avatar-dropdown-danger"
-                    onClick={() => { setMenuOpen(false); handleLogout() }}
+                    onClick={() => { setMenuOpen(false); void handleLogout() }}
                   >
                     <LogOut size={15} />
                     Log out

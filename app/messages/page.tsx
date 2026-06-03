@@ -436,7 +436,7 @@ export default function MessagesPage() {
       notify.success(`${blockedName} has been blocked.`)
       // Refetch in the background to catch any other conversations also
       // affected by the block (group chats, etc.) and to sync state.
-      refresh()
+      void refresh()
     } catch {
       setConversations(prevConversations)
       notify.error("Could not block. Try again.")
@@ -837,7 +837,7 @@ export default function MessagesPage() {
           isVerified={isVerified}
           existingConversations={conversations}
           onClose={() => setShowNewMsg(false)}
-          onCreate={conv => { setSelectedId(conv.id); refresh() }}
+          onCreate={conv => { setSelectedId(conv.id); void refresh() }}
           createConversation={createConversation}
         />
       )}

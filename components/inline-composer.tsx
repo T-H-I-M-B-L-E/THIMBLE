@@ -196,7 +196,7 @@ export function InlineComposer({ user, onOptimistic, onCommit, onRevert }: Inlin
   const onKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
       e.preventDefault()
-      handleSubmit()
+      void handleSubmit()
     }
   }
 

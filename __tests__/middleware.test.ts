@@ -12,7 +12,7 @@ import { SignJWT } from 'jose'
 // The middleware reads JWT_SECRET lazily (per request), and there is no
 // fallback secret, so a value must be present in the environment. Set a
 // deterministic one before importing the middleware and sign tokens with it.
-const SECRET = 'test-secret-32-chars-minimum!!'
+const SECRET: string = 'test-secret-32-chars-minimum!!'
 process.env.JWT_SECRET = SECRET
 
 import { middleware } from '@/middleware'

@@ -83,7 +83,7 @@ export default function GigsPage() {
     }
   }, [])
 
-  useEffect(() => { fetchGigs() }, [fetchGigs])
+  useEffect(() => { void fetchGigs() }, [fetchGigs])
 
   const apply = async (gig: Gig) => {
     if (gig.hasApplied || applyingId === gig.id) return

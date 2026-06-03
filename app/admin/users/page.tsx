@@ -144,7 +144,7 @@ function UsersTable() {
       await adminFetch(`/api/admin/users/${id}`, {
         method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
       })
-      fetchUsers()
+      void fetchUsers()
     } finally { setActionLoading(null); setOpenMenu(null) }
   }
 
@@ -163,12 +163,12 @@ function UsersTable() {
     await adminFetch(`/api/admin/users/${userId}/ban`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ durationHours, message }),
     })
-    fetchUsers()
+    void fetchUsers()
   }
 
   const unbanUser = async (id: string) => {
     setOpenMenu(null); setActionLoading(id)
-    try { await adminFetch(`/api/admin/users/${id}/ban`, { method: 'DELETE' }); fetchUsers() }
+    try { await adminFetch(`/api/admin/users/${id}/ban`, { method: 'DELETE' }); void fetchUsers() }
     finally { setActionLoading(null) }
   }
 

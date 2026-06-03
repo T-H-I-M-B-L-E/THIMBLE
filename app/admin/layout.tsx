@@ -56,7 +56,7 @@ function AdminLayoutInner({ children }: { children: React.ReactNode }) {
         .then(r => r.ok ? r.json() : null)
         .then(s => { if (s?.pendingVerifications != null) setPendingVerifications(s.pendingVerifications) })
         .catch(() => {})
-    load()
+    void load()
     const id = setInterval(load, 60000)
     return () => clearInterval(id)
   }, [authChecked])
@@ -97,7 +97,7 @@ function AdminLayoutInner({ children }: { children: React.ReactNode }) {
   // Connect WS when auth is ready
   useEffect(() => {
     if (!authChecked) return
-    connectAdminChat()
+    void connectAdminChat()
     return () => { chatWs.current?.close(); if (notifTimer.current) clearTimeout(notifTimer.current) }
   }, [authChecked, connectAdminChat])
 

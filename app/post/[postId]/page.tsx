@@ -111,7 +111,7 @@ export default function PostDetailPage() {
         setIsLoading(false);
       }
     };
-    fetchPost();
+    void fetchPost();
   }, [postId]);
 
   useEffect(() => {

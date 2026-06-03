@@ -104,7 +104,7 @@ export function useComments(postId: string | number, initialCount = 0) {
     if (isFresh(key)) return // cached data is already on screen
 
     setIsLoading(true)
-    fetchCached(key, commentsFetcher(postId)).finally(() => setIsLoading(false))
+    void fetchCached(key, commentsFetcher(postId)).finally(() => setIsLoading(false))
   }, [key, postId])
 
   const close = useCallback(() => setIsOpen(false), [])
@@ -112,7 +112,7 @@ export function useComments(postId: string | number, initialCount = 0) {
     setIsOpen(prev => {
       if (!prev && !isFresh(key)) {
         setIsLoading(true)
-        fetchCached(key, commentsFetcher(postId)).finally(() => setIsLoading(false))
+        void fetchCached(key, commentsFetcher(postId)).finally(() => setIsLoading(false))
       }
       return !prev
     })

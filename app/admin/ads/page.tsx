@@ -39,7 +39,7 @@ export default function AdminAdsPage() {
     }
   }
 
-  useEffect(() => { load() }, [])
+  useEffect(() => { void load() }, [])
 
   const handleToggle = async (id: string) => {
     const res = await adminFetch(`/api/admin/ads/${id}/toggle`, { method: 'PATCH' })

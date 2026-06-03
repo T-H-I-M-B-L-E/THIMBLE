@@ -87,7 +87,7 @@ export function useInfinite<T>(
   useEffect(() => {
     if (!enabled) return
     reset()
-    loadPage(null, true)
+    void loadPage(null, true)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [enabled, ...deps])
 
@@ -102,7 +102,7 @@ export function useInfinite<T>(
           const entry = entries[0]
           if (!entry?.isIntersecting) return
           if (!hasMore || isLoading || isLoadingMore) return
-          loadPage(cursor, false)
+          void loadPage(cursor, false)
         },
         { rootMargin: "400px 0px" },
       )

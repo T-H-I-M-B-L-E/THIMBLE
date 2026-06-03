@@ -81,8 +81,8 @@ export default function BroadcastPage() {
     } catch {}
   }, [])
 
-  useEffect(() => { loadPreview() }, [loadPreview])
-  useEffect(() => { loadHistory(); loadActiveBanner() }, [loadHistory, loadActiveBanner])
+  useEffect(() => { void loadPreview() }, [loadPreview])
+  useEffect(() => { void loadHistory(); void loadActiveBanner() }, [loadHistory, loadActiveBanner])
 
   const toggleRole = (r: Role) => {
     setAudience(a => a.roles.includes(r)
@@ -117,7 +117,7 @@ export default function BroadcastPage() {
         if (showBanner) parts.push('Banner is live')
         setFeedback(`✓ ${parts.join(' · ')}`)
         setSubject(''); setBody(''); setBannerMessage('')
-        loadHistory(); loadActiveBanner()
+        void loadHistory(); void loadActiveBanner()
       }
     } catch (err) {
       setFeedback(`✗ ${err instanceof Error ? err.message : 'Network error'}`)

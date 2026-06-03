@@ -184,7 +184,7 @@ export default function InfraPage() {
     }
   }, [])
 
-  useEffect(() => { load(); const id = setInterval(() => load(), 30000); return () => clearInterval(id) }, [load])
+  useEffect(() => { void load(); const id = setInterval(() => { void load() }, 30000); return () => clearInterval(id) }, [load])
 
   const [isMobile, setIsMobile] = useState(false)
   useEffect(() => {

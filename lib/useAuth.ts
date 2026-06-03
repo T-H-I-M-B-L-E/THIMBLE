@@ -38,7 +38,7 @@ export function useAuth(): AuthHook {
   }, [])
 
   useEffect(() => {
-    fetchUser()
+    void fetchUser()
 
     // Re-fetch when the tab regains focus — picks up role/ban changes without polling
     window.addEventListener('focus', fetchUser)

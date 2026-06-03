@@ -57,7 +57,7 @@ export default function AdminDashboard() {
   }, [])
 
   useEffect(() => {
-    Promise.all([
+    void Promise.all([
       adminFetch('/api/admin/stats'),
       adminFetch('/api/admin/users?admin=true'),
       adminFetch('/api/admin/audit-log'),

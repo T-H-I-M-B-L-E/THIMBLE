@@ -78,7 +78,7 @@ export default function AdminChatPage() {
       .then(r => r.ok ? r.json() : [])
       .then((msgs: ChatMsg[]) => setMessages(Array.isArray(msgs) ? msgs : []))
       .catch(() => {})
-    connect()
+    void connect()
     return () => { ws.current?.close() }
   }, [connect])
 

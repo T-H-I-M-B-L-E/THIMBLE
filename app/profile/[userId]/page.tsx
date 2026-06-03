@@ -82,7 +82,7 @@ export default function UserProfilePage() {
         setIsLoadingUser(false)
       }
     }
-    fetchUserData()
+    void fetchUserData()
   }, [userId, lookup])
 
   if (isLoadingUser) {

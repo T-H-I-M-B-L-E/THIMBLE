@@ -56,7 +56,7 @@ export function SiteBanner() {
         // banner is optional, fail silent
       }
     }
-    load()
+    void load()
     // Refresh every 5 min so admin updates surface without a hard refresh
     const id = setInterval(load, 5 * 60 * 1000)
     return () => { cancelled = true; clearInterval(id) }
