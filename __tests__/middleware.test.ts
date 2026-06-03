@@ -62,8 +62,6 @@ describe('public routes', () => {
 
 describe('protected routes — no token', () => {
   const protectedPaths = [
-    '/dashboard',
-    '/dashboard/model/feed',
     '/onboarding',
     '/upload',
     '/explore',
@@ -109,13 +107,13 @@ describe('protected routes — valid token', () => {
 
 describe('protected routes — bad token', () => {
   it('redirects to /auth when the token is an arbitrary string', async () => {
-    const res = await middleware(makeRequest('/dashboard', 'not.a.real.jwt'))
+    const res = await middleware(makeRequest('/feed', 'not.a.real.jwt'))
     expect(res?.headers.get('location')).toContain('/auth')
   })
 
   it('redirects to /auth when the token is expired', async () => {
     const token = await makeValidToken('-1s')
-    const res = await middleware(makeRequest('/dashboard', token))
+    const res = await middleware(makeRequest('/feed', token))
     expect(res?.headers.get('location')).toContain('/auth')
   })
 
@@ -129,12 +127,12 @@ describe('protected routes — bad token', () => {
       .setIssuedAt()
       .setExpirationTime('7d')
       .sign(encoder.encode(attackerSecret))
-    const res = await middleware(makeRequest('/dashboard', token))
+    const res = await middleware(makeRequest('/feed', token))
     expect(res?.headers.get('location')).toContain('/auth')
   })
 
   it('redirects to /auth when auth_token is an empty string', async () => {
-    const res = await middleware(makeRequest('/dashboard', ''))
+    const res = await middleware(makeRequest('/feed', ''))
     expect(res?.headers.get('location')).toContain('/auth')
   })
 })

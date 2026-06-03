@@ -38,15 +38,15 @@ describe('getDashboardFeedPath', () => {
   })
 
   it('returns correct path for model', () => {
-    expect(getDashboardFeedPath('model')).toBe('/dashboard/model/feed')
+    expect(getDashboardFeedPath('model')).toBe('/feed')
   })
 
   it('returns correct path for designer', () => {
-    expect(getDashboardFeedPath('designer')).toBe('/dashboard/designer/feed')
+    expect(getDashboardFeedPath('designer')).toBe('/feed')
   })
 
   it('returns correct path for photographer', () => {
-    expect(getDashboardFeedPath('photographer')).toBe('/dashboard/photographer/feed')
+    expect(getDashboardFeedPath('photographer')).toBe('/feed')
   })
 })
 
@@ -56,11 +56,11 @@ describe('getDashboardFeedPath', () => {
 
 describe('getPostAuthPath — JWT users', () => {
   it('routes to dashboard/feed when role is set', () => {
-    expect(getPostAuthPath({ role: 'model' })).toBe('/dashboard/model/feed')
+    expect(getPostAuthPath({ role: 'model' })).toBe('/feed')
   })
 
   it('routes to dashboard/feed for designer role', () => {
-    expect(getPostAuthPath({ role: 'designer' })).toBe('/dashboard/designer/feed')
+    expect(getPostAuthPath({ role: 'designer' })).toBe('/feed')
   })
 
   it('routes to /onboarding when role is null', () => {
@@ -97,7 +97,7 @@ describe('getPostAuthPath — no user', () => {
 describe('getPostAuthPath — Clerk legacy users', () => {
   it('routes to dashboard when onboardingCompleted=true and role is set', () => {
     const user = { unsafeMetadata: { role: 'brand', onboardingCompleted: true } }
-    expect(getPostAuthPath(user)).toBe('/dashboard/brand/feed')
+    expect(getPostAuthPath(user)).toBe('/feed')
   })
 
   it('routes to /onboarding when onboardingCompleted=false', () => {
