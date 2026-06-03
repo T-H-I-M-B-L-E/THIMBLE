@@ -2,6 +2,7 @@ package repositories
 
 import (
 	"context"
+	"log"
 
 	"chat-app/internal/db"
 )
@@ -33,8 +34,13 @@ func ListFollowing(ctx context.Context, followerID string) ([]FollowingUser, err
 	var list []FollowingUser
 	for rows.Next() {
 		var fu FollowingUser
-		rows.Scan(&fu.UserID, &fu.UserName, &fu.UserAvatar, &fu.Role)
+		if err := rows.Scan(&fu.UserID, &fu.UserName, &fu.UserAvatar, &fu.Role); err != nil {
+			return nil, err
+		}
 		list = append(list, fu)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
 	}
 	if list == nil {
 		list = []FollowingUser{}
@@ -56,15 +62,23 @@ func Follow(ctx context.Context, followerID, followingID string) (bool, error) {
 
 // Unfollow deletes the row. The boolean is true if a row was actually removed.
 func Unfollow(ctx context.Context, followerID, followingID string) bool {
-	tag, _ := db.Pool.Exec(ctx,
+	tag, err := db.Pool.Exec(ctx,
 		`DELETE FROM follows WHERE follower_id = $1 AND following_id = $2`,
 		followerID, followingID)
+	if err != nil {
+		log.Printf("unfollow failed (follower=%s following=%s): %v", followerID, followingID, err)
+		return false
+	}
 	return tag.RowsAffected() > 0
 }
 
 // RefreshFollowCounts recomputes the denormalised followers/following
 // columns on both sides of an edge.
 func RefreshFollowCounts(ctx context.Context, followerID, followingID string) {
-	db.Pool.Exec(ctx, `UPDATE users SET following = (SELECT COUNT(*) FROM follows WHERE follower_id = $1) WHERE id = $1`, followerID)
-	db.Pool.Exec(ctx, `UPDATE users SET followers = (SELECT COUNT(*) FROM follows WHERE following_id = $1) WHERE id = $1`, followingID)
+	if _, err := db.Pool.Exec(ctx, `UPDATE users SET following = (SELECT COUNT(*) FROM follows WHERE follower_id = $1) WHERE id = $1`, followerID); err != nil {
+		log.Printf("refresh following count failed (user=%s): %v", followerID, err)
+	}
+	if _, err := db.Pool.Exec(ctx, `UPDATE users SET followers = (SELECT COUNT(*) FROM follows WHERE following_id = $1) WHERE id = $1`, followingID); err != nil {
+		log.Printf("refresh followers count failed (user=%s): %v", followingID, err)
+	}
 }

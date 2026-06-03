@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"encoding/json"
+	"log"
 	"sync"
 	"time"
 
@@ -183,7 +184,9 @@ func HandleConversationWS(c *websocket.Conn, userId string, convId int) {
 			msg.Timestamp = time.Now().UnixMilli()
 		}
 
-		repositories.InsertConvMessage(context.Background(), &msg)
+		if err := repositories.InsertConvMessage(context.Background(), &msg); err != nil {
+			log.Printf("failed to persist conversation message (conv=%d user=%s): %v", convId, userId, err)
+		}
 
 		out, _ := json.Marshal(msg)
 		broadcastToRoomIncludingSender(convId, mt, out)

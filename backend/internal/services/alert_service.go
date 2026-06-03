@@ -90,9 +90,8 @@ func SendTestAlert(ctx context.Context) error {
 	if err != nil || len(adminEmails) == 0 {
 		return fmt.Errorf("no admin emails found")
 	}
-	sendAlertRaw(ctx, adminEmails, "🧪 Test alert — pipeline check",
+	return sendAlertRaw(ctx, adminEmails, "🧪 Test alert — pipeline check",
 		fmt.Sprintf("This is a manual test alert fired from the admin panel at %s.\n\nIf you received this, your alerting pipeline is working correctly.\n\nNo action needed.", time.Now().UTC().Format(time.RFC3339)))
-	return nil
 }
 
 func sendAlert(ctx context.Context, key, subject, body string) {

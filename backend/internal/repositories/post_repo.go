@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"strconv"
 
 	"github.com/jackc/pgx/v5"
@@ -242,8 +243,10 @@ func DeletePost(ctx context.Context, postId, userId string) (int64, error) {
 // RefreshUserPostCount recomputes posts count for userId. Called after
 // any insert or delete so the denormalised counter stays accurate.
 func RefreshUserPostCount(ctx context.Context, userId string) {
-	db.Pool.Exec(ctx,
-		`UPDATE users SET posts = (SELECT COUNT(*) FROM posts WHERE user_id = $1) WHERE id = $1`, userId)
+	if _, err := db.Pool.Exec(ctx,
+		`UPDATE users SET posts = (SELECT COUNT(*) FROM posts WHERE user_id = $1) WHERE id = $1`, userId); err != nil {
+		log.Printf("refresh post count failed (user=%s): %v", userId, err)
+	}
 }
 
 func ListPostLikers(ctx context.Context, postId string) ([]models.Liker, error) {
@@ -258,7 +261,9 @@ func ListPostLikers(ctx context.Context, postId string) ([]models.Liker, error) 
 	var likers []models.Liker
 	for rows.Next() {
 		var l models.Liker
-		rows.Scan(&l.UserID, &l.UserName, &l.Avatar)
+		if err := rows.Scan(&l.UserID, &l.UserName, &l.Avatar); err != nil {
+			return nil, err
+		}
 		likers = append(likers, l)
 	}
 	if likers == nil {
@@ -315,7 +320,9 @@ func ListPostComments(ctx context.Context, postId string) ([]models.Comment, err
 	var comments []models.Comment
 	for rows.Next() {
 		var cm models.Comment
-		rows.Scan(&cm.ID, &cm.UserID, &cm.UserName, &cm.UserAvatar, &cm.UserVerified, &cm.Content, &cm.CreatedAt)
+		if err := rows.Scan(&cm.ID, &cm.UserID, &cm.UserName, &cm.UserAvatar, &cm.UserVerified, &cm.Content, &cm.CreatedAt); err != nil {
+			return nil, err
+		}
 		comments = append(comments, cm)
 	}
 	if comments == nil {
@@ -375,7 +382,9 @@ func TrendingTags(ctx context.Context) ([]models.TagCount, error) {
 	var tags []models.TagCount
 	for rows.Next() {
 		var t models.TagCount
-		rows.Scan(&t.Tag, &t.Count)
+		if err := rows.Scan(&t.Tag, &t.Count); err != nil {
+			return nil, err
+		}
 		tags = append(tags, t)
 	}
 	if tags == nil {
@@ -443,9 +452,11 @@ func ListSavedPosts(ctx context.Context, userID, beforeSaveID string, limit int)
 		var p models.Post
 		var tagsJSON, imagesJSON []byte
 		var saveID int64
-		rows.Scan(&p.Id, &p.Slug, &p.UserId, &p.AuthorName, &p.AuthorAvatar, &p.AuthorVerified,
+		if err := rows.Scan(&p.Id, &p.Slug, &p.UserId, &p.AuthorName, &p.AuthorAvatar, &p.AuthorVerified,
 			&p.ImageUrl, &imagesJSON, &p.Description, &p.Likes, &tagsJSON, &p.CreatedAt,
-			&p.CommentCount, &p.LikedByMe, &p.SavedByMe, &saveID)
+			&p.CommentCount, &p.LikedByMe, &p.SavedByMe, &saveID); err != nil {
+			return nil, err
+		}
 		if len(tagsJSON) > 0 {
 			json.Unmarshal(tagsJSON, &p.TaggedUsers)
 		}

@@ -55,10 +55,12 @@ func ListBlocked(ctx context.Context, blockerID string) ([]string, error) {
 	var ids []string
 	for rows.Next() {
 		var id string
-		rows.Scan(&id)
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
 		ids = append(ids, id)
 	}
-	return ids, nil
+	return ids, rows.Err()
 }
 
 // BlockedUser is the enriched row shape returned by ListBlockedUsers.
@@ -86,8 +88,10 @@ func ListBlockedUsers(ctx context.Context, blockerID string) ([]BlockedUser, err
 	users := []BlockedUser{}
 	for rows.Next() {
 		var u BlockedUser
-		rows.Scan(&u.ID, &u.FullName, &u.Username, &u.AvatarUrl)
+		if err := rows.Scan(&u.ID, &u.FullName, &u.Username, &u.AvatarUrl); err != nil {
+			return nil, err
+		}
 		users = append(users, u)
 	}
-	return users, nil
+	return users, rows.Err()
 }

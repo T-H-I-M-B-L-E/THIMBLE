@@ -38,7 +38,9 @@ func ListConversations(ctx context.Context, userId string) ([]models.Conversatio
 	for rows.Next() {
 		var conv models.Conversation
 		var updatedAt time.Time
-		rows.Scan(&conv.ID, &updatedAt)
+		if err := rows.Scan(&conv.ID, &updatedAt); err != nil {
+			return nil, err
+		}
 		conv.UpdatedAt = updatedAt.Format(time.RFC3339)
 
 		conv.Participants, _ = listParticipants(ctx, conv.ID)
@@ -68,11 +70,13 @@ func listParticipants(ctx context.Context, conversationID int) ([]models.Convers
 	for rows.Next() {
 		var p models.ConversationParticipant
 		var joinedAt time.Time
-		rows.Scan(&p.ID, &p.ConversationID, &p.UserID, &p.UserName, &p.UserAvatar, &joinedAt)
+		if err := rows.Scan(&p.ID, &p.ConversationID, &p.UserID, &p.UserName, &p.UserAvatar, &joinedAt); err != nil {
+			return nil, err
+		}
 		p.JoinedAt = joinedAt.Format(time.RFC3339)
 		out = append(out, p)
 	}
-	return out, nil
+	return out, rows.Err()
 }
 
 func lastMessage(ctx context.Context, conversationID int) (models.ConvMessage, bool) {
@@ -121,7 +125,9 @@ func GetConversationMessages(ctx context.Context, convId, callerID string) ([]mo
 	for rows.Next() {
 		var m models.ConvMessage
 		var delivered, read *time.Time
-		rows.Scan(&m.ID, &m.ConversationID, &m.UserID, &m.Name, &m.Content, &m.Timestamp, &delivered, &read)
+		if err := rows.Scan(&m.ID, &m.ConversationID, &m.UserID, &m.Name, &m.Content, &m.Timestamp, &delivered, &read); err != nil {
+			return nil, err
+		}
 		if delivered != nil {
 			ms := delivered.UnixMilli()
 			m.DeliveredAt = &ms
@@ -160,10 +166,12 @@ func MarkDelivered(ctx context.Context, convID int, msgIDs []int, recipientID st
 	var updated []int
 	for rows.Next() {
 		var id int
-		rows.Scan(&id)
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
 		updated = append(updated, id)
 	}
-	return updated, nil
+	return updated, rows.Err()
 }
 
 // MarkRead stamps read_at on all messages addressed TO `readerID` in the
@@ -184,10 +192,12 @@ func MarkRead(ctx context.Context, convID int, readerID string) ([]int, error) {
 	var updated []int
 	for rows.Next() {
 		var id int
-		rows.Scan(&id)
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
 		updated = append(updated, id)
 	}
-	return updated, nil
+	return updated, rows.Err()
 }
 
 // HideConversationForUser marks the conversation hidden for a single

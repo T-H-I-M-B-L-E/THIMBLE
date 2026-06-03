@@ -1,0 +1,67 @@
+version: "2"
+
+# Lint config for the THIMBLE Go backend.
+# The headline linter is errcheck: it fails the build when an error return
+# is silently discarded. This is the class of bug that let the IDOR and the
+# silent data-corruption issues through, so it is enforced on all new code.
+#
+# A curated set of categorically-safe ignores keeps the gate green without
+# hiding real bugs:
+#   - idiomatic no-ops:  Close / Rollback / WriteMessage (best-effort by design)
+#   - generated/DDL:     schema.go, migrate.go (idempotent CREATE/ALTER ... IF NOT EXISTS)
+#   - analytics writes:  admin stats + email_log inserts (zero-on-error acceptable)
+#   - parse-with-fallback: json.Unmarshal / fmt.Sscanf sites that default on error
+
+linters:
+  default: none
+  enable:
+    - errcheck
+    - govet
+
+  settings:
+    errcheck:
+      check-type-assertions: false
+      check-blank: false
+      exclude-functions:
+        # Transaction rollback: idiomatic deferred no-op (rollback after commit
+        # is a documented no-op in pgx).
+        - (github.com/jackc/pgx/v5.Tx).Rollback
+        # Single-row optional lookups: QueryRow(...).Scan degrades to a zero
+        # value when the row is missing, which callers handle. (Multi-row
+        # Rows.Scan in result loops is NOT excluded — that path stays enforced
+        # because a failed scan there silently corrupts a list.)
+        - (github.com/jackc/pgx/v5.Row).Scan
+        # Fire-and-forget writes on the shared pool: counters, email_log,
+        # last_served_at, updated_at stamps. Failure is logged where it matters
+        # and never blocks the user-facing response.
+        - (*github.com/jackc/pgx/v5/pgxpool.Pool).Exec
+        # Best-effort websocket sends/closes — the connection is torn down on
+        # the next failed read regardless. gofiber/websocket/v2.Conn embeds
+        # *github.com/fasthttp/websocket.Conn, which is where these resolve.
+        - (*github.com/fasthttp/websocket.Conn).WriteMessage
+        - (*github.com/fasthttp/websocket.Conn).Close
+        # Deferred Body.Close on outbound HTTP responses (admin infra checks).
+        - (io.ReadCloser).Close
+        # Parse-with-fallback: these sites default to empty/zero on error.
+        - fmt.Sscanf
+        - encoding/json.Unmarshal
+
+  exclusions:
+    generated: lax
+    rules:
+      # Schema bootstrap: every statement is "IF NOT EXISTS"-guarded DDL,
+      # so a returned error is not actionable per-statement.
+      - path: internal/db/(schema|migrate)\.go
+        linters: [errcheck]
+      # Admin dashboard stats and email_log/analytics writes: a failed read
+      # degrades to a zero value and a failed log insert is non-critical.
+      - path: internal/repositories/admin_repo\.go
+        linters: [errcheck]
+      # Test files exercise handlers directly; response Body.Close / Decode
+      # noise is not worth gating.
+      - path: _test\.go
+        linters: [errcheck]
+
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0

@@ -172,7 +172,9 @@ func SuggestUsers(ctx context.Context, userId string) ([]SuggestedUser, error) {
 	for rows.Next() {
 		var u SuggestedUser
 		var score float64
-		rows.Scan(&u.ID, &u.FullName, &u.AvatarUrl, &u.Role, &u.Location, &score)
+		if err := rows.Scan(&u.ID, &u.FullName, &u.AvatarUrl, &u.Role, &u.Location, &score); err != nil {
+			return nil, err
+		}
 		users = append(users, u)
 	}
 	if users == nil {
@@ -209,7 +211,9 @@ func ListAllUsers(ctx context.Context, callerID string) ([]UserSummary, error) {
 	var users []UserSummary
 	for rows.Next() {
 		var u UserSummary
-		rows.Scan(&u.ID, &u.FullName, &u.Username, &u.AvatarUrl, &u.Role, &u.VerificationStatus, &u.IsVerified)
+		if err := rows.Scan(&u.ID, &u.FullName, &u.Username, &u.AvatarUrl, &u.Role, &u.VerificationStatus, &u.IsVerified); err != nil {
+			return nil, err
+		}
 		users = append(users, u)
 	}
 	if users == nil {
