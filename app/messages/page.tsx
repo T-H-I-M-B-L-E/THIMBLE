@@ -336,7 +336,7 @@ export default function MessagesPage() {
       })
       if (!res.ok) { notify.error("Calling not available right now"); return }
       const session = await res.json() as { room: string; token: string; lkUrl: string; kind: "video" | "audio" }
-      setActiveCall(session)
+      setActiveCall({ ...session, otherName: selectedConv?.other?.userName, otherAvatar: selectedConv?.other?.userAvatar })
     } catch {
       notify.error("Failed to start call")
     }
@@ -352,7 +352,7 @@ export default function MessagesPage() {
       })
       if (!res.ok) { notify.error("Could not join call"); return }
       const { token, lkUrl } = await res.json() as { token: string; lkUrl: string }
-      setActiveCall({ room: incomingCall.room, token, lkUrl, kind: incomingCall.kind })
+      setActiveCall({ room: incomingCall.room, token, lkUrl, kind: incomingCall.kind, otherName: incomingCall.callerName })
       setIncomingCall(null)
     } catch {
       notify.error("Failed to join call")
