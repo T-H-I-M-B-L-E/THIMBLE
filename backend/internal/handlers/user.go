@@ -1,6 +1,8 @@
 package handlers
 
 import (
+	"strings"
+
 	"github.com/gofiber/fiber/v2"
 
 	"chat-app/internal/services"
@@ -71,7 +73,9 @@ func UserSuggestions(c *fiber.Ctx) error {
 
 func ListAllUsers(c *fiber.Ctx) error {
 	callerID, _ := c.Locals("userId").(string)
-	users, err := services.ListAllUsers(c.Context(), callerID)
+	q := strings.TrimSpace(c.Query("q"))
+	role := strings.TrimSpace(c.Query("role"))
+	users, err := services.SearchUsers(c.Context(), callerID, q, role)
 	if err != nil {
 		return respondError(c, err)
 	}

@@ -158,6 +158,9 @@ func registerRoutes(app *fiber.App, authLimiter fiber.Handler, apiLimiter fiber.
 	api.Post("/conversations/:id/messages/:msgId/restore", middleware.RequireJWT, handlers.RestoreConversationMessage)
 	api.Post("/conversations/:id/read", middleware.RequireJWT, handlers.MarkConversationRead)
 	api.Delete("/conversations/:id", middleware.RequireJWT, handlers.DeleteConversation)
+	api.Post("/conversations/:id/call", middleware.RequireJWT, handlers.CreateCall)
+	api.Post("/conversations/:id/call/join", middleware.RequireJWT, handlers.JoinCall)
+	api.Delete("/conversations/:id/call", middleware.RequireJWT, handlers.EndCall)
 
 	api.Get("/blocks", middleware.RequireJWT, handlers.ListBlocked)
 	api.Post("/blocks/:id", middleware.RequireJWT, handlers.BlockUser)
@@ -191,6 +194,7 @@ func registerRoutes(app *fiber.App, authLimiter fiber.Handler, apiLimiter fiber.
 	api.Patch("/gigs/:id/close", middleware.RequireJWT, handlers.CloseGig)
 	api.Delete("/gigs/:id", middleware.RequireJWT, handlers.DeleteGig)
 	api.Get("/gigs/:id/applicants", middleware.RequireJWT, handlers.GigApplicants)
+	api.Patch("/gigs/:id/applicants/status", middleware.RequireJWT, handlers.UpdateApplicantStatus)
 
 	api.Post("/ads/:id/click", handlers.RecordAdClick)
 	api.Post("/ads/:id/impression", middleware.OptionalJWT, handlers.RecordAdImpression)

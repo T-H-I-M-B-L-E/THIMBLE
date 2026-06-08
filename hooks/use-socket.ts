@@ -8,6 +8,7 @@ export interface ChatMessage {
   userId: string
   name: string
   content: string
+  imageUrl?: string
   timestamp: number
   /** ms-epoch — recipient's socket received the message. */
   deliveredAt?: number | null
@@ -30,23 +31,39 @@ export interface ReceiptEvent {
   timestamp: number
 }
 
+export interface CallInviteEvent {
+  type: "call-invite"
+  callerID: string
+  callerName: string
+  room: string
+  kind: "video" | "audio"
+}
+
+export interface CallEndEvent {
+  type: "call-end"
+  senderID: string
+  room: string
+}
+
 export function useSocket(
   url: string | null,
   conversationId: number | null,
   user: { id: string; fullName: string } | null,
-  /** Fired when a delivered/read receipt arrives. Use to flip state in
-      other message stores (e.g. historical REST-loaded messages). */
-  onReceipt?: (ev: ReceiptEvent) => void
+  onReceipt?: (ev: ReceiptEvent) => void,
+  onCallInvite?: (ev: CallInviteEvent) => void,
+  onCallEnd?: (ev: CallEndEvent) => void,
 ) {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [isConnected, setIsConnected] = useState(false)
   const [typingUsers, setTypingUsers] = useState<Map<string, string>>(new Map())
   const socketRef = useRef<WebSocket | null>(null)
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null)
-  // Mirror onReceipt into a ref so the WS effect doesn't reconnect when
-  // the consumer redefines the callback on every render.
   const onReceiptRef = useRef(onReceipt)
   useEffect(() => { onReceiptRef.current = onReceipt }, [onReceipt])
+  const onCallInviteRef = useRef(onCallInvite)
+  useEffect(() => { onCallInviteRef.current = onCallInvite }, [onCallInvite])
+  const onCallEndRef = useRef(onCallEnd)
+  useEffect(() => { onCallEndRef.current = onCallEnd }, [onCallEnd])
 
   useEffect(() => {
     setMessages([])
@@ -122,6 +139,14 @@ export function useSocket(
               onReceiptRef.current?.(e)
               return
             }
+            if (data.type === "call-invite") {
+              onCallInviteRef.current?.(data as CallInviteEvent)
+              return
+            }
+            if (data.type === "call-end") {
+              onCallEndRef.current?.(data as CallEndEvent)
+              return
+            }
             const msg = data as ChatMessage
             setMessages(prev => prev.some(m => m.id === msg.id) ? prev : [...prev, msg])
           } catch { /* ignore parse errors */ }
@@ -176,20 +201,19 @@ export function useSocket(
     }
   }, [user, conversationId])
 
-  const sendMessage = useCallback((content: string) => {
+  const sendMessage = useCallback((content: string, imageUrl?: string) => {
     if (socketRef.current?.readyState === WebSocket.OPEN && user && conversationId) {
-      // Clear typing indicator when sending message
       if (typingTimeoutRef.current) {
         clearTimeout(typingTimeoutRef.current)
         typingTimeoutRef.current = null
         sendTypingIndicator(false)
       }
-      
       const message: ChatMessage = {
         conversationId,
         userId: user.id,
         name: user.fullName,
         content,
+        imageUrl: imageUrl || undefined,
         timestamp: Date.now(),
       }
       socketRef.current.send(JSON.stringify(message))

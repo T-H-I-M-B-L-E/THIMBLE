@@ -2,43 +2,63 @@
 
 import React, { createContext, useContext, useEffect, useState } from "react"
 
-type Theme = "light" | "dark"
+export type Theme = "light" | "dark" | "system"
 
 interface ThemeContextType {
   theme: Theme
+  setTheme: (t: Theme) => void
+  resolved: "light" | "dark"
   toggleTheme: () => void
 }
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined)
 
-export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [theme] = useState<Theme>("light")
+function getResolved(theme: Theme): "light" | "dark" {
+  if (typeof window === "undefined") return "light"
+  if (theme === "system") {
+    return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light"
+  }
+  return theme
+}
 
-  // Apple-inspired light-only aesthetic. Strip any prior `.dark` class so
-  // the new glass system always renders against a light Grainient backdrop.
+function applyTheme(resolved: "light" | "dark") {
+  document.documentElement.classList.toggle("dark", resolved === "dark")
+}
+
+export function ThemeProvider({ children }: { children: React.ReactNode }) {
+  const [theme, setThemeState] = useState<Theme>("light")
+
   useEffect(() => {
-    document.documentElement.classList.remove("dark")
-    try { localStorage.setItem("theme", "light") } catch {}
+    const stored = (localStorage.getItem("t-theme") as Theme) || "light"
+    setThemeState(stored)
+    applyTheme(getResolved(stored))
   }, [])
 
-  const toggleTheme = () => {
-    /* no-op — theming is locked to light for the new design system */
+  useEffect(() => {
+    if (theme !== "system") return
+    const mq = window.matchMedia("(prefers-color-scheme: dark)")
+    const handler = () => applyTheme(getResolved("system"))
+    mq.addEventListener("change", handler)
+    return () => mq.removeEventListener("change", handler)
+  }, [theme])
+
+  const setTheme = (next: Theme) => {
+    setThemeState(next)
+    localStorage.setItem("t-theme", next)
+    applyTheme(getResolved(next))
   }
 
-  // Prevent flash of wrong theme - still render children with context
-  // to avoid "useTheme must be used within ThemeProvider" errors during SSR
+  const resolved = getResolved(theme)
 
   return (
-    <ThemeContext.Provider value={{ theme, toggleTheme }}>
+    <ThemeContext.Provider value={{ theme, setTheme, resolved, toggleTheme: () => setTheme(resolved === "dark" ? "light" : "dark") }}>
       {children}
     </ThemeContext.Provider>
   )
 }
 
 export function useTheme() {
-  const context = useContext(ThemeContext)
-  if (!context) {
-    throw new Error("useTheme must be used within ThemeProvider")
-  }
-  return context
+  const ctx = useContext(ThemeContext)
+  if (!ctx) throw new Error("useTheme must be used within ThemeProvider")
+  return ctx
 }

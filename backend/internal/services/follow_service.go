@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 
+	"chat-app/internal/email"
 	"chat-app/internal/repositories"
 )
 
@@ -32,6 +33,14 @@ func Follow(ctx context.Context, followerID, followingID string) *ServiceError {
 	}
 	if changed {
 		repositories.RefreshFollowCounts(ctx, followerID, followingID)
+		// Email notification — fire-and-forget, respects email_prefs.follows
+		go func() {
+			follower, ferr := repositories.FindUserByID(ctx, followerID)
+			recipient, rerr := repositories.GetUserEmailAndPrefs(ctx, followingID)
+			if ferr == nil && rerr == nil && recipient.WantsFollowEmail {
+				email.SendFollowNotification(recipient.Email, recipient.FullName, follower.FullName)
+			}
+		}()
 	}
 	return nil
 }

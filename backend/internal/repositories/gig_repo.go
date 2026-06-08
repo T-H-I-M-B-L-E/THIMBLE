@@ -99,7 +99,8 @@ func ListApplicants(ctx context.Context, gigID int, posterID string) ([]models.G
 		       COALESCE(u.full_name, ga.applicant_name, ''),
 		       COALESCE(u.avatar_url, ga.applicant_avatar, ''),
 		       COALESCE(u.role, ga.applicant_role, ''),
-		       ga.created_at
+		       ga.created_at,
+		       ga.status
 		FROM gig_applications ga
 		LEFT JOIN users u ON u.id = ga.user_id
 		WHERE ga.gig_id = $1
@@ -112,7 +113,7 @@ func ListApplicants(ctx context.Context, gigID int, posterID string) ([]models.G
 	var out []models.GigApplicant
 	for rows.Next() {
 		var a models.GigApplicant
-		if err := rows.Scan(&a.UserID, &a.Name, &a.Avatar, &a.Role, &a.AppliedAt); err == nil {
+		if err := rows.Scan(&a.UserID, &a.Name, &a.Avatar, &a.Role, &a.AppliedAt, &a.Status); err == nil {
 			out = append(out, a)
 		}
 	}
@@ -120,6 +121,28 @@ func ListApplicants(ctx context.Context, gigID int, posterID string) ([]models.G
 		out = []models.GigApplicant{}
 	}
 	return out, nil
+}
+
+var validApplicantStatuses = map[string]bool{
+	"pending": true, "shortlisted": true, "hired": true, "rejected": true,
+}
+
+// UpdateApplicantStatus lets the poster change the status of a single applicant.
+func UpdateApplicantStatus(ctx context.Context, gigID int, applicantUserID, posterID, status string) error {
+	if !validApplicantStatuses[status] {
+		return errors.New("invalid status")
+	}
+	owner, err := GigOwner(ctx, gigID)
+	if err != nil {
+		return err
+	}
+	if owner != posterID {
+		return errors.New("forbidden")
+	}
+	_, err = db.Pool.Exec(ctx,
+		`UPDATE gig_applications SET status = $1 WHERE gig_id = $2 AND user_id = $3`,
+		status, gigID, applicantUserID)
+	return err
 }
 
 func ListGigs(ctx context.Context) ([]models.Gig, error) {

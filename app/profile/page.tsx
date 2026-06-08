@@ -10,6 +10,7 @@ import { VerificationModal } from "@/components/verification-modal"
 import { VerifiedBadge } from "@/components/verified-badge"
 import { getSafeHostname, normalizeWebsiteUrl } from "@/lib/platform"
 import { Globe, Instagram, Settings, Shield, User } from "lucide-react"
+import { HowTo } from "@/components/how-to"
 import { useFollowing, prefetchComments } from "@/hooks/use-social"
 import { useInfinite } from "@/hooks/use-infinite"
 import { PostLightbox } from "@/components/post-lightbox"
@@ -84,6 +85,14 @@ export default function ProfilePage() {
 
   return (
     <DashboardLayout showRail={true}>
+      <HowTo
+        id="profile"
+        steps={[
+          { icon: "✏️", title: "Complete your profile", body: "Tap Edit Profile to add a bio, profile photo, website, and Instagram. A complete profile gets 3× more views." },
+          { icon: "🖼️", title: "Share your work", body: "Use the feed to post lookbooks, sketches, or campaigns. Your posts appear here and in your followers' feeds." },
+          { icon: "✅", title: "Get verified", body: "Apply for verification to unlock gig applications and build trust with brands and collaborators." },
+        ]}
+      />
       <EditProfileModal
         isOpen={isEditModalOpen}
         onClose={() => setIsEditModalOpen(false)}

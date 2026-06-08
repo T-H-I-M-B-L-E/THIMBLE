@@ -17,6 +17,7 @@ export interface Message {
   userId: string
   name: string
   content: string
+  imageUrl?: string
   timestamp: number
   /** ms-epoch — set once recipient's socket has received the message. */
   deliveredAt?: number | null
@@ -57,6 +58,8 @@ export function useConversations(userId: string | undefined) {
     }
   }
 
+  // getOrCreateConversation — never creates a duplicate for the same pair.
+  // If a conversation already exists the backend returns the existing id.
   const createConversation = async (participants: { userId: string; userName: string; userAvatar: string }[]) => {
     const res = await fetch("/api/conversations", {
       method: "POST",
@@ -65,7 +68,8 @@ export function useConversations(userId: string | undefined) {
       body: JSON.stringify({ participants }),
     })
     if (!res.ok) throw new Error("Failed to create conversation")
-    const newConv = await res.json()
+    const newConv = await res.json() as { id: number }
+    // Refresh list so the sidebar reflects the canonical conversation
     await fetchConversations()
     return newConv
   }

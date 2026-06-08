@@ -4,10 +4,11 @@ import { useAuth } from "@/lib/useAuth"
 import { DashboardLayout } from "@/components/dashboard-layout"
 import { useRouter, useParams } from "next/navigation"
 import { useState, useEffect, useCallback } from "react"
-import { Globe, Instagram, User, ArrowLeft } from "lucide-react"
+import { Globe, Instagram, ArrowLeft, MessageCircle, UserPlus, UserCheck, User } from "lucide-react"
 import { useFollowing, prefetchComments } from "@/hooks/use-social"
 import { useInfinite } from "@/hooks/use-infinite"
 import { useUsers } from "@/hooks/use-users"
+import { useNotify } from "@/components/notify-provider"
 import { getSafeHostname, normalizeWebsiteUrl } from "@/lib/platform"
 import { PostLightbox } from "@/components/post-lightbox"
 import { RoleBadge } from "@/components/role-badge"
@@ -19,10 +20,14 @@ export default function UserProfilePage() {
   const params = useParams()
   const userId = params.userId as string
   const { user: currentUser, isLoading: currentUserLoading } = useAuth()
+  const notify = useNotify()
   const [viewedUser, setViewedUser] = useState<any>(null)
   const [isLoadingUser, setIsLoadingUser] = useState(true)
   const [activeTab, setActiveTab] = useState("posts")
   const [selectedPost, setSelectedPost] = useState<PostData | null>(null)
+  const [isFollowing, setIsFollowing] = useState(false)
+  const [followPending, setFollowPending] = useState(false)
+  const [messagePending, setMessagePending] = useState(false)
   const { following: userFollowing } = useFollowing(userId)
   const { lookup } = useUsers()
 
@@ -84,6 +89,60 @@ export default function UserProfilePage() {
     }
     void fetchUserData()
   }, [userId, lookup])
+
+  // Load follow state for the current viewer → viewed user
+  useEffect(() => {
+    if (!currentUser?.id || !userId) return
+    void fetch(`/api/follows?followerId=${currentUser.id}&followingId=${userId}`, { credentials: "include" })
+      .then(r => r.ok ? r.json() : { isFollowing: false })
+      .then(d => setIsFollowing(!!d.isFollowing))
+      .catch(() => {})
+  }, [currentUser?.id, userId])
+
+  const handleFollow = async () => {
+    if (!currentUser || followPending) return
+    setFollowPending(true)
+    const next = !isFollowing
+    setIsFollowing(next)
+    try {
+      await fetch("/api/follows", {
+        method: next ? "POST" : "DELETE",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ followingId: userId }),
+      })
+    } catch {
+      setIsFollowing(!next)
+      notify.error("Something went wrong")
+    } finally {
+      setFollowPending(false)
+    }
+  }
+
+  const handleMessage = async () => {
+    if (!currentUser || !viewedUser || messagePending) return
+    setMessagePending(true)
+    try {
+      const res = await fetch("/api/conversations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          participants: [
+            { userId: currentUser.id, userName: currentUser.fullName || currentUser.email || "Me", userAvatar: currentUser.avatar || "" },
+            { userId: viewedUser.id, userName: viewedUser.fullName || viewedUser.username || "User", userAvatar: viewedUser.avatar || viewedUser.avatarUrl || "" },
+          ],
+        }),
+      })
+      if (!res.ok) throw new Error("failed")
+      const conv = await res.json() as { id: number }
+      router.push(`/messages?conv=${conv.id}`)
+    } catch {
+      notify.error("Could not open conversation")
+    } finally {
+      setMessagePending(false)
+    }
+  }
 
   if (isLoadingUser) {
     return (
@@ -211,6 +270,39 @@ export default function UserProfilePage() {
               </div>
             )}
           </div>
+        </div>
+
+        {/* Follow + Message actions */}
+        <div style={{ display: "flex", gap: 10, marginBottom: 24 }}>
+          <button
+            onClick={() => void handleFollow()}
+            disabled={followPending}
+            style={{
+              display: "flex", alignItems: "center", gap: 6,
+              padding: "9px 20px", borderRadius: 10, fontSize: 14, fontWeight: 600,
+              cursor: followPending ? "default" : "pointer",
+              border: isFollowing ? "1px solid var(--t-line)" : "none",
+              background: isFollowing ? "transparent" : "var(--t-ink)",
+              color: isFollowing ? "var(--t-ink-2)" : "#fff",
+              opacity: followPending ? 0.6 : 1,
+              transition: "all .15s",
+            }}
+          >
+            {isFollowing ? <><UserCheck size={15} /> Following</> : <><UserPlus size={15} /> Follow</>}
+          </button>
+          <button
+            onClick={() => void handleMessage()}
+            disabled={messagePending}
+            style={{
+              display: "flex", alignItems: "center", gap: 6,
+              padding: "9px 20px", borderRadius: 10, fontSize: 14, fontWeight: 600,
+              cursor: messagePending ? "default" : "pointer",
+              background: "transparent", border: "1px solid var(--t-line)",
+              color: "var(--t-ink-2)", opacity: messagePending ? 0.6 : 1,
+            }}
+          >
+            <MessageCircle size={15} /> Message
+          </button>
         </div>
 
         <div className="t-profile-stats">

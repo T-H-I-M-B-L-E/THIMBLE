@@ -110,3 +110,13 @@ func ListApplicants(ctx context.Context, gigID int, callerID string) ([]models.G
 	}
 	return applicants, nil
 }
+
+func UpdateApplicantStatus(ctx context.Context, gigID int, applicantUserID, callerID, status string) *ServiceError {
+	if err := repositories.UpdateApplicantStatus(ctx, gigID, applicantUserID, callerID, status); err != nil {
+		if err.Error() == "invalid status" {
+			return NewError(400, "invalid_status", "invalid status value")
+		}
+		return NewError(403, "forbidden", "not allowed")
+	}
+	return nil
+}

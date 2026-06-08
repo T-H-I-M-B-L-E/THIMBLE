@@ -1,9 +1,11 @@
 "use client"
 
 import { useStore } from "@/lib/store"
+import { useRouter } from "next/navigation"
 import { DashboardLayout } from "@/components/dashboard-layout"
 import { useNotify } from "@/components/notify-provider"
-import { Search, MapPin, DollarSign, Users, Plus, X, ChevronDown, Trash2, CheckCircle } from "lucide-react"
+import { HowTo } from "@/components/how-to"
+import { Search, MapPin, DollarSign, Users, Plus, X, ChevronDown, Trash2, CheckCircle, MessageCircle } from "lucide-react"
 import { useState, useEffect, useCallback } from "react"
 
 const ROLES = ["designer", "model", "manufacturer", "photographer", "brand"]
@@ -32,6 +34,7 @@ interface Applicant {
   avatar: string
   role: string
   appliedAt: string
+  status: string
 }
 
 function timeAgo(iso: string) {
@@ -53,6 +56,7 @@ const inputStyle: React.CSSProperties = {
 export default function GigsPage() {
   const { user } = useStore()
   const notify = useNotify()
+  const router = useRouter()
   const isVerified = user?.verificationStatus === "verified" || user?.isVerified
 
   const [gigs, setGigs] = useState<Gig[]>([])
@@ -160,6 +164,43 @@ export default function GigsPage() {
     }
   }
 
+  const updateApplicantStatus = async (applicantUserId: string, status: string) => {
+    if (!applicantsGig) return
+    const res = await fetch(`/api/gigs/${applicantsGig.id}/applicants`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ applicantUserId, status }),
+    })
+    if (res.ok) {
+      setApplicants(prev => prev.map(a => a.userId === applicantUserId ? { ...a, status } : a))
+    } else {
+      notify.error("Failed to update status")
+    }
+  }
+
+  const messageApplicant = async (applicant: Applicant) => {
+    if (!user) return
+    try {
+      const res = await fetch("/api/conversations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          participants: [
+            { userId: user.id, userName: user.fullName || user.username || "Me", userAvatar: user.avatar || "" },
+            { userId: applicant.userId, userName: applicant.name, userAvatar: applicant.avatar },
+          ],
+        }),
+      })
+      if (!res.ok) throw new Error("failed")
+      const conv = await res.json() as { id: number }
+      router.push(`/messages?conv=${conv.id}`)
+    } catch {
+      notify.error("Could not open conversation")
+    }
+  }
+
   const filtered = gigs.filter(g => {
     const q = search.toLowerCase()
     const matchesSearch = !q || g.title.toLowerCase().includes(q) || g.description.toLowerCase().includes(q) || g.location.toLowerCase().includes(q)
@@ -169,6 +210,14 @@ export default function GigsPage() {
 
   return (
     <DashboardLayout>
+      <HowTo
+        id="gigs"
+        steps={[
+          { icon: "💼", title: "Browse opportunities", body: "Scroll through live gigs posted by brands and designers. Use the search bar or role filters to find the right fit." },
+          { icon: "📝", title: "Apply in one tap", body: "See a gig you like? Hit Apply — your profile is sent directly to the poster. You'll hear back here and via email." },
+          { icon: "🏆", title: "Post your own gig", body: "Need talent? Tap Post Gig to publish an opportunity. Review applicants and hire right from this page." },
+        ]}
+      />
       <div style={{ maxWidth: 860, width: "100%", margin: "0 auto", padding: "0 0 80px" }}>
 
         {/* Header */}
@@ -181,7 +230,7 @@ export default function GigsPage() {
           </div>
           <button
             onClick={() => setShowCreate(true)}
-            style={{ display: "flex", alignItems: "center", gap: 6, padding: "9px 16px", background: "var(--t-gold)", color: "#1a1400", border: "none", borderRadius: 10, fontSize: 13, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap", flexShrink: 0 }}
+            style={{ display: "flex", alignItems: "center", gap: 6, padding: "9px 16px", background: "var(--t-gold)", color: "#fff", border: "none", borderRadius: 10, fontSize: 13, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap", flexShrink: 0 }}
           >
             <Plus size={15} /> Post Gig
           </button>
@@ -254,7 +303,7 @@ export default function GigsPage() {
                     <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                       {gig.isOwner ? (
                         <>
-                          <button onClick={() => openApplicants(gig)} style={{ fontSize: 13, fontWeight: 600, padding: "7px 14px", background: "var(--t-gold)", color: "#1a1400", border: "none", borderRadius: 8, cursor: "pointer" }}>
+                          <button onClick={() => openApplicants(gig)} style={{ fontSize: 13, fontWeight: 600, padding: "7px 14px", background: "var(--t-gold)", color: "#fff", border: "none", borderRadius: 8, cursor: "pointer" }}>
                             View Applicants ({gig.applications})
                           </button>
                           <button onClick={() => closeGig(gig)} style={{ fontSize: 13, padding: "7px 14px", background: "transparent", color: "var(--t-ink-3)", border: "1px solid var(--t-line)", borderRadius: 8, cursor: "pointer" }}>
@@ -324,7 +373,7 @@ export default function GigsPage() {
               </div>
               <div style={{ display: "flex", gap: 10, paddingTop: 4 }}>
                 <button type="button" onClick={() => setShowCreate(false)} style={{ flex: 1, padding: "10px", background: "transparent", border: "1px solid var(--t-line)", borderRadius: 8, fontSize: 14, color: "var(--t-ink-3)", cursor: "pointer" }}>Cancel</button>
-                <button type="submit" disabled={creating || !form.title.trim()} style={{ flex: 2, padding: "10px", background: "var(--t-gold)", color: "#1a1400", border: "none", borderRadius: 8, fontSize: 14, fontWeight: 600, cursor: creating ? "not-allowed" : "pointer", opacity: creating ? 0.6 : 1 }}>
+                <button type="submit" disabled={creating || !form.title.trim()} style={{ flex: 2, padding: "10px", background: "var(--t-gold)", color: "#fff", border: "none", borderRadius: 8, fontSize: 14, fontWeight: 600, cursor: creating ? "not-allowed" : "pointer", opacity: creating ? 0.6 : 1 }}>
                   {creating ? "Posting…" : "Post Gig"}
                 </button>
               </div>
@@ -352,17 +401,46 @@ export default function GigsPage() {
               ) : applicants.length === 0 ? (
                 <p style={{ textAlign: "center", color: "var(--t-ink-3)", fontSize: 14, paddingTop: 48 }}>No applicants yet.</p>
               ) : (
-                <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
                   {applicants.map(a => (
-                    <div key={a.userId} style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                      {a.avatar
-                        ? <img src={a.avatar} alt={a.name} style={{ width: 40, height: 40, borderRadius: "50%", objectFit: "cover", flexShrink: 0 }} />
-                        : <div style={{ width: 40, height: 40, borderRadius: "50%", background: "var(--t-surface-2)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, fontWeight: 600, flexShrink: 0 }}>{a.name?.[0]?.toUpperCase()}</div>}
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <p style={{ fontSize: 14, fontWeight: 500, margin: 0 }}>{a.name}</p>
-                        <p style={{ fontSize: 12, color: "var(--t-ink-3)", margin: "2px 0 0", textTransform: "capitalize" }}>{a.role} · {timeAgo(a.appliedAt)}</p>
+                    <div key={a.userId} style={{ background: "var(--t-surface-2)", borderRadius: 10, padding: 12 }}>
+                      {/* Top row: avatar + name + status badge */}
+                      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
+                        {a.avatar
+                          ? <img src={a.avatar} alt={a.name} style={{ width: 40, height: 40, borderRadius: "50%", objectFit: "cover", flexShrink: 0 }} />
+                          : <div style={{ width: 40, height: 40, borderRadius: "50%", background: "var(--t-surface)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, fontWeight: 600, flexShrink: 0 }}>{a.name?.[0]?.toUpperCase()}</div>}
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <p style={{ fontSize: 14, fontWeight: 600, margin: 0 }}>{a.name}</p>
+                          <p style={{ fontSize: 12, color: "var(--t-ink-3)", margin: "2px 0 0", textTransform: "capitalize" }}>{a.role} · {timeAgo(a.appliedAt)}</p>
+                        </div>
+                        <span style={{
+                          fontSize: 11, padding: "2px 8px", borderRadius: 6, fontWeight: 600, textTransform: "capitalize",
+                          background: a.status === "hired" ? "rgba(63,207,142,.15)" : a.status === "shortlisted" ? "rgba(218,165,32,.15)" : a.status === "rejected" ? "rgba(240,97,109,.12)" : "var(--t-surface)",
+                          color: a.status === "hired" ? "#3fcf8e" : a.status === "shortlisted" ? "var(--t-gold)" : a.status === "rejected" ? "#f0616d" : "var(--t-ink-3)",
+                        }}>{a.status || "pending"}</span>
                       </div>
-                      <a href={`/profile/${a.userId}`} style={{ fontSize: 12, color: "var(--t-gold)", textDecoration: "none", whiteSpace: "nowrap" }}>View</a>
+                      {/* Action row */}
+                      <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                        <a href={`/profile/${a.userId}`} style={{ fontSize: 12, color: "var(--t-gold)", textDecoration: "none", padding: "5px 10px", border: "1px solid var(--t-line)", borderRadius: 6 }}>Profile</a>
+                        <button
+                          onClick={() => void messageApplicant(a)}
+                          style={{ fontSize: 12, padding: "5px 10px", border: "1px solid var(--t-line)", borderRadius: 6, background: "none", cursor: "pointer", color: "var(--t-ink-2)", display: "flex", alignItems: "center", gap: 4 }}
+                        >
+                          <MessageCircle size={12} /> Message
+                        </button>
+                        <div style={{ marginLeft: "auto" }}>
+                          <select
+                            value={a.status || "pending"}
+                            onChange={e => void updateApplicantStatus(a.userId, e.target.value)}
+                            style={{ fontSize: 12, padding: "5px 8px", border: "1px solid var(--t-line)", borderRadius: 6, background: "var(--t-surface)", color: "var(--t-ink)", cursor: "pointer", fontFamily: "inherit" }}
+                          >
+                            <option value="pending">Pending</option>
+                            <option value="shortlisted">Shortlisted</option>
+                            <option value="hired">Hired</option>
+                            <option value="rejected">Rejected</option>
+                          </select>
+                        </div>
+                      </div>
                     </div>
                   ))}
                 </div>

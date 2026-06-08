@@ -2,6 +2,8 @@ package repositories
 
 import (
 	"context"
+	"fmt"
+	"strings"
 	"time"
 
 	"chat-app/internal/db"
@@ -191,19 +193,41 @@ type UserSummary struct {
 	Role               string `json:"role"`
 	VerificationStatus string `json:"verificationStatus"`
 	IsVerified         bool   `json:"isVerified"`
+	Followers          int    `json:"followers"`
 }
 
 func ListAllUsers(ctx context.Context, callerID string) ([]UserSummary, error) {
+	return SearchUsers(ctx, callerID, "", "")
+}
+
+// SearchUsers filters by name/username (q) and/or role. Both are optional;
+// passing empty strings returns all users (same as ListAllUsers).
+func SearchUsers(ctx context.Context, callerID, q, role string) ([]UserSummary, error) {
+	args := []any{callerID}
+	where := `id != $1
+	   AND NOT EXISTS (
+	     SELECT 1 FROM blocks b
+	     WHERE (b.blocker_id = $1 AND b.blocked_id = users.id)
+	        OR (b.blocker_id = users.id AND b.blocked_id = $1)
+	   )`
+
+	if q != "" {
+		args = append(args, "%"+strings.ToLower(q)+"%")
+		where += ` AND (LOWER(full_name) LIKE $` + fmt.Sprintf("%d", len(args)) +
+			` OR LOWER(username) LIKE $` + fmt.Sprintf("%d", len(args)) + `)`
+	}
+	if role != "" {
+		args = append(args, strings.ToLower(role))
+		where += ` AND LOWER(role) = $` + fmt.Sprintf("%d", len(args))
+	}
+
 	rows, err := db.Pool.Query(ctx,
-		`SELECT id, full_name, username, COALESCE(avatar_url,''), COALESCE(role,''), verification_status, is_verified
+		`SELECT id, full_name, username, COALESCE(avatar_url,''), COALESCE(role,''),
+		        COALESCE(verification_status,''), is_verified, followers
 		 FROM users
-		 WHERE id != $1
-		   AND NOT EXISTS (
-		     SELECT 1 FROM blocks b
-		     WHERE (b.blocker_id = $1 AND b.blocked_id = users.id)
-		        OR (b.blocker_id = users.id AND b.blocked_id = $1)
-		   )
-		 ORDER BY full_name ASC LIMIT 200`, callerID)
+		 WHERE `+where+`
+		 ORDER BY followers DESC, full_name ASC LIMIT 100`,
+		args...)
 	if err != nil {
 		return nil, err
 	}
@@ -211,7 +235,7 @@ func ListAllUsers(ctx context.Context, callerID string) ([]UserSummary, error) {
 	var users []UserSummary
 	for rows.Next() {
 		var u UserSummary
-		if err := rows.Scan(&u.ID, &u.FullName, &u.Username, &u.AvatarUrl, &u.Role, &u.VerificationStatus, &u.IsVerified); err != nil {
+		if err := rows.Scan(&u.ID, &u.FullName, &u.Username, &u.AvatarUrl, &u.Role, &u.VerificationStatus, &u.IsVerified, &u.Followers); err != nil {
 			return nil, err
 		}
 		users = append(users, u)
@@ -220,6 +244,28 @@ func ListAllUsers(ctx context.Context, callerID string) ([]UserSummary, error) {
 		users = []UserSummary{}
 	}
 	return users, nil
+}
+
+type UserEmailPrefs struct {
+	Email            string
+	FullName         string
+	WantsFollowEmail bool
+	WantsLikeEmail   bool
+}
+
+func GetUserEmailAndPrefs(ctx context.Context, userID string) (UserEmailPrefs, error) {
+	var p UserEmailPrefs
+	var prefs []byte
+	err := db.Pool.QueryRow(ctx,
+		`SELECT email, full_name, email_prefs FROM users WHERE id = $1`, userID,
+	).Scan(&p.Email, &p.FullName, &prefs)
+	if err != nil {
+		return p, err
+	}
+	// Default to true if key is absent
+	p.WantsFollowEmail = !strings.Contains(string(prefs), `"follows":false`)
+	p.WantsLikeEmail = !strings.Contains(string(prefs), `"likes":false`)
+	return p, nil
 }
 
 func PromoteToAdmin(ctx context.Context, email string) (int64, error) {

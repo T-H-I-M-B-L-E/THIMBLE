@@ -12,6 +12,7 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 
 	"chat-app/internal/db"
+	emailPkg "chat-app/internal/email"
 	"chat-app/internal/models"
 	"chat-app/internal/utils"
 )
@@ -302,7 +303,31 @@ func SetLike(ctx context.Context, postId, userId string, liked bool) (int, error
 	if err = tx.Commit(ctx); err != nil {
 		return 0, err
 	}
+	// Fire like email notification asynchronously after successful commit.
+	if liked {
+		go func() {
+			sendLikeEmailIfWanted(ctx, postId, userId)
+		}()
+	}
 	return count, nil
+}
+
+func sendLikeEmailIfWanted(ctx context.Context, postId, likerID string) {
+	// Look up post owner and liker in one query each.
+	var ownerID string
+	if err := db.Pool.QueryRow(ctx, `SELECT user_id FROM posts WHERE id = $1`, postId).Scan(&ownerID); err != nil || ownerID == likerID {
+		return
+	}
+	recipient, err := GetUserEmailAndPrefs(ctx, ownerID)
+	if err != nil || !recipient.WantsLikeEmail {
+		return
+	}
+	var likerName string
+	db.Pool.QueryRow(ctx, `SELECT full_name FROM users WHERE id = $1`, likerID).Scan(&likerName) //nolint:errcheck
+	if likerName == "" {
+		likerName = "Someone"
+	}
+	emailPkg.SendLikeNotification(recipient.Email, recipient.FullName, likerName)
 }
 
 func ListPostComments(ctx context.Context, postId string) ([]models.Comment, error) {

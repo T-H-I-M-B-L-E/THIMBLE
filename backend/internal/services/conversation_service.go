@@ -32,14 +32,27 @@ func ListConversations(ctx context.Context, userId string) []models.Conversation
 }
 
 func CreateConversation(ctx context.Context, userId string, participants []models.ConversationParticipant) (int, *ServiceError) {
+	// For 1-to-1 conversations (the only kind THIMBLE supports) always
+	// get-or-create so the same pair can never produce a second conversation.
+	if len(participants) == 1 {
+		convId, err := repositories.GetOrCreateConversation(ctx, userId, participants[0].UserID)
+		if err != nil {
+			return 0, NewError(500, "db_failed", "failed to get or create conversation")
+		}
+		// Ensure both participants are recorded (idempotent ON CONFLICT DO NOTHING).
+		creatorName, creatorAvatar := repositories.GetUserNameAndAvatarForConv(ctx, userId)
+		repositories.AddParticipant(ctx, convId, userId, creatorName, creatorAvatar)
+		repositories.AddParticipant(ctx, convId, participants[0].UserID, participants[0].UserName, participants[0].UserAvatar)
+		return convId, nil
+	}
+
+	// Group conversations (future): fall back to creating a new one.
 	convId, err := repositories.CreateConversation(ctx)
 	if err != nil {
 		return 0, NewError(500, "db_failed", "failed to create conversation")
 	}
-
 	creatorName, creatorAvatar := repositories.GetUserNameAndAvatarForConv(ctx, userId)
 	repositories.AddParticipant(ctx, convId, userId, creatorName, creatorAvatar)
-
 	seen := map[string]bool{userId: true}
 	for _, p := range participants {
 		if seen[p.UserID] {
@@ -253,6 +266,40 @@ func broadcastToRoomIncludingSender(convId, mt int, payload []byte) {
 	for _, conn := range targets {
 		conn.WriteMessage(mt, payload)
 	}
+}
+
+// BroadcastCallInvite sends a call-invite WS event to every member of the
+// conversation except the caller. The frontend shows an incoming-call banner.
+func BroadcastCallInvite(convID int, callerID, callerName, room, kind string) {
+	payload, _ := json.Marshal(map[string]any{
+		"type":       "call-invite",
+		"callerID":   callerID,
+		"callerName": callerName,
+		"room":       room,
+		"kind":       kind,
+	})
+	clientsMu.RLock()
+	targets := make([]*websocket.Conn, 0)
+	for conn, uid := range rooms[convID] {
+		if uid != callerID {
+			targets = append(targets, conn)
+		}
+	}
+	clientsMu.RUnlock()
+	for _, conn := range targets {
+		conn.WriteMessage(websocket.TextMessage, payload)
+	}
+}
+
+// BroadcastCallEnd notifies the WS room that the call is over so both
+// sides can close the LiveKit modal.
+func BroadcastCallEnd(convID int, senderID, room string) {
+	payload, _ := json.Marshal(map[string]any{
+		"type":     "call-end",
+		"senderID": senderID,
+		"room":     room,
+	})
+	broadcastToRoomIncludingSender(convID, websocket.TextMessage, payload)
 }
 
 // Admin chat: a separate single-room model used by the admin team. No

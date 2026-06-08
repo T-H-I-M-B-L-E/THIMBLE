@@ -1,8 +1,11 @@
 "use client"
 
 import { DashboardLayout } from "@/components/dashboard-layout"
-import { Search, Send, ArrowLeft, User, UserPlus, X, ShieldAlert, Lock, Paperclip, ImageIcon, Trash2, Check, CheckCheck, MoreVertical, UserX } from "lucide-react"
-import { useState, useRef, useEffect, useMemo } from "react"
+import { HowTo } from "@/components/how-to"
+import { Search, Send, ArrowLeft, User, UserPlus, X, ShieldAlert, Lock, Paperclip, ImageIcon, Trash2, Check, CheckCheck, MoreVertical, UserX, Video, Phone } from "lucide-react"
+import { useState, useRef, useEffect, useMemo, useCallback } from "react"
+import { useSearchParams } from "next/navigation"
+import { uploadFile } from "@/lib/upload"
 import { createPortal } from "react-dom"
 import { useRouter } from "next/navigation"
 import { useNotify } from "@/components/notify-provider"
@@ -12,6 +15,7 @@ import { useFollowing } from "@/hooks/use-social"
 import { useStore } from "@/lib/store"
 import { cn } from "@/lib/utils"
 import Image from "next/image"
+import { CallModal, IncomingCallBanner, type CallSession } from "@/components/call-modal"
 
 function Avatar({ src, name, size = 40 }: { src?: string; name?: string; size?: number }) {
   return (
@@ -254,6 +258,7 @@ function NewMessageModal({
 
 export default function MessagesPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const notify = useNotify()
   const { user } = useStore()
   const [selectedId, setSelectedId] = useState<number | null>(null)
@@ -261,11 +266,20 @@ export default function MessagesPage() {
   const [search, setSearch] = useState("")
   const [showNewMsg, setShowNewMsg] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+  const [uploadingImage, setUploadingImage] = useState(false)
   const scrollRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const menuRef = useRef<HTMLDivElement>(null)
   const menuBtnRef = useRef<HTMLButtonElement>(null)
+  const imageInputRef = useRef<HTMLInputElement>(null)
   const [menuAnchor, setMenuAnchor] = useState<{ top: number; right: number } | null>(null)
+
+  // ── Calling state ─────────────────────────────────────────────────────────
+  const [activeCall, setActiveCall] = useState<CallSession | null>(null)
+  const [incomingCall, setIncomingCall] = useState<{
+    callerID: string; callerName: string; room: string; kind: "video" | "audio"
+  } | null>(null)
 
   const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL || "https://thimble-production.up.railway.app"
   const websocketUrl = apiBase.replace(/^http/, "ws") + "/ws"
@@ -274,6 +288,19 @@ export default function MessagesPage() {
   const { conversations, setConversations, isLoading: loadingConvs, createConversation, refresh } = useConversations(user?.id)
   const selectedConv = conversations.find(c => c.id === selectedId)
   const { messages: apiMessages, isLoading: loadingMsgs, setMessages: setApiMessages } = useMessages(selectedId, user?.id)
+
+  // Auto-open a conversation when ?conv=<id> is in the URL (e.g. from profile Message button or gig applicant redirect)
+  useEffect(() => {
+    if (loadingConvs) return
+    const convParam = searchParams.get("conv")
+    if (!convParam) return
+    const id = parseInt(convParam, 10)
+    if (!isNaN(id)) setSelectedId(id)
+    // Remove the param from the URL without a full navigation so the back button works cleanly
+    const url = new URL(window.location.href)
+    url.searchParams.delete("conv")
+    window.history.replaceState(null, "", url.toString())
+  }, [loadingConvs, searchParams])
 
   // Apply receipt updates to historical (REST-loaded) messages too, not
   // just to the live wsMessages buffer.
@@ -290,8 +317,63 @@ export default function MessagesPage() {
     }))
   }
 
+  const handleCallInvite = useCallback((ev: { callerID: string; callerName: string; room: string; kind: "video" | "audio" }) => {
+    if (!activeCall) setIncomingCall(ev)
+  }, [activeCall])
+
+  const handleCallEnd = useCallback(() => {
+    setActiveCall(null)
+    setIncomingCall(null)
+  }, [])
+
+  const startCall = useCallback(async (kind: "video" | "audio") => {
+    if (!selectedId) return
+    try {
+      const res = await fetch(`${apiBase}/api/conversations/${selectedId}/call`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ kind }),
+      })
+      if (!res.ok) { notify.error("Calling not available right now"); return }
+      const session = await res.json() as { room: string; token: string; lkUrl: string; kind: "video" | "audio" }
+      setActiveCall(session)
+    } catch {
+      notify.error("Failed to start call")
+    }
+  }, [selectedId, apiBase, notify])
+
+  const acceptCall = useCallback(async () => {
+    if (!incomingCall || !selectedId) return
+    try {
+      const res = await fetch(`${apiBase}/api/conversations/${selectedId}/call/join`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ room: incomingCall.room }),
+      })
+      if (!res.ok) { notify.error("Could not join call"); return }
+      const { token, lkUrl } = await res.json() as { token: string; lkUrl: string }
+      setActiveCall({ room: incomingCall.room, token, lkUrl, kind: incomingCall.kind })
+      setIncomingCall(null)
+    } catch {
+      notify.error("Failed to join call")
+    }
+  }, [incomingCall, selectedId, apiBase, notify])
+
+  const endCall = useCallback(async () => {
+    if (!activeCall || !selectedId) return
+    setActiveCall(null)
+    await fetch(`${apiBase}/api/conversations/${selectedId}/call`, {
+      method: "DELETE",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ room: activeCall.room }),
+    }).catch(() => null)
+  }, [activeCall, selectedId, apiBase])
+
   const { messages: wsMessages, sendMessage, isConnected, typingUsers, handleTyping, sendReadReceipt } = useSocket(
-    websocketUrl, selectedId, user, handleReceipt,
+    websocketUrl, selectedId, user, handleReceipt, handleCallInvite, handleCallEnd,
   )
 
   // Locally hidden messages — delete-for-me has fired but the backend
@@ -474,6 +556,20 @@ export default function MessagesPage() {
     setInput("")
   }
 
+  const handleImageUpload = useCallback(async (file: File) => {
+    if (!isConnected || !isVerified) return
+    setUploadingImage(true)
+    try {
+      const url = await uploadFile(file, undefined, "posts")
+      sendMessage("", url)
+    } catch {
+      notify.error("Image upload failed")
+    } finally {
+      setUploadingImage(false)
+      if (imageInputRef.current) imageInputRef.current.value = ""
+    }
+  }, [isConnected, isVerified, sendMessage, notify])
+
   const other = getOther(selectedConv)
   const isTyping = other && typingUsers.has(other.userId)
 
@@ -495,42 +591,73 @@ export default function MessagesPage() {
   }, [other?.userId, user?.id])
 
   return (
+    <>
+    <HowTo
+      id="messages"
+      steps={[
+        { icon: "💬", title: "Start a conversation", body: "Click the compose icon to message any connection. You can only message people who follow you back." },
+        { icon: "🖼️", title: "Send images & files", body: "Tap the image icon in the chat bar to share a photo or file — up to 10 MB per upload." },
+        { icon: "📞", title: "Voice & video calls", body: "Open a conversation and tap the phone or camera icon to start a live call — no app needed." },
+      ]}
+    />
     <DashboardLayout fullBleed>
-      <div className="t-messages">
+      <div className={cn("t-messages", sidebarCollapsed && "t-messages--collapsed", selectedId && "t-messages--chat-open")}>
 
         {/* ── Sidebar ── */}
         <div className={cn("t-msg-list", selectedId ? "t-msg-list--hidden-mobile" : "")}>
           <div className="t-msg-list-head">
             <div className="t-msg-list-title-row">
-              <span className="t-msg-list-title">Messages</span>
+              {!sidebarCollapsed && <span className="t-msg-list-title">Messages</span>}
               <div className="t-conn-pill">
                 <span className={cn("t-conn-dot", isConnected && "live")} />
-                {isConnected ? "live" : "offline"}
+                {!sidebarCollapsed && (isConnected ? "live" : "offline")}
               </div>
+              {/* Collapse toggle — desktop only */}
+              <button
+                type="button"
+                className="t-sidebar-toggle"
+                onClick={() => setSidebarCollapsed(v => !v)}
+                aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+                title={sidebarCollapsed ? "Expand" : "Collapse"}
+              >
+                {sidebarCollapsed ? <ArrowLeft size={15} style={{ transform: "rotate(180deg)" }} /> : <ArrowLeft size={15} />}
+              </button>
             </div>
 
-            <div className="t-msg-search">
-              <Search size={14} />
-              <input
-                value={search}
-                onChange={e => setSearch(e.target.value)}
-                placeholder="Search chats…"
-              />
-            </div>
-
-            {/* Primary action — start a new message. Sits right above
-                the conversation list so it's the first thing the eye
-                hits after the search. */}
-            <button
-              type="button"
-              className="t-msg-new-btn"
-              onClick={() => setShowNewMsg(true)}
-              disabled={!isVerified}
-              title={isVerified ? "Start a new message" : "Verification required"}
-            >
-              <UserPlus size={15} />
-              <span>New message</span>
-            </button>
+            {!sidebarCollapsed && (
+              <>
+                <div className="t-msg-search">
+                  <Search size={14} />
+                  <input
+                    value={search}
+                    onChange={e => setSearch(e.target.value)}
+                    placeholder="Search chats…"
+                  />
+                </div>
+                <button
+                  type="button"
+                  className="t-msg-new-btn"
+                  onClick={() => setShowNewMsg(true)}
+                  disabled={!isVerified}
+                  title={isVerified ? "Start a new message" : "Verification required"}
+                >
+                  <UserPlus size={15} />
+                  <span>New message</span>
+                </button>
+              </>
+            )}
+            {sidebarCollapsed && (
+              <button
+                type="button"
+                className="t-icon-btn-sm"
+                onClick={() => setShowNewMsg(true)}
+                disabled={!isVerified}
+                title="New message"
+                style={{ margin: "4px auto 0" }}
+              >
+                <UserPlus size={15} />
+              </button>
+            )}
           </div>
 
           <div className="t-msg-list-scroll">
@@ -557,11 +684,12 @@ export default function MessagesPage() {
                 return (
                   <button
                     key={conv.id}
-                    className={cn("t-thread", conv.id === selectedId && "active")}
+                    className={cn("t-thread", conv.id === selectedId && "active", sidebarCollapsed && "t-thread--collapsed")}
                     onClick={() => setSelectedId(conv.id)}
+                    title={sidebarCollapsed ? (o?.userName || "Unknown") : undefined}
                   >
-                    <Avatar src={o?.userAvatar} name={o?.userName} size={42} />
-                    <div className="t-thread-meta">
+                    <Avatar src={o?.userAvatar} name={o?.userName} size={sidebarCollapsed ? 36 : 42} />
+                    {!sidebarCollapsed && <div className="t-thread-meta">
                       <div className="t-thread-top">
                         <span className="t-thread-name">{o?.userName || "Unknown"}</span>
                         <span className="t-thread-time">
@@ -573,7 +701,7 @@ export default function MessagesPage() {
                           <span className="t-thread-preview-empty">No messages yet</span>
                         )}
                       </p>
-                    </div>
+                    </div>}
                   </button>
                 )
               })
@@ -590,13 +718,13 @@ export default function MessagesPage() {
                 <button
                   className="t-icon-btn-sm t-msg-back-btn"
                   onClick={() => setSelectedId(null)}
-                  style={{ border: "none", background: "none", marginLeft: -4 }}
+                  style={{ marginLeft: -4 }}
                   aria-label="Back to conversations"
                 >
                   <ArrowLeft size={20} />
                 </button>
                 <Avatar src={other?.userAvatar} name={other?.userName} size={36} />
-                <div style={{ flex: 1, minWidth: 0 }}>
+                <div className="t-msg-pane-identity">
                   <p className="t-msg-pane-name">
                     {other?.userName || "Unknown"}
                     {otherFollowsMe === false && (
@@ -612,6 +740,30 @@ export default function MessagesPage() {
                     {isTyping ? "typing…" : isConnected ? "online" : "offline"}
                   </p>
                 </div>
+
+                {/* Call buttons */}
+                {isVerified && (
+                  <div className="t-msg-call-btns">
+                    <button
+                      type="button"
+                      className="t-icon-btn-sm"
+                      onClick={() => void startCall("audio")}
+                      aria-label="Audio call"
+                      title="Audio call"
+                    >
+                      <Phone size={16} />
+                    </button>
+                    <button
+                      type="button"
+                      className="t-icon-btn-sm"
+                      onClick={() => void startCall("video")}
+                      aria-label="Video call"
+                      title="Video call"
+                    >
+                      <Video size={16} />
+                    </button>
+                  </div>
+                )}
 
                 {/* 3-dot menu: view profile / block / delete chat */}
                 <div className="t-msg-menu">
@@ -683,8 +835,14 @@ export default function MessagesPage() {
                             <span className="t-msg-sender">{msg.name}</span>
                           )}
                           <div className="t-bubble-wrap">
-                            <div className={cn("t-bubble", isMe ? "me" : "them")}>
-                              {msg.content}
+                            <div className={cn("t-bubble", isMe ? "me" : "them", msg.imageUrl ? "image" : "")}>
+                              {msg.imageUrl && (
+                                <a href={msg.imageUrl} target="_blank" rel="noopener noreferrer">
+                                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                                  <img src={msg.imageUrl} alt="image" className="t-bubble-img" />
+                                </a>
+                              )}
+                              {msg.content && <span>{msg.content}</span>}
                             </div>
                             {isMe && msg.id != null && (
                               <button
@@ -772,11 +930,34 @@ export default function MessagesPage() {
                   </div>
                 ) : (
                   <>
-                    <button className="t-icon-btn-sm" style={{ border: "none", background: "none", color: "var(--t-ink-3)" }} title="Attach file">
-                      <Paperclip size={18} />
+                    <input
+                      ref={imageInputRef}
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp,image/gif,image/heic,image/heif"
+                      style={{ display: "none" }}
+                      onChange={e => {
+                        const file = e.target.files?.[0]
+                        if (file) void handleImageUpload(file)
+                      }}
+                    />
+                    <button
+                      type="button"
+                      className="t-icon-btn-sm"
+                      style={{ border: "none", background: "none", color: uploadingImage ? "var(--t-gold)" : "var(--t-ink-3)" }}
+                      title="Send image"
+                      disabled={uploadingImage}
+                      onClick={() => imageInputRef.current?.click()}
+                    >
+                      {uploadingImage ? <div style={{ width: 18, height: 18, borderRadius: "50%", border: "2px solid var(--t-gold)", borderTopColor: "transparent", animation: "spin 0.7s linear infinite" }} /> : <ImageIcon size={18} />}
                     </button>
-                    <button className="t-icon-btn-sm" style={{ border: "none", background: "none", color: "var(--t-ink-3)" }} title="Send image">
-                      <ImageIcon size={18} />
+                    <button
+                      type="button"
+                      className="t-icon-btn-sm"
+                      style={{ border: "none", background: "none", color: "var(--t-ink-3)" }}
+                      title="Attach file"
+                      onClick={() => imageInputRef.current?.click()}
+                    >
+                      <Paperclip size={18} />
                     </button>
                     <form onSubmit={e => { e.preventDefault(); handleSend() }} style={{ flex: 1, display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
                       <input
@@ -869,5 +1050,23 @@ export default function MessagesPage() {
         document.body
       )}
     </DashboardLayout>
+
+    {/* Active call modal */}
+    {activeCall && (
+      <CallModal session={activeCall} onEnd={() => void endCall()} />
+    )}
+
+    {/* Incoming call banner */}
+    {incomingCall && !activeCall && (
+      <div className="t-call-incoming-wrap">
+        <IncomingCallBanner
+          callerName={incomingCall.callerName}
+          kind={incomingCall.kind}
+          onAccept={() => void acceptCall()}
+          onDecline={() => setIncomingCall(null)}
+        />
+      </div>
+    )}
+    </>
   )
 }

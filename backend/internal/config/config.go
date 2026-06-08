@@ -7,12 +7,15 @@ import (
 
 // Config holds environment-derived settings loaded once at startup.
 type Config struct {
-	JWTSecret      string
-	ResendKey      string
-	DatabaseURL    string
-	AllowedOrigins string
-	Port           string
-	Environment    string
+	JWTSecret        string
+	ResendKey        string
+	DatabaseURL      string
+	AllowedOrigins   string
+	Port             string
+	Environment      string
+	LiveKitURL       string
+	LiveKitAPIKey    string
+	LiveKitAPISecret string
 }
 
 var current Config
@@ -43,12 +46,15 @@ func Load() Config {
 	}
 
 	current = Config{
-		JWTSecret:      jwt,
-		ResendKey:      resend,
-		DatabaseURL:    dbURL,
-		AllowedOrigins: origins,
-		Port:           port,
-		Environment:    os.Getenv("ENVIRONMENT"),
+		JWTSecret:        jwt,
+		ResendKey:        resend,
+		DatabaseURL:      dbURL,
+		AllowedOrigins:   origins,
+		Port:             port,
+		Environment:      os.Getenv("ENVIRONMENT"),
+		LiveKitURL:       os.Getenv("LIVEKIT_URL"),
+		LiveKitAPIKey:    os.Getenv("LIVEKIT_API_KEY"),
+		LiveKitAPISecret: os.Getenv("LIVEKIT_API_SECRET"),
 	}
 	return current
 }

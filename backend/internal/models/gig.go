@@ -26,4 +26,5 @@ type GigApplicant struct {
 	Avatar    string    `json:"avatar"`
 	Role      string    `json:"role"`
 	AppliedAt time.Time `json:"appliedAt"`
+	Status    string    `json:"status"`
 }

@@ -37,6 +37,7 @@ type ConvMessage struct {
 	UserID         string `json:"userId"`
 	Name           string `json:"name"`
 	Content        string `json:"content"`
+	ImageUrl       string `json:"imageUrl,omitempty"`
 	Timestamp      int64  `json:"timestamp"`
 	// Receipt timestamps (ms epoch). Nil when not yet delivered/read.
 	DeliveredAt    *int64 `json:"deliveredAt,omitempty"`

@@ -6,14 +6,16 @@ import { useAuth } from "@/lib/useAuth"
 import { useNotify } from "@/components/notify-provider"
 import { DashboardLayout } from "@/components/dashboard-layout"
 import { EditProfileModal } from "@/components/edit-profile-modal"
-import { User, Lock, Bell, Shield, AlertTriangle } from "lucide-react"
+import { User, Lock, Bell, Shield, AlertTriangle, Palette } from "lucide-react"
+import { useTheme, type Theme } from "@/lib/theme-context"
 
-type Section = "profile" | "account" | "notifications" | "privacy" | "danger"
+type Section = "profile" | "account" | "notifications" | "appearance" | "privacy" | "danger"
 
 const SECTIONS: { id: Section; label: string; icon: typeof User }[] = [
   { id: "profile", label: "Profile", icon: User },
   { id: "account", label: "Account", icon: Lock },
   { id: "notifications", label: "Notifications", icon: Bell },
+  { id: "appearance", label: "Appearance", icon: Palette },
   { id: "privacy", label: "Privacy", icon: Shield },
   { id: "danger", label: "Danger zone", icon: AlertTriangle },
 ]
@@ -59,6 +61,7 @@ export default function SettingsPage() {
             )}
             {active === "account" && <AccountSection user={user} />}
             {active === "notifications" && <NotificationsSection />}
+            {active === "appearance" && <AppearanceSection />}
             {active === "privacy" && <PrivacySection />}
             {active === "danger" && <DangerSection onLoggedOut={() => { void logout(); router.push("/auth") }} />}
           </div>
@@ -338,6 +341,49 @@ function NotificationsSection() {
           ))}
         </div>
       )}
+    </Card>
+  )
+}
+
+function AppearanceSection() {
+  const { theme, setTheme } = useTheme()
+
+  const options: { value: Theme; label: string; desc: string }[] = [
+    { value: "light", label: "Light", desc: "Clean white glass — the default THIMBLE look." },
+    { value: "dark",  label: "Dark",  desc: "Dark surfaces with the same glass aesthetic." },
+    { value: "system", label: "System", desc: "Follows your device's system preference." },
+  ]
+
+  return (
+    <Card title="Appearance" description="Choose how THIMBLE looks to you.">
+      <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 16 }}>
+        {options.map(opt => (
+          <button
+            key={opt.value}
+            onClick={() => setTheme(opt.value)}
+            style={{
+              display: "flex", alignItems: "center", gap: 14,
+              padding: "14px 16px", borderRadius: 12, cursor: "pointer",
+              border: theme === opt.value ? "2px solid var(--t-ink)" : "1px solid var(--t-line)",
+              background: theme === opt.value ? "var(--t-gold-soft)" : "var(--t-surface-2)",
+              textAlign: "left", width: "100%",
+            }}
+          >
+            <div style={{
+              width: 18, height: 18, borderRadius: "50%", flexShrink: 0,
+              border: "2px solid var(--t-ink)",
+              background: theme === opt.value ? "var(--t-ink)" : "transparent",
+              display: "flex", alignItems: "center", justifyContent: "center",
+            }}>
+              {theme === opt.value && <div style={{ width: 7, height: 7, borderRadius: "50%", background: "var(--t-surface)" }} />}
+            </div>
+            <div>
+              <p style={{ fontSize: 14, fontWeight: 600, color: "var(--t-ink)", margin: 0 }}>{opt.label}</p>
+              <p style={{ fontSize: 12, color: "var(--t-ink-3)", margin: "2px 0 0" }}>{opt.desc}</p>
+            </div>
+          </button>
+        ))}
+      </div>
     </Card>
   )
 }

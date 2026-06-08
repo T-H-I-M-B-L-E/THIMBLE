@@ -82,15 +82,55 @@ func listParticipants(ctx context.Context, conversationID int) ([]models.Convers
 func lastMessage(ctx context.Context, conversationID int) (models.ConvMessage, bool) {
 	var lm models.ConvMessage
 	err := db.Pool.QueryRow(ctx,
-		"SELECT id, conversation_id, user_id, name, content, timestamp FROM conversation_messages WHERE conversation_id = $1 ORDER BY id DESC LIMIT 1", conversationID).
-		Scan(&lm.ID, &lm.ConversationID, &lm.UserID, &lm.Name, &lm.Content, &lm.Timestamp)
+		"SELECT id, conversation_id, user_id, name, content, image_url, timestamp FROM conversation_messages WHERE conversation_id = $1 ORDER BY id DESC LIMIT 1", conversationID).
+		Scan(&lm.ID, &lm.ConversationID, &lm.UserID, &lm.Name, &lm.Content, &lm.ImageUrl, &lm.Timestamp)
 	return lm, err == nil
 }
 
 func CreateConversation(ctx context.Context) (int, error) {
 	var convId int
-	err := db.Pool.QueryRow(ctx, "INSERT INTO conversations DEFAULT VALUES RETURNING id").Scan(&convId)
+	err := db.Pool.QueryRow(ctx, "INSERT INTO conversations (user_one, user_two) VALUES (NULL, NULL) RETURNING id").Scan(&convId)
 	return convId, err
+}
+
+// GetOrCreateConversation returns the existing 1-to-1 conversation between
+// the two users, creating one if it doesn't exist. Safe to call concurrently
+// — the unique index on (LEAST, GREATEST) prevents duplicates at the DB level.
+func GetOrCreateConversation(ctx context.Context, userA, userB string) (int, error) {
+	// Check for existing conversation between this exact pair.
+	var existing int
+	err := db.Pool.QueryRow(ctx, `
+		SELECT a.conversation_id
+		FROM conversation_participants a
+		JOIN conversation_participants b
+		  ON b.conversation_id = a.conversation_id AND b.user_id = $2
+		WHERE a.user_id = $1
+		LIMIT 1`, userA, userB).Scan(&existing)
+	if err == nil {
+		return existing, nil
+	}
+
+	// None found — create one and stamp user_one/user_two for the unique index.
+	var convId int
+	err = db.Pool.QueryRow(ctx, `
+		INSERT INTO conversations (user_one, user_two)
+		VALUES (LEAST($1,$2), GREATEST($1,$2))
+		ON CONFLICT DO NOTHING
+		RETURNING id`, userA, userB).Scan(&convId)
+	if err != nil || convId == 0 {
+		// Race: another request created it between our check and insert.
+		err2 := db.Pool.QueryRow(ctx, `
+			SELECT a.conversation_id
+			FROM conversation_participants a
+			JOIN conversation_participants b
+			  ON b.conversation_id = a.conversation_id AND b.user_id = $2
+			WHERE a.user_id = $1
+			LIMIT 1`, userA, userB).Scan(&convId)
+		if err2 != nil {
+			return 0, err2
+		}
+	}
+	return convId, nil
 }
 
 func AddParticipant(ctx context.Context, convId int, userId, userName, userAvatar string) {
@@ -111,7 +151,7 @@ func GetUserNameAndAvatarForConv(ctx context.Context, userId string) (name, avat
 // Receipt timestamps are returned as nullable ms-epoch values.
 func GetConversationMessages(ctx context.Context, convId, callerID string) ([]models.ConvMessage, error) {
 	rows, err := db.Pool.Query(ctx, `
-		SELECT id, conversation_id, user_id, name, content, timestamp,
+		SELECT id, conversation_id, user_id, name, content, image_url, timestamp,
 		       delivered_at, read_at
 		FROM conversation_messages
 		WHERE conversation_id = $1
@@ -125,7 +165,7 @@ func GetConversationMessages(ctx context.Context, convId, callerID string) ([]mo
 	for rows.Next() {
 		var m models.ConvMessage
 		var delivered, read *time.Time
-		if err := rows.Scan(&m.ID, &m.ConversationID, &m.UserID, &m.Name, &m.Content, &m.Timestamp, &delivered, &read); err != nil {
+		if err := rows.Scan(&m.ID, &m.ConversationID, &m.UserID, &m.Name, &m.Content, &m.ImageUrl, &m.Timestamp, &delivered, &read); err != nil {
 			return nil, err
 		}
 		if delivered != nil {
@@ -242,8 +282,8 @@ func RestoreMessageForUser(ctx context.Context, msgID, userID string) error {
 // It also bumps conversations.updated_at so the conversation list re-sorts.
 func InsertConvMessage(ctx context.Context, m *models.ConvMessage) error {
 	if err := db.Pool.QueryRow(ctx,
-		"INSERT INTO conversation_messages (conversation_id, user_id, name, content, timestamp) VALUES ($1, $2, $3, $4, $5) RETURNING id",
-		m.ConversationID, m.UserID, m.Name, m.Content, m.Timestamp).Scan(&m.ID); err != nil {
+		"INSERT INTO conversation_messages (conversation_id, user_id, name, content, image_url, timestamp) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id",
+		m.ConversationID, m.UserID, m.Name, m.Content, m.ImageUrl, m.Timestamp).Scan(&m.ID); err != nil {
 		return err
 	}
 	db.Pool.Exec(ctx, "UPDATE conversations SET updated_at = NOW() WHERE id = $1", m.ConversationID)
@@ -280,4 +320,31 @@ func InsertAdminMessage(ctx context.Context, userId, userName, content string, t
 		"INSERT INTO admin_chat_messages (user_id, user_name, content, timestamp) VALUES ($1, $2, $3, $4) RETURNING id",
 		userId, userName, content, ts).Scan(&id)
 	return id, err
+}
+
+// GetConversationParticipantIDs returns the user_id of every participant.
+func GetConversationParticipantIDs(ctx context.Context, convID int) ([]string, error) {
+	rows, err := db.Pool.Query(ctx,
+		"SELECT user_id FROM conversation_participants WHERE conversation_id = $1", convID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var ids []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		ids = append(ids, id)
+	}
+	return ids, rows.Err()
+}
+
+// GetUserNameByID returns the full_name for a given user id.
+func GetUserNameByID(ctx context.Context, userID string) (string, error) {
+	var name string
+	err := db.Pool.QueryRow(ctx,
+		"SELECT full_name FROM users WHERE id = $1", userID).Scan(&name)
+	return name, err
 }

@@ -104,9 +104,13 @@ func SuggestUsers(ctx context.Context, userId string) ([]repositories.SuggestedU
 }
 
 func ListAllUsers(ctx context.Context, callerID string) ([]repositories.UserSummary, *ServiceError) {
-	users, err := repositories.ListAllUsers(ctx, callerID)
+	return SearchUsers(ctx, callerID, "", "")
+}
+
+func SearchUsers(ctx context.Context, callerID, q, role string) ([]repositories.UserSummary, *ServiceError) {
+	users, err := repositories.SearchUsers(ctx, callerID, q, role)
 	if err != nil {
-		return nil, NewError(500, "db_failed", "failed to fetch users")
+		return nil, NewError(500, "db_failed", "failed to search users")
 	}
 	return users, nil
 }
