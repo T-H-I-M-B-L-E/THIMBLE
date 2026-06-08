@@ -329,9 +329,8 @@ export default function MessagesPage() {
   const startCall = useCallback(async (kind: "video" | "audio") => {
     if (!selectedId) return
     try {
-      const res = await fetch(`${apiBase}/api/conversations/${selectedId}/call`, {
+      const res = await fetch(`/api/conversations/${selectedId}/call`, {
         method: "POST",
-        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ kind }),
       })
@@ -346,9 +345,8 @@ export default function MessagesPage() {
   const acceptCall = useCallback(async () => {
     if (!incomingCall || !selectedId) return
     try {
-      const res = await fetch(`${apiBase}/api/conversations/${selectedId}/call/join`, {
+      const res = await fetch(`/api/conversations/${selectedId}/call/join`, {
         method: "POST",
-        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ room: incomingCall.room }),
       })
@@ -364,9 +362,8 @@ export default function MessagesPage() {
   const endCall = useCallback(async () => {
     if (!activeCall || !selectedId) return
     setActiveCall(null)
-    await fetch(`${apiBase}/api/conversations/${selectedId}/call`, {
+    await fetch(`/api/conversations/${selectedId}/call`, {
       method: "DELETE",
-      credentials: "include",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ room: activeCall.room }),
     }).catch(() => null)
