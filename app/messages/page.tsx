@@ -336,7 +336,8 @@ export default function MessagesPage() {
       })
       if (!res.ok) { notify.error("Calling not available right now"); return }
       const session = await res.json() as { room: string; token: string; lkUrl: string; kind: "video" | "audio" }
-      setActiveCall({ ...session, otherName: selectedConv?.other?.userName, otherAvatar: selectedConv?.other?.userAvatar })
+      const otherParticipant = selectedConv?.participants.find(p => p.userId !== user?.id)
+      setActiveCall({ ...session, otherName: otherParticipant?.userName, otherAvatar: otherParticipant?.userAvatar })
     } catch {
       notify.error("Failed to start call")
     }

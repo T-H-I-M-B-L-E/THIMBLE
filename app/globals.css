@@ -3219,199 +3219,275 @@ aside.fixed.right-0 { display: none !important; }
 }
 
 /* Full-screen overlay behind the LiveKit room */
-/* ── Call overlay ───────────────────────────────────────────── */
-.t-call-overlay {
+/* ════════════════════════════════════════════════════════════
+   CALL SCREEN
+   ════════════════════════════════════════════════════════════ */
+
+/* Root wrapper — covers everything */
+.t-call-screen {
   position: fixed; inset: 0; z-index: 9000;
-  background: #0a0a0f;
-  display: flex; align-items: stretch; justify-content: stretch;
-}
-
-/* LiveKit room fills entire overlay for video */
-.t-call-lk-room {
-  width: 100%; height: 100%;
+  background: #0d0d12;
   display: flex; flex-direction: column;
 }
 
-.t-call-video-wrap {
-  flex: 1; min-height: 0;
-  display: flex; flex-direction: column;
+/* ── Shared: floating colour blobs ─────────────────────────── */
+.t-call-backdrop {
+  position: absolute; inset: 0; overflow: hidden; pointer-events: none;
 }
-.t-call-video-wrap > * { flex: 1; min-height: 0; }
-
-/* ── Audio call view ─────────────────────────────────────────── */
-.t-call-audio {
-  flex: 1;
-  position: relative;
-  display: flex; align-items: center; justify-content: center;
-  overflow: hidden;
-}
-
-/* Blurred colour blobs in background */
-.t-call-bg { position: absolute; inset: 0; pointer-events: none; }
 .t-call-blob {
-  position: absolute;
+  position: absolute; border-radius: 50%;
+  filter: blur(90px); opacity: 0.3;
+}
+.t-call-blob--a {
+  width: min(60vw, 360px); height: min(60vw, 360px);
+  background: #b8892a;
+  top: -15%; left: -10%;
+  animation: t-blob 9s ease-in-out infinite alternate;
+}
+.t-call-blob--b {
+  width: min(50vw, 300px); height: min(50vw, 300px);
+  background: #5c3fc4;
+  bottom: -10%; right: -8%;
+  animation: t-blob 12s ease-in-out infinite alternate-reverse;
+}
+@keyframes t-blob {
+  from { transform: translate(0,0) scale(1); }
+  to   { transform: translate(24px,18px) scale(1.1); }
+}
+
+/* ── Shared: avatar circle ─────────────────────────────────── */
+.t-call-av {
   border-radius: 50%;
-  filter: blur(80px);
-  opacity: 0.35;
-}
-.t-call-blob--1 {
-  width: 340px; height: 340px;
-  background: var(--t-gold, #b8892a);
-  top: -80px; left: -80px;
-  animation: t-blob-drift 8s ease-in-out infinite alternate;
-}
-.t-call-blob--2 {
-  width: 280px; height: 280px;
-  background: #6e40c9;
-  bottom: -60px; right: -60px;
-  animation: t-blob-drift 10s ease-in-out infinite alternate-reverse;
-}
-@keyframes t-blob-drift {
-  from { transform: translate(0, 0) scale(1); }
-  to   { transform: translate(30px, 20px) scale(1.08); }
-}
-
-.t-call-audio-body {
-  position: relative; z-index: 1;
-  display: flex; flex-direction: column; align-items: center;
-  gap: 24px; padding: 32px 24px;
-}
-
-/* Avatar + pulse ring */
-.t-call-avatar-wrap {
-  position: relative;
-  width: 120px; height: 120px;
-  display: flex; align-items: center; justify-content: center;
-}
-
-.t-call-pulse {
-  position: absolute; inset: -12px;
-  border-radius: 50%;
-  border: 2px solid var(--t-gold, #b8892a);
-  opacity: 0.5;
-  animation: t-call-pulse 2s ease-in-out infinite;
-}
-@keyframes t-call-pulse {
-  0%, 100% { transform: scale(1); opacity: 0.5; }
-  50%       { transform: scale(1.12); opacity: 0.15; }
-}
-
-.t-call-avatar {
-  width: 120px; height: 120px; border-radius: 50%;
   background: rgba(255,255,255,0.1);
-  border: 3px solid rgba(255,255,255,0.15);
+  border: 3px solid rgba(255,255,255,0.18);
   display: flex; align-items: center; justify-content: center;
-  overflow: hidden; color: #fff;
-  font-size: 36px; font-weight: 700; letter-spacing: -0.01em;
+  overflow: hidden; color: #fff; font-weight: 700;
+  flex-shrink: 0;
 }
-.t-call-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.t-call-av img { width: 100%; height: 100%; object-fit: cover; }
 
-.t-call-audio-meta { text-align: center; }
-.t-call-name {
-  font-size: 24px; font-weight: 700; color: #fff;
-  margin: 0 0 6px; letter-spacing: -0.02em;
+/* ── Shared: header ────────────────────────────────────────── */
+.t-call-header {
+  position: relative; z-index: 2;
+  display: flex; flex-direction: column; align-items: center;
+  padding: clamp(40px, 8vh, 72px) 24px 0;
+  gap: 6px;
 }
-.t-call-status {
-  font-size: 13px; color: rgba(255,255,255,0.5);
-  margin: 0; letter-spacing: 0.02em;
+.t-call-header-name {
+  font-size: clamp(20px, 5vw, 26px);
+  font-weight: 700; color: #fff; letter-spacing: -0.02em;
+  text-align: center;
+}
+.t-call-header-state {
+  font-size: 13px; letter-spacing: 0.04em; font-weight: 500;
+  text-align: center;
+}
+.t-call-header-state--connecting { color: rgba(255,255,255,0.45); }
+.t-call-header-state--ringing    { color: #facc15; }
+.t-call-header-state--connected  { color: #4ade80; }
+.t-call-header-state--ended      { color: rgba(255,255,255,0.4); }
+
+/* ── Shared: bottom control bar ────────────────────────────── */
+.t-call-bar {
+  position: relative; z-index: 2;
+  display: flex; align-items: flex-end; justify-content: center;
+  gap: clamp(20px, 6vw, 48px);
+  padding: 24px 24px clamp(32px, 6vh, 64px);
+  background: linear-gradient(to top, rgba(0,0,0,0.6) 0%, transparent 100%);
+}
+.t-call-bar--video {
+  position: absolute; bottom: 0; left: 0; right: 0;
 }
 
-/* Controls row */
-.t-call-controls {
-  display: flex; align-items: flex-start; justify-content: center;
-  gap: 32px; margin-top: 16px;
-}
-.t-call-ctrl-group {
+.t-call-ctrl-wrap {
   display: flex; flex-direction: column; align-items: center; gap: 8px;
 }
 .t-call-ctrl {
-  width: 64px; height: 64px; border-radius: 50%; border: none; cursor: pointer;
+  border: none; cursor: pointer;
   display: flex; align-items: center; justify-content: center;
-  background: rgba(255,255,255,0.12); color: #fff;
+  border-radius: 50%;
+  width: 60px; height: 60px;
+  background: rgba(255,255,255,0.14);
+  color: #fff;
   transition: background 0.15s, transform 0.1s;
   -webkit-tap-highlight-color: transparent;
 }
-.t-call-ctrl:active { transform: scale(0.94); }
-.t-call-ctrl:hover { background: rgba(255,255,255,0.22); }
-.t-call-ctrl--muted { background: rgba(255,255,255,0.06); color: rgba(255,255,255,0.4); }
-.t-call-ctrl--end { background: #e53e3e; width: 72px; height: 72px; }
-.t-call-ctrl--end:hover { background: #c53030; }
-.t-call-ctrl-label {
-  font-size: 11px; font-weight: 500; color: rgba(255,255,255,0.5);
-  text-align: center; letter-spacing: 0.03em;
+.t-call-ctrl:hover   { background: rgba(255,255,255,0.24); }
+.t-call-ctrl:active  { transform: scale(0.91); }
+.t-call-ctrl--end    { background: #dc2626; width: 68px; height: 68px; }
+.t-call-ctrl--end:hover { background: #b91c1c; }
+.t-call-ctrl--muted  { background: rgba(255,255,255,0.06); color: rgba(255,255,255,0.38); }
+.t-call-ctrl--glass  {
+  background: rgba(255,255,255,0.12);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+.t-call-ctrl-lbl {
+  font-size: 11px; font-weight: 500;
+  color: rgba(255,255,255,0.5);
+  letter-spacing: 0.03em; text-align: center;
 }
 
-/* ── Incoming call banner ────────────────────────────────────── */
+/* ── Audio call screen ─────────────────────────────────────── */
+.t-call-audio-screen {
+  flex: 1; position: relative;
+  display: flex; flex-direction: column;
+  justify-content: space-between;
+  overflow: hidden;
+}
+
+/* Pulse rings around avatar */
+.t-call-centre {
+  flex: 1; position: relative; z-index: 2;
+  display: flex; align-items: center; justify-content: center;
+}
+.t-call-pulse-ring {
+  position: relative;
+  display: flex; align-items: center; justify-content: center;
+}
+.t-call-pulse-ring::before,
+.t-call-pulse-ring::after {
+  content: "";
+  position: absolute; inset: -20px;
+  border-radius: 50%;
+  border: 2px solid rgba(255,255,255,0.15);
+  opacity: 0;
+}
+.t-call-pulse-ring::after { inset: -40px; border-color: rgba(255,255,255,0.08); }
+.t-call-pulse-ring.active::before {
+  animation: t-ring-pulse 2s ease-in-out infinite;
+}
+.t-call-pulse-ring.active::after {
+  animation: t-ring-pulse 2s ease-in-out 0.4s infinite;
+}
+@keyframes t-ring-pulse {
+  0%   { transform: scale(0.9); opacity: 0.6; }
+  70%  { transform: scale(1.15); opacity: 0; }
+  100% { opacity: 0; }
+}
+.t-call-pulse-ring-inner { display: contents; }
+
+/* ── Video call screen ─────────────────────────────────────── */
+.t-call-video-screen {
+  flex: 1; position: relative; overflow: hidden;
+  background: #000;
+  display: flex; align-items: center; justify-content: center;
+}
+
+/* Remote video fills screen */
+.t-call-remote-video {
+  width: 100% !important; height: 100% !important;
+  object-fit: cover !important;
+}
+
+/* Waiting state (before remote video arrives) */
+.t-call-video-waiting {
+  position: absolute; inset: 0;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 20px;
+}
+.t-call-video-waiting-label {
+  font-size: 14px; color: rgba(255,255,255,0.5); margin: 0;
+}
+
+/* Self-preview pip */
+.t-call-self-preview {
+  position: absolute;
+  top: 16px; right: 16px;
+  width: clamp(80px, 22vw, 120px);
+  height: clamp(110px, 30vw, 168px);
+  border-radius: 14px; overflow: hidden;
+  border: 2px solid rgba(255,255,255,0.2);
+  box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+  z-index: 3;
+}
+.t-call-self-video { width: 100%; height: 100%; object-fit: cover; }
+
+/* Video overlay header */
+.t-call-video-header {
+  position: absolute; top: 0; left: 0; right: 0;
+  z-index: 3; padding: 20px 20px 60px;
+  background: linear-gradient(to bottom, rgba(0,0,0,0.55) 0%, transparent 100%);
+  display: flex; align-items: center; gap: 10px;
+}
+.t-call-video-name {
+  font-size: 17px; font-weight: 700; color: #fff;
+  letter-spacing: -0.01em; text-shadow: 0 1px 4px rgba(0,0,0,0.5);
+}
+.t-call-video-live {
+  font-size: 12px; font-weight: 600; color: #4ade80;
+  letter-spacing: 0.04em;
+}
+
+/* ════════════════════════════════════════════════════════════
+   INCOMING CALL BANNER
+   ════════════════════════════════════════════════════════════ */
+
 .t-call-incoming-wrap {
   position: fixed;
-  /* bottom sheet on mobile, top-right card on desktop */
   bottom: 0; left: 0; right: 0;
   z-index: 8900;
-  padding: 0 0 env(safe-area-inset-bottom, 0);
+  padding-bottom: env(safe-area-inset-bottom, 0);
 }
 @media (min-width: 600px) {
   .t-call-incoming-wrap {
     bottom: auto; top: 76px;
     left: auto; right: 20px;
-    padding: 0;
     width: 340px;
+    padding-bottom: 0;
   }
 }
 
 .t-call-incoming {
   position: relative; overflow: hidden;
   background: var(--t-surface, #fff);
-  border: 1px solid var(--t-line, rgba(0,0,0,.08));
+  border: 1px solid var(--t-line, rgba(0,0,0,.1));
   border-bottom: none;
-  border-radius: 20px 20px 0 0;
-  padding: 20px 20px 28px;
-  display: flex; align-items: center; gap: 12px;
-  box-shadow: 0 -4px 32px rgba(0,0,0,.15);
-  animation: t-incoming-rise 0.28s cubic-bezier(.34,1.56,.64,1) both;
+  border-radius: 24px 24px 0 0;
+  padding: 20px 20px clamp(24px, 5vh, 40px);
+  display: flex; align-items: center; gap: 14px;
+  box-shadow: 0 -8px 40px rgba(0,0,0,0.18);
+  animation: t-rise 0.3s cubic-bezier(.34,1.56,.64,1) both;
 }
 @media (min-width: 600px) {
   .t-call-incoming {
     border-radius: 18px;
-    border-bottom: 1px solid var(--t-line, rgba(0,0,0,.08));
+    border-bottom: 1px solid var(--t-line, rgba(0,0,0,.1));
     padding: 16px 18px;
-    box-shadow: 0 8px 36px rgba(0,0,0,.18);
-    animation: t-incoming-drop 0.28s cubic-bezier(.34,1.56,.64,1) both;
+    animation: t-drop 0.3s cubic-bezier(.34,1.56,.64,1) both;
   }
 }
-@keyframes t-incoming-rise {
+@keyframes t-rise {
   from { transform: translateY(100%); opacity: 0; }
-  to   { transform: translateY(0); opacity: 1; }
+  to   { transform: translateY(0);    opacity: 1; }
 }
-@keyframes t-incoming-drop {
-  from { transform: translateY(-16px); opacity: 0; }
-  to   { transform: translateY(0); opacity: 1; }
+@keyframes t-drop {
+  from { transform: translateY(-14px); opacity: 0; }
+  to   { transform: translateY(0);     opacity: 1; }
 }
 
-/* Green pulse ring behind banner */
-.t-call-incoming-pulse {
-  position: absolute; inset: 0; pointer-events: none;
-  border-radius: inherit;
-  box-shadow: inset 0 0 0 2px rgba(31,157,85,0.35);
-  animation: t-banner-glow 1.6s ease-in-out infinite;
+/* Green glow pulse */
+.t-call-incoming-glow {
+  position: absolute; inset: 0; pointer-events: none; border-radius: inherit;
+  box-shadow: inset 0 0 0 2px rgba(22,163,74,0.3);
+  animation: t-glow 1.8s ease-in-out infinite;
 }
-@keyframes t-banner-glow {
-  0%, 100% { box-shadow: inset 0 0 0 2px rgba(31,157,85,0.35); }
-  50%       { box-shadow: inset 0 0 0 3px rgba(31,157,85,0.7); }
+@keyframes t-glow {
+  0%, 100% { box-shadow: inset 0 0 0 2px rgba(22,163,74,0.25); }
+  50%       { box-shadow: inset 0 0 0 3px rgba(22,163,74,0.65); }
 }
 
 .t-call-incoming-left {
   display: flex; align-items: center; gap: 12px; flex: 1; min-width: 0;
 }
-.t-call-incoming-avatar {
-  width: 44px; height: 44px; flex-shrink: 0; border-radius: 50%;
-  background: var(--t-gold-soft, rgba(184,137,42,.12));
-  color: var(--t-gold, #b8892a);
+.t-call-incoming-av {
+  width: 46px; height: 46px; flex-shrink: 0; border-radius: 50%;
+  background: rgba(184,137,42,0.12); color: var(--t-gold, #b8892a);
   display: flex; align-items: center; justify-content: center;
-  font-size: 16px; font-weight: 700;
+  font-size: 17px; font-weight: 700;
 }
-.t-call-incoming-text { min-width: 0; }
 .t-call-incoming-name {
-  font-size: 15px; font-weight: 700; margin: 0 0 2px;
+  font-size: 15px; font-weight: 700; margin: 0 0 3px;
   color: var(--t-ink, #1a1400);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
@@ -3419,20 +3495,19 @@ aside.fixed.right-0 { display: none !important; }
   font-size: 12px; color: var(--t-ink-3, #888); margin: 0;
 }
 
-.t-call-incoming-actions {
-  display: flex; gap: 10px; flex-shrink: 0;
-}
+.t-call-incoming-btns { display: flex; gap: 10px; flex-shrink: 0; }
 .t-call-incoming-btn {
-  width: 48px; height: 48px; border-radius: 50%; border: none; cursor: pointer;
+  width: 50px; height: 50px; border-radius: 50%; border: none; cursor: pointer;
   display: flex; align-items: center; justify-content: center;
   transition: opacity 0.15s, transform 0.1s;
   -webkit-tap-highlight-color: transparent;
+  font-size: 18px;
 }
-.t-call-incoming-btn:active { transform: scale(0.92); }
-.t-call-incoming-btn--decline { background: #fee2e2; color: #dc2626; }
-.t-call-incoming-btn--accept  { background: #dcfce7; color: #16a34a; }
-.t-call-incoming-btn--decline:hover { background: #fca5a5; }
-.t-call-incoming-btn--accept:hover  { background: #86efac; }
+.t-call-incoming-btn:active { transform: scale(0.9); }
+.t-call-incoming-btn.decline { background: #fee2e2; color: #dc2626; }
+.t-call-incoming-btn.accept  { background: #dcfce7; color: #16a34a; }
+.t-call-incoming-btn.decline:hover { background: #fca5a5; }
+.t-call-incoming-btn.accept:hover  { background: #bbf7d0; }
 
 /* ── How-to onboarding popover ─────────────────────────────── */
 .t-howto-backdrop {
