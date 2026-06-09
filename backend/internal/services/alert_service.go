@@ -2,8 +2,10 @@ package services
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log"
+	"net/http"
 	"sync"
 	"time"
 
@@ -34,10 +36,10 @@ func canAlert(key string) bool {
 }
 
 // StartInfraMonitor runs a background goroutine that checks health every
-// 60 seconds and emails admins when thresholds are breached.
+// 45 minutes and emails admins when thresholds are breached.
+// It also schedules a daily 6:40am Neon compute-usage alert.
 func StartInfraMonitor(ctx context.Context) {
 	go func() {
-		// Wait 2 min after startup before first check so the server is warm.
 		time.Sleep(2 * time.Minute)
 		ticker := time.NewTicker(45 * time.Minute)
 		defer ticker.Stop()
@@ -50,6 +52,81 @@ func StartInfraMonitor(ctx context.Context) {
 			}
 		}
 	}()
+
+	go runDailyNeonAlert(ctx)
+}
+
+// runDailyNeonAlert wakes at 6:40am UTC every day and sends an email if
+// Neon compute usage for the month exceeds 70 CU-hrs.
+func runDailyNeonAlert(ctx context.Context) {
+	for {
+		now := time.Now().UTC()
+		next := time.Date(now.Year(), now.Month(), now.Day(), 6, 40, 0, 0, time.UTC)
+		if !next.After(now) {
+			next = next.Add(24 * time.Hour)
+		}
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(time.Until(next)):
+		}
+		checkNeonComputeAlert(ctx)
+	}
+}
+
+const neonComputeAlertThreshold = 70.0 // CU-hrs
+
+func checkNeonComputeAlert(ctx context.Context) {
+	apiKey := config.NeonAPIKey()
+	projectID := config.NeonProjectID()
+	if apiKey == "" || projectID == "" {
+		return
+	}
+
+	now := time.Now().UTC()
+	from := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, time.UTC)
+	reqURL := fmt.Sprintf(
+		"https://console.neon.tech/api/v2/projects/%s/billing/usage?from=%s&to=%s",
+		projectID,
+		from.Format(time.RFC3339),
+		now.Format(time.RFC3339),
+	)
+
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodGet, reqURL, nil)
+	if err != nil {
+		log.Printf("neon alert: build request error: %v", err)
+		return
+	}
+	httpReq.Header.Set("Authorization", "Bearer "+apiKey)
+	httpReq.Header.Set("Accept", "application/json")
+
+	resp, err := http.DefaultClient.Do(httpReq)
+	if err != nil {
+		log.Printf("neon alert: fetch error: %v", err)
+		return
+	}
+	defer resp.Body.Close()
+
+	var usage struct {
+		ComputeTimeSeconds float64 `json:"compute_time_seconds"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&usage); err != nil {
+		log.Printf("neon alert: decode error: %v", err)
+		return
+	}
+
+	computeHrs := usage.ComputeTimeSeconds / 3600
+	if computeHrs < neonComputeAlertThreshold {
+		return
+	}
+
+	sendAlert(ctx, "neon_compute_threshold",
+		fmt.Sprintf("⚠️ Neon compute at %.1f / 100 CU-hrs", computeHrs),
+		fmt.Sprintf(
+			"Your Neon free-tier compute usage for %s has reached %.1f CU-hrs (threshold: %.0f).\n\nFree tier limit: 100 CU-hrs/month. At this rate you may exceed it before month end.\n\nConsider reducing DB wake-up frequency or upgrading your Neon plan.\n\nChecked at %s UTC.",
+			now.Format("January 2006"), computeHrs, neonComputeAlertThreshold, now.Format("15:04"),
+		),
+	)
 }
 
 func checkAndAlert(ctx context.Context) {

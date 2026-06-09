@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
-import { Activity, Database, Cpu, Zap, Wifi, RefreshCw, CheckCircle, XCircle, AlertTriangle, Clock, ExternalLink, Radio, Mail, Users, TrendingUp } from 'lucide-react'
+import { Activity, Database, Cpu, Zap, Wifi, RefreshCw, CheckCircle, XCircle, AlertTriangle, Clock, ExternalLink, Radio, Mail, Users, TrendingUp, Cloud } from 'lucide-react'
 import { adminFetch } from '@/lib/adminFetch'
 
 interface ErrorEntry { time: string; method: string; path: string; status: number; latencyMs: number }
@@ -151,6 +151,8 @@ export default function InfraPage() {
   const [tab, setTab] = useState<'errors'|'slow'>('errors')
   const [testingAlert, setTestingAlert] = useState(false)
   const [testAlertMsg, setTestAlertMsg] = useState('')
+  const [neon, setNeon] = useState<NeonUsage | null>(null)
+  const [neonUnconfigured, setNeonUnconfigured] = useState(false)
 
   async function fireTestAlert() {
     if (!confirm('Send a test alert email to all admins?')) return
@@ -185,6 +187,13 @@ export default function InfraPage() {
   }, [])
 
   useEffect(() => { void load(); const id = setInterval(() => { void load() }, 30000); return () => clearInterval(id) }, [load])
+
+  useEffect(() => {
+    adminFetch('/api/admin/neon-usage').then(async r => {
+      if (r.status === 503) { setNeonUnconfigured(true); return }
+      if (r.ok) setNeon(await r.json())
+    }).catch(() => {})
+  }, [])
 
   const [isMobile, setIsMobile] = useState(false)
   useEffect(() => {
@@ -353,6 +362,9 @@ export default function InfraPage() {
           </Card>
 
         </div>
+
+        {/* Neon DB Usage */}
+        <NeonCard neon={neon} unconfigured={neonUnconfigured} />
 
         {/* Recent errors + slow requests */}
         <div style={{ background:'#141416', border:'1px solid #232326', borderRadius:12, padding:'20px 24px', marginBottom:16 }}>
@@ -537,6 +549,76 @@ export default function InfraPage() {
       </>)}
 
       <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+    </div>
+  )
+}
+
+interface NeonUsage {
+  compute_time_seconds?: number
+  active_time_seconds?: number
+  written_data_bytes?: number
+  data_transfer_bytes?: number
+  data_storage_bytes_hour?: number
+}
+
+function NeonCard({ neon, unconfigured }: { neon: NeonUsage | null; unconfigured: boolean }) {
+  const CU_LIMIT = 100
+  const COMPUTE_ALERT = 70
+
+  if (unconfigured) {
+    return (
+      <div style={{ marginBottom: 16, padding: '14px 20px', borderRadius: 10, background: '#141416', border: '1px solid #232326', display: 'flex', alignItems: 'center', gap: 10 }}>
+        <Cloud size={14} style={{ color: '#8a8a90' }} />
+        <span style={{ fontSize: 12, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#8a8a90' }}>Neon DB Usage</span>
+        <span style={{ fontSize: 12, color: '#5a5a60', marginLeft: 8 }}>Add <code style={{ fontSize: 11, background: '#1a1a1d', padding: '1px 5px', borderRadius: 3 }}>NEON_API_KEY</code> and <code style={{ fontSize: 11, background: '#1a1a1d', padding: '1px 5px', borderRadius: 3 }}>NEON_PROJECT_ID</code> to Vercel env vars to enable live stats.</span>
+      </div>
+    )
+  }
+
+  if (!neon) return null
+
+  const computeHrs = neon.compute_time_seconds != null ? neon.compute_time_seconds / 3600 : null
+  const storageGB = neon.data_storage_bytes_hour != null ? neon.data_storage_bytes_hour / 1024 / 1024 / 1024 : null
+  const transferGB = neon.data_transfer_bytes != null ? neon.data_transfer_bytes / 1024 / 1024 / 1024 : null
+  const overLimit = computeHrs != null && computeHrs >= COMPUTE_ALERT
+
+  return (
+    <div style={{ marginBottom: 16, background: '#141416', border: `1px solid ${overLimit ? 'rgba(239,68,68,0.4)' : '#232326'}`, borderRadius: 12, padding: '20px 24px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+        <Cloud size={15} style={{ color: '#8a8a90' }} />
+        <span style={{ fontSize: 12, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#8a8a90' }}>Neon DB Usage — This Month</span>
+        <Tooltip text="Monthly usage from the Neon API. Free tier: 100 CU-hrs compute, 512 MB storage, 5 GB data transfer. You get an email alert at 6:40am when compute crosses 70 CU-hrs." />
+        {overLimit && <span style={{ marginLeft: 'auto' }}><AlertTriangle size={14} color="#f59e0b" /></span>}
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        {computeHrs != null && (
+          <>
+            <Row
+              label="Compute time"
+              value={`${computeHrs.toFixed(1)} / ${CU_LIMIT} CU-hrs`}
+              warn={overLimit}
+              tooltip="Compute Unit hours used this month. Free tier allows 100 CU-hrs. Alert fires at 70."
+            />
+            <MiniBar value={computeHrs} max={CU_LIMIT} color={computeHrs >= COMPUTE_ALERT ? '#ef4444' : computeHrs >= 50 ? '#f59e0b' : '#22c55e'} />
+          </>
+        )}
+        {storageGB != null && (
+          <Row
+            label="Storage"
+            value={storageGB < 1 ? `${(storageGB * 1024).toFixed(0)} MB` : `${storageGB.toFixed(2)} GB`}
+            warn={storageGB > 0.45}
+            tooltip="Average storage used this month (byte-hours ÷ hours). Free tier: 512 MB."
+          />
+        )}
+        {transferGB != null && (
+          <Row
+            label="Data transfer"
+            value={transferGB < 1 ? `${(transferGB * 1024).toFixed(0)} MB` : `${transferGB.toFixed(2)} GB`}
+            warn={transferGB > 4}
+            tooltip="Data egress this month. Free tier: 5 GB."
+          />
+        )}
+      </div>
     </div>
   )
 }

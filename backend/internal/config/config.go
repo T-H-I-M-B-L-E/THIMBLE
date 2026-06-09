@@ -69,3 +69,5 @@ func JWTSecret() string         { return current.JWTSecret }
 func SetJWTSecret(s string)     { current.JWTSecret = s }
 func ResendKey() string         { return current.ResendKey }
 func IsProduction() bool        { return current.Environment == "production" }
+func NeonAPIKey() string        { return os.Getenv("NEON_API_KEY") }
+func NeonProjectID() string     { return os.Getenv("NEON_PROJECT_ID") }
