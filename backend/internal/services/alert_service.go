@@ -39,7 +39,7 @@ func StartInfraMonitor(ctx context.Context) {
 	go func() {
 		// Wait 2 min after startup before first check so the server is warm.
 		time.Sleep(2 * time.Minute)
-		ticker := time.NewTicker(5 * time.Minute)
+		ticker := time.NewTicker(45 * time.Minute)
 		defer ticker.Stop()
 		for {
 			select {
