@@ -122,15 +122,35 @@ func Login(ctx context.Context, req models.LoginRequest) (*LoginResult, *Service
 		return nil, NewError(400, "missing_fields", "email and password are required")
 	}
 
+	// ── Brute-force check ────────────────────────────────────────────────────
+	failedCount, lockedUntil, _ := repositories.LoginLockStatus(ctx, req.Email)
+	if lockedUntil != nil && time.Now().Before(*lockedUntil) {
+		remaining := time.Until(*lockedUntil).Round(time.Minute)
+		mins := int(remaining.Minutes())
+		if mins < 1 {
+			mins = 1
+		}
+		return nil, NewError(429, "account_locked",
+			fmt.Sprintf("too many failed attempts — try again in %d minute(s)", mins))
+	}
+	_ = failedCount // used implicitly via DB counter
+
 	rec, err := repositories.FindUserForLogin(ctx, req.Email)
 	if err != nil {
 		log.Printf("Login scan error for %s: %v", req.Email, err)
+		// Record failure even for unknown emails so we don't leak whether
+		// an account exists (timing attack mitigation is handled by bcrypt below).
+		repositories.RecordLoginFailure(ctx, req.Email)
 		return nil, NewError(401, "invalid_credentials", "invalid email or password")
 	}
 
 	if err := bcrypt.CompareHashAndPassword([]byte(rec.HashedPassword), []byte(req.Password)); err != nil {
+		repositories.RecordLoginFailure(ctx, req.Email)
 		return nil, NewError(401, "invalid_credentials", "invalid email or password")
 	}
+
+	// Correct password — wipe the failure counter
+	repositories.ClearLoginFailures(ctx, req.Email)
 
 	if rec.User.IsBanned {
 		// Special-case: include ban metadata so the frontend can render

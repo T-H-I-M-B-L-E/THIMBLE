@@ -219,6 +219,48 @@ func UpdateEmailPrefs(ctx context.Context, userID string, prefs []byte) error {
 	return err
 }
 
+// ── Login brute-force protection ────────────────────────────────────────────
+
+const maxLoginFailures = 10
+const loginLockDuration = 15 * time.Minute
+
+// LoginLockStatus returns how many failures are recorded and whether the
+// account is currently locked. Returns zero values if no row exists yet.
+func LoginLockStatus(ctx context.Context, email string) (failedCount int, lockedUntil *time.Time, err error) {
+	var lu *time.Time
+	var fc int
+	e := db.Pool.QueryRow(ctx,
+		"SELECT failed_count, locked_until FROM login_attempts WHERE email = $1", email,
+	).Scan(&fc, &lu)
+	if e != nil {
+		// no row = no failures yet
+		return 0, nil, nil
+	}
+	return fc, lu, nil
+}
+
+// RecordLoginFailure increments the failed counter for an email.
+// If the count reaches maxLoginFailures it sets locked_until.
+func RecordLoginFailure(ctx context.Context, email string) {
+	db.Pool.Exec(ctx, `
+		INSERT INTO login_attempts (email, failed_count, last_attempt)
+		VALUES ($1, 1, NOW())
+		ON CONFLICT (email) DO UPDATE
+		  SET failed_count  = login_attempts.failed_count + 1,
+		      last_attempt  = NOW(),
+		      locked_until  = CASE
+		        WHEN login_attempts.failed_count + 1 >= $2
+		        THEN NOW() + ($3 * INTERVAL '1 minute')
+		        ELSE login_attempts.locked_until
+		      END
+	`, email, maxLoginFailures, int(loginLockDuration.Minutes()))
+}
+
+// ClearLoginFailures resets the counter after a successful login.
+func ClearLoginFailures(ctx context.Context, email string) {
+	db.Pool.Exec(ctx, "DELETE FROM login_attempts WHERE email = $1", email)
+}
+
 func UpdatePasswordByEmail(ctx context.Context, email, passwordHash string) (int64, error) {
 	result, err := db.Pool.Exec(ctx,
 		"UPDATE users SET password_hash = $1, updated_at = CURRENT_TIMESTAMP WHERE email = $2",
