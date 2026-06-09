@@ -23,20 +23,79 @@ export interface CallSession {
 
 type CallState = "connecting" | "ringing" | "connected" | "ended"
 
+const RING_TIMEOUT_MS = 30_000 // auto-cancel after 30s with no answer
+
 interface Props {
   session: CallSession
   onEnd: () => void
 }
 
+/* Generates a phone-style ring tone using Web Audio API — no audio file needed */
+function useRinger(active: boolean) {
+  const ctxRef = useRef<AudioContext | null>(null)
+  const stopRef = useRef<(() => void) | null>(null)
+
+  useEffect(() => {
+    if (!active) {
+      stopRef.current?.()
+      stopRef.current = null
+      return
+    }
+
+    let cancelled = false
+
+    const ring = () => {
+      if (cancelled) return
+      const ctx = ctxRef.current ?? (ctxRef.current = new AudioContext())
+
+      const beep = (freq: number, start: number, dur: number) => {
+        const osc = ctx.createOscillator()
+        const gain = ctx.createGain()
+        osc.connect(gain)
+        gain.connect(ctx.destination)
+        osc.frequency.value = freq
+        osc.type = "sine"
+        gain.gain.setValueAtTime(0, ctx.currentTime + start)
+        gain.gain.linearRampToValueAtTime(0.18, ctx.currentTime + start + 0.01)
+        gain.gain.linearRampToValueAtTime(0, ctx.currentTime + start + dur - 0.01)
+        osc.start(ctx.currentTime + start)
+        osc.stop(ctx.currentTime + start + dur)
+      }
+
+      // Classic double-beep pattern: beep-beep … pause … repeat
+      beep(480, 0,    0.4)
+      beep(480, 0.45, 0.4)
+
+      const t = setTimeout(ring, 2200)
+      stopRef.current = () => { clearTimeout(t); cancelled = true }
+    }
+
+    ring()
+    return () => { stopRef.current?.(); cancelled = true }
+  }, [active])
+}
+
 export function CallModal({ session, onEnd }: Props) {
   const [callState, setCallState] = useState<CallState>("connecting")
 
+  // Start ringing shortly after mount
   useEffect(() => {
-    // Simulate ringing after brief connect delay
-    const t1 = setTimeout(() => setCallState("ringing"), 800)
-    const t2 = setTimeout(() => setCallState("connected"), 3000)
-    return () => { clearTimeout(t1); clearTimeout(t2) }
+    const t = setTimeout(() => setCallState("ringing"), 600)
+    return () => clearTimeout(t)
   }, [])
+
+  // Play ringer only while waiting for answer
+  useRinger(callState === "ringing")
+
+  // Auto-cancel after 30s if nobody picks up
+  useEffect(() => {
+    if (callState !== "ringing") return
+    const t = setTimeout(() => {
+      setCallState("ended")
+      setTimeout(onEnd, 1000)
+    }, RING_TIMEOUT_MS)
+    return () => clearTimeout(t)
+  }, [callState, onEnd])
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => { if (e.key === "Escape") onEnd() }
@@ -58,12 +117,11 @@ export function CallModal({ session, onEnd }: Props) {
         video={session.kind === "video"}
         audio={true}
         onDisconnected={handleDisconnected}
-        onConnected={() => setCallState("connected")}
         style={{ display: "contents" }}
       >
         {session.kind === "video"
-          ? <VideoCallView session={session} callState={callState} onEnd={onEnd} />
-          : <AudioCallView session={session} callState={callState} onEnd={onEnd} />
+          ? <VideoCallView session={session} callState={callState} setCallState={setCallState} onEnd={onEnd} />
+          : <AudioCallView session={session} callState={callState} setCallState={setCallState} onEnd={onEnd} />
         }
         <RoomAudioRenderer />
       </LiveKitRoom>
@@ -77,7 +135,7 @@ function stateLabel(s: CallState) {
   if (s === "connecting") return "Connecting…"
   if (s === "ringing")    return "Ringing…"
   if (s === "connected")  return "Connected"
-  return "Call ended"
+  return "No answer"
 }
 
 function Avatar({ name, avatar, size = 96 }: { name?: string; avatar?: string; size?: number }) {
@@ -94,9 +152,20 @@ function Avatar({ name, avatar, size = 96 }: { name?: string; avatar?: string; s
 
 /* ── Audio call ─────────────────────────────────────────────── */
 
-function AudioCallView({ session, callState, onEnd }: { session: CallSession; callState: CallState; onEnd: () => void }) {
+function AudioCallView({ session, callState, setCallState, onEnd }: {
+  session: CallSession; callState: CallState
+  setCallState: (s: CallState) => void; onEnd: () => void
+}) {
   const { localParticipant, isMicrophoneEnabled } = useLocalParticipant()
+  const remoteParticipants = useRemoteParticipants()
   const [speakerOn, setSpeakerOn] = useState(true)
+
+  // Only mark connected when someone actually joins
+  useEffect(() => {
+    if (remoteParticipants.length > 0 && callState !== "connected") {
+      setCallState("connected")
+    }
+  }, [remoteParticipants.length, callState, setCallState])
 
   const toggleMic = useCallback(() => {
     localParticipant.setMicrophoneEnabled(!isMicrophoneEnabled)
@@ -153,9 +222,19 @@ function AudioCallView({ session, callState, onEnd }: { session: CallSession; ca
 
 /* ── Video call ─────────────────────────────────────────────── */
 
-function VideoCallView({ session, callState, onEnd }: { session: CallSession; callState: CallState; onEnd: () => void }) {
+function VideoCallView({ session, callState, setCallState, onEnd }: {
+  session: CallSession; callState: CallState
+  setCallState: (s: CallState) => void; onEnd: () => void
+}) {
   const { localParticipant, isMicrophoneEnabled, isCameraEnabled } = useLocalParticipant()
   const remoteParticipants = useRemoteParticipants()
+
+  // Only mark connected when someone actually joins
+  useEffect(() => {
+    if (remoteParticipants.length > 0 && callState !== "connected") {
+      setCallState("connected")
+    }
+  }, [remoteParticipants.length, callState, setCallState])
 
   // Remote camera track
   const remoteCameraTracks = useTracks([Track.Source.Camera], { onlySubscribed: true })
@@ -271,6 +350,9 @@ interface IncomingCallBannerProps {
 
 export function IncomingCallBanner({ callerName, kind, onAccept, onDecline }: IncomingCallBannerProps) {
   const initials = callerName.split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase()
+
+  // Ring on the callee side too
+  useRinger(true)
 
   return (
     <div className="t-call-incoming" role="alertdialog" aria-label="Incoming call">
