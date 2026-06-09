@@ -168,7 +168,7 @@ function AudioCallView({ session, callState, setCallState, onEnd }: {
   }, [remoteParticipants.length, callState, setCallState])
 
   const toggleMic = useCallback(() => {
-    localParticipant.setMicrophoneEnabled(!isMicrophoneEnabled)
+    void localParticipant.setMicrophoneEnabled(!isMicrophoneEnabled)
   }, [localParticipant, isMicrophoneEnabled])
 
   return (
@@ -246,8 +246,8 @@ function VideoCallView({ session, callState, setCallState, onEnd }: {
 
   const hasRemoteVideo = remoteCameraTracks.length > 0 && callState === "connected"
 
-  const toggleMic    = useCallback(() => localParticipant.setMicrophoneEnabled(!isMicrophoneEnabled), [localParticipant, isMicrophoneEnabled])
-  const toggleCamera = useCallback(() => localParticipant.setCameraEnabled(!isCameraEnabled),        [localParticipant, isCameraEnabled])
+  const toggleMic    = useCallback(() => { void localParticipant.setMicrophoneEnabled(!isMicrophoneEnabled) }, [localParticipant, isMicrophoneEnabled])
+  const toggleCamera = useCallback(() => { void localParticipant.setCameraEnabled(!isCameraEnabled) },        [localParticipant, isCameraEnabled])
 
   return (
     <div className="t-call-video-screen">
