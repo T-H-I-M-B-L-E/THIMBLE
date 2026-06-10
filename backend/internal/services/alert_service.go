@@ -84,13 +84,7 @@ func checkNeonComputeAlert(ctx context.Context) {
 	}
 
 	now := time.Now().UTC()
-	from := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, time.UTC)
-	reqURL := fmt.Sprintf(
-		"https://console.neon.tech/api/v2/projects/%s/billing/usage?from=%s&to=%s",
-		projectID,
-		from.Format(time.RFC3339),
-		now.Format(time.RFC3339),
-	)
+	reqURL := fmt.Sprintf("https://console.neon.tech/api/v2/projects/%s", projectID)
 
 	httpReq, err := http.NewRequestWithContext(ctx, http.MethodGet, reqURL, nil)
 	if err != nil {

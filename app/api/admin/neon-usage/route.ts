@@ -12,13 +12,8 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'not_configured' }, { status: 503 })
   }
 
-  // Neon billing usage returns monthly totals for the current period
-  const now = new Date()
-  const from = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
-  const to = now.toISOString()
-
   const res = await fetch(
-    `https://console.neon.tech/api/v2/projects/${projectId}/billing/usage?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`,
+    `https://console.neon.tech/api/v2/projects/${projectId}`,
     {
       headers: {
         Authorization: `Bearer ${apiKey}`,
@@ -33,14 +28,13 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: body }, { status: res.status })
   }
 
-  const data = await res.json() as NeonUsage
-  return NextResponse.json(data)
-}
-
-interface NeonUsage {
-  compute_time_seconds?: number
-  active_time_seconds?: number
-  written_data_bytes?: number
-  data_transfer_bytes?: number
-  data_storage_bytes_hour?: number
+  const data = await res.json()
+  const p = data.project
+  return NextResponse.json({
+    compute_time_seconds: p.compute_time_seconds,
+    active_time_seconds: p.active_time_seconds,
+    written_data_bytes: p.written_data_bytes,
+    data_transfer_bytes: p.data_transfer_bytes,
+    data_storage_bytes_hour: p.data_storage_bytes_hour,
+  })
 }
