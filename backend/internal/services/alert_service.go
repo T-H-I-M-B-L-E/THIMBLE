@@ -327,7 +327,7 @@ func sendDailyDigest(ctx context.Context) {
 
 	resendClient := resend.NewClient(config.ResendKey())
 	_, serr := resendClient.Emails.Send(&resend.SendEmailRequest{
-		From:    "aria@tvimble.tech",
+		From:    "alerts@tvimble.tech",
 		To:      adminEmails,
 		Subject: fmt.Sprintf("[THIMBLE] Daily Digest — %s", now.Format("Mon Jan 2")),
 		Html:    html,
