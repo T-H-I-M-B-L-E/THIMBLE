@@ -30,6 +30,8 @@ func main() {
 
 	go middleware.SweepExpiredTickets()
 	services.StartInfraMonitor(ctx)
+	services.StartFashionDigest(ctx)
+	services.StartARIAProactive(ctx)
 
 	app := fiber.New(fiber.Config{
 		ReadTimeout:  15 * time.Second,
@@ -222,6 +224,7 @@ func registerRoutes(app *fiber.App, authLimiter fiber.Handler, apiLimiter fiber.
 	adminGroup.Get("/infra", handlers.AdminInfra)
 	adminGroup.Post("/infra/test-alert", handlers.AdminTestAlert)
 	adminGroup.Post("/aria/email", handlers.AdminARIAEmail)
+	adminGroup.Post("/aria/user-action", handlers.AdminARIAUserAction)
 	adminGroup.Get("/broadcast/preview", handlers.AdminBroadcastPreview)
 	adminGroup.Get("/broadcast/history", handlers.AdminBroadcastHistory)
 	adminGroup.Post("/broadcast", handlers.AdminBroadcast)

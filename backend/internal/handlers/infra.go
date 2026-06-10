@@ -85,6 +85,20 @@ func AdminARIAEmail(c *fiber.Ctx) error {
 	return c.JSON(fiber.Map{"ok": true})
 }
 
+// AdminARIAUserAction executes a user management command from ARIA chat
+// (ban, unban, verify, look_up).
+func AdminARIAUserAction(c *fiber.Ctx) error {
+	var input services.ARIAUserActionInput
+	if err := c.BodyParser(&input); err != nil || input.Action == "" || input.UserID == "" {
+		return c.Status(400).JSON(fiber.Map{"error": "action and user_id are required"})
+	}
+	result := services.ExecuteARIAUserAction(c.Context(), input)
+	if !result.OK {
+		return c.Status(400).JSON(result)
+	}
+	return c.JSON(result)
+}
+
 // fetchEmailStats counts email_log rows grouped by day window.
 type emailStats struct {
 	SentToday  int64  `json:"sentToday"`

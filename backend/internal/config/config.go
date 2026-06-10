@@ -71,3 +71,5 @@ func ResendKey() string         { return current.ResendKey }
 func IsProduction() bool        { return current.Environment == "production" }
 func NeonAPIKey() string        { return os.Getenv("NEON_API_KEY") }
 func NeonProjectID() string     { return os.Getenv("NEON_PROJECT_ID") }
+func GroqAPIKey() string        { return os.Getenv("GROQ_API_KEY") }
+func NewsAPIKey() string        { return os.Getenv("NEWS_API_KEY") }

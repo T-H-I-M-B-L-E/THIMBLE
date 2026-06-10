@@ -35,6 +35,14 @@ draft_only:
     subject: string
     body: string
     audience_description: string
+
+manage_user:
+  description: Ban, unban, verify, or look up a user by their UUID. Always look_up first to confirm identity before taking action.
+  params:
+    action: "ban"|"unban"|"verify"|"look_up"
+    user_id: string (UUID)
+    duration_hours: number (for ban; 0 = permanent)
+    reason: string
 </tools>
 
 When you want to trigger an action, end your reply with:
@@ -140,6 +148,22 @@ export async function PUT(request: NextRequest) {
     return NextResponse.json({ ok: res.ok, data })
   }
 
+  if (action.tool === 'manage_user') {
+    const p = action.params as unknown as UserActionParams
+    const res = await fetch(`${api()}/admin/aria/user-action`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action:         p.action,
+        user_id:        p.user_id,
+        duration_hours: p.duration_hours ?? 0,
+        reason:         p.reason ?? '',
+      }),
+    })
+    const data = await res.json().catch(() => ({}))
+    return NextResponse.json({ ok: res.ok, data })
+  }
+
   return NextResponse.json({ ok: false, error: 'Unknown tool' }, { status: 400 })
 }
 
@@ -157,3 +181,9 @@ interface BroadcastParams {
 }
 
 interface AlertParams { subject: string; body: string }
+interface UserActionParams {
+  action: 'ban' | 'unban' | 'verify' | 'look_up'
+  user_id: string
+  duration_hours?: number
+  reason?: string
+}
