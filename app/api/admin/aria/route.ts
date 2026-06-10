@@ -1,114 +1,196 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import Groq from 'groq-sdk'
+import type { ChatCompletionTool } from 'groq-sdk/resources/chat/completions'
 
 const api = () => process.env.API_BASE_URL || process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8080'
 
-// ── ARIA tool definitions (sent to LLM so it knows what it can do) ──
-const TOOLS = `
-You have access to these ACTION TOOLS. When you decide to use one, respond with a JSON block
-inside <action> tags at the END of your message. Never include personal data in your thinking.
+// ── Tool registry — single source of truth ──────────────────────────────────
+// These are passed directly to the Groq API as native function-call tools.
+// The model uses these schemas to produce structured JSON — no XML parsing needed.
 
-<tools>
-send_broadcast:
-  description: Send an email (and optional in-app banner) to users. Use for announcements, alerts, updates.
-  params:
-    subject: string (email subject line)
-    body: string (email body — be warm and on-brand for THIMBLE, a creative professional platform)
-    roles: array of any of ["designer","model","manufacturer","photographer","brand"] — empty means ALL roles
-    verified_only: boolean
-    send_email: boolean
-    show_banner: boolean
-    banner_message: string (one line, shown in-app)
-    banner_type: "info"|"success"|"warning"|"critical"
-    banner_hours: number (0 = no expiry)
+const ARIA_TOOLS: ChatCompletionTool[] = [
+  {
+    type: 'function',
+    function: {
+      name: 'send_broadcast',
+      description: 'Send an email (and optional in-app banner) to users. Use for announcements, updates, or campaigns.',
+      parameters: {
+        type: 'object',
+        properties: {
+          subject:        { type: 'string', description: 'Email subject line' },
+          body:           { type: 'string', description: 'Email body — warm, on-brand for THIMBLE (creative professional platform)' },
+          roles:          { type: 'array', items: { type: 'string', enum: ['designer','model','manufacturer','photographer','brand'] }, description: 'Target roles. Empty array = ALL users.' },
+          verified_only:  { type: 'boolean', description: 'Only send to verified users' },
+          send_email:     { type: 'boolean', description: 'Send as email (default true)' },
+          show_banner:    { type: 'boolean', description: 'Also show in-app banner' },
+          banner_message: { type: 'string',  description: 'Short one-line in-app banner text' },
+          banner_type:    { type: 'string',  enum: ['info','success','warning','critical'] },
+          banner_hours:   { type: 'number',  description: 'How long banner shows (hours). 0 = no expiry.' },
+          reason:         { type: 'string',  description: 'One sentence: why you are sending this' },
+        },
+        required: ['subject', 'body', 'reason'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'send_alert_email',
+      description: 'Send an infrastructure alert or report email to admins only (not users). Use for system alerts, summaries, incident reports.',
+      parameters: {
+        type: 'object',
+        properties: {
+          subject: { type: 'string', description: 'Email subject' },
+          body:    { type: 'string', description: 'Email body (HTML supported)' },
+          reason:  { type: 'string', description: 'Why you are sending this alert' },
+        },
+        required: ['subject', 'body', 'reason'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'draft_only',
+      description: 'Show a drafted email or message for the admin to review before anything is sent. Use this when the admin has NOT yet confirmed they want to send.',
+      parameters: {
+        type: 'object',
+        properties: {
+          subject:              { type: 'string', description: 'Draft subject' },
+          body:                 { type: 'string', description: 'Draft body' },
+          audience_description: { type: 'string', description: 'Who this would go to' },
+          reason:               { type: 'string', description: 'Why you drafted this' },
+        },
+        required: ['subject', 'body', 'reason'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'manage_user',
+      description: 'Ban, unban, verify, or look up a specific user by their UUID. Always look_up first to confirm their identity before taking any action.',
+      parameters: {
+        type: 'object',
+        properties: {
+          action:         { type: 'string', enum: ['ban','unban','verify','look_up'], description: 'What to do' },
+          user_id:        { type: 'string', description: 'The user UUID' },
+          duration_hours: { type: 'number', description: 'For ban: hours (0 = permanent)' },
+          reason:         { type: 'string', description: 'Why this action is being taken' },
+        },
+        required: ['action', 'user_id', 'reason'],
+      },
+    },
+  },
+]
 
-send_alert_email:
-  description: Send an infrastructure alert email to admins only (not users).
-  params:
-    subject: string
-    body: string
-
-draft_only:
-  description: Just show the user a drafted email/message for them to review — no send.
-  params:
-    subject: string
-    body: string
-    audience_description: string
-
-manage_user:
-  description: Ban, unban, verify, or look up a user by their UUID. Always look_up first to confirm identity before taking action.
-  params:
-    action: "ban"|"unban"|"verify"|"look_up"
-    user_id: string (UUID)
-    duration_hours: number (for ban; 0 = permanent)
-    reason: string
-</tools>
-
-When you want to trigger an action, end your reply with:
-<action>
-{
-  "tool": "<tool_name>",
-  "params": { ... },
-  "reason": "one sentence explaining why you're doing this"
+// ── Autonomy rules — what needs approval vs auto-executes ───────────────────
+// Approval is enforced on the FRONTEND (ActionCard). The backend executes
+// whatever the frontend sends — the frontend only sends after user clicks Approve.
+export const TOOL_REQUIRES_APPROVAL: Record<string, boolean> = {
+  send_broadcast:   true,   // always confirm before emailing users
+  send_alert_email: false,  // admin emails are low-risk, auto-ok
+  draft_only:       false,  // no-op, just shows preview
+  manage_user:      true,   // ban/verify always needs confirmation
 }
-</action>
 
-IMPORTANT: ALWAYS show the full draft (subject + body) in your text reply BEFORE the <action> tag,
-so the user can read it. Never execute without the user seeing the content.
-If the user hasn't confirmed yet, use draft_only. Only use send_broadcast or send_alert_email
-when the user explicitly says "yes", "send it", "confirm", "go ahead", or similar.
-`
-
+// ── POST: chat ───────────────────────────────────────────────────────────────
 export async function POST(request: NextRequest) {
   const cookieStore = await cookies()
   const token = cookieStore.get('admin_token')?.value
   if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const body = await request.json() as {
-    prompt: string
-    mode: 'chat' | 'analyse'
-  }
+  const body = await request.json() as { prompt: string; history?: { role: string; content: string }[] }
 
   const apiKey = process.env.GROQ_API_KEY
   if (!apiKey) return NextResponse.json({ error: 'GROQ_API_KEY not configured' }, { status: 503 })
 
   const client = new Groq({ apiKey })
+
+  // Build message history for multi-turn context (last 10 messages)
+  const historyMessages = (body.history ?? []).slice(-10).map(m => ({
+    role: (m.role === 'user' ? 'user' : 'assistant') as 'user' | 'assistant',
+    content: m.content,
+  }))
+
   const response = await client.chat.completions.create({
     model: 'llama-3.1-8b-instant',
-    max_tokens: 1200,
+    max_tokens: 1400,
+    tools: ARIA_TOOLS,
+    tool_choice: 'auto',
     messages: [
       {
         role: 'system',
-        content: `You are ARIA, the AI operator for THIMBLE — a platform for creative professionals (designers, models, manufacturers, photographers, brands). You can analyse metrics AND take real actions.
+        content: `You are ARIA — the autonomous AI operator for THIMBLE, a platform for creative professionals (designers, models, manufacturers, photographers, brands). You have full access to live platform metrics and can take real actions.
 
-${TOOLS}
+INTENT CLASSIFICATION — for every message, decide if it is:
+• QUESTION → answer directly from the data, no tool needed
+• ACTION REQUEST → use a tool (subject to approval rules below)
+• AUTOMATION TRIGGER → describe the automation you would set up and draft the action
 
-Be concise, direct, and action-oriented. Use **bold** for headers. When drafting emails, write in a professional but warm tone that fits a creative platform. Always show the user what you will do before doing it.`,
+AUTONOMY RULES:
+• send_broadcast (email ALL users) → always show preview first, only execute after admin says "yes/send/go/confirm"
+• send_alert_email (admin only) → can propose and execute in one step, low risk
+• draft_only → use when admin hasn't confirmed yet, or for any first-time proposal
+• manage_user → always look_up first to confirm identity, then propose ban/verify with reason
+
+BEHAVIOR:
+• Be concise and direct — no fluff
+• Use **bold** for section headers
+• When drafting emails, write warm professional copy suited to a creative community
+• When you call a tool, ALSO write what you are doing in your text reply so the admin sees context
+• If data shows something unusual, proactively flag it
+• You DO NOT need to apologise or add disclaimers — just act professionally`,
       },
+      ...historyMessages,
       { role: 'user', content: body.prompt },
     ],
   })
 
-  const raw = response.choices[0]?.message?.content ?? ''
+  const choice = response.choices[0]
+  const textContent = choice.message.content ?? ''
 
-  // Parse out any <action> block
-  const actionMatch = raw.match(/<action>([\s\S]*?)<\/action>/)
-  const textContent = raw.replace(/<action>[\s\S]*?<\/action>/, '').trim()
-
+  // Extract native tool call if model used it
   let parsedAction: ActionPayload | null = null
-  if (actionMatch) {
+  const toolCall = choice.message.tool_calls?.[0]
+  if (toolCall?.function) {
     try {
-      parsedAction = JSON.parse(actionMatch[1].trim()) as ActionPayload
+      const params = JSON.parse(toolCall.function.arguments) as Record<string, unknown>
+      const { reason, ...rest } = params
+      parsedAction = {
+        tool:   toolCall.function.name,
+        params: rest,
+        reason: (reason as string) ?? '',
+      }
     } catch {
-      // malformed action JSON — ignore
+      // malformed tool arguments — ignore
     }
   }
 
-  return NextResponse.json({ result: textContent, action: parsedAction })
+  // Also check for legacy <action> tag fallback (in case model ignores tool_choice)
+  if (!parsedAction) {
+    const tagMatch = textContent.match(/<action>([\s\S]*?)<\/action>/)
+    if (tagMatch) {
+      try {
+        const parsed = JSON.parse(tagMatch[1].trim()) as ActionPayload
+        if (ARIA_TOOLS.some(t => t.function!.name === parsed.tool)) {
+          parsedAction = parsed
+        }
+      } catch { /* ignore */ }
+    }
+  }
+
+  const cleanText = textContent.replace(/<action>[\s\S]*?<\/action>/g, '').trim()
+
+  return NextResponse.json({
+    result: cleanText || (parsedAction ? `Executing: ${parsedAction.tool}` : 'No response.'),
+    action: parsedAction,
+    requiresApproval: parsedAction ? (TOOL_REQUIRES_APPROVAL[parsedAction.tool] ?? true) : null,
+  })
 }
 
-// ── Execute a confirmed action ──
+// ── PUT: execute a confirmed action ─────────────────────────────────────────
 export async function PUT(request: NextRequest) {
   const cookieStore = await cookies()
   const token = cookieStore.get('admin_token')?.value
@@ -117,55 +199,89 @@ export async function PUT(request: NextRequest) {
   const body = await request.json() as { action: ActionPayload }
   const { action } = body
 
-  if (action.tool === 'send_broadcast') {
-    const p = action.params as unknown as BroadcastParams
-    const res = await fetch(`${api()}/admin/broadcast`, {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        subject:       p.subject,
-        body:          p.body,
-        audience:      { roles: p.roles ?? [], verifiedOnly: p.verified_only ?? false },
-        sendEmail:     p.send_email ?? true,
-        showBanner:    p.show_banner ?? false,
-        bannerMessage: p.banner_message ?? '',
-        bannerType:    p.banner_type ?? 'info',
-        bannerHours:   p.banner_hours ?? 0,
-      }),
-    })
-    const data = await res.json().catch(() => ({}))
-    return NextResponse.json({ ok: res.ok, data })
+  // Validate tool is in registry
+  const knownTool = ARIA_TOOLS.find(t => t.function!.name === action.tool)
+  if (!knownTool) {
+    return NextResponse.json({
+      ok: false,
+      error: `Unknown tool: "${action.tool}". Known tools: ${ARIA_TOOLS.map(t => t.function!.name).join(', ')}`,
+    }, { status: 400 })
   }
 
-  if (action.tool === 'send_alert_email') {
-    const p = action.params as unknown as AlertParams
-    const res = await fetch(`${api()}/admin/aria/email`, {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ subject: p.subject, body: p.body }),
-    })
-    const data = await res.json().catch(() => ({}))
-    return NextResponse.json({ ok: res.ok, data })
-  }
+  switch (action.tool) {
 
-  if (action.tool === 'manage_user') {
-    const p = action.params as unknown as UserActionParams
-    const res = await fetch(`${api()}/admin/aria/user-action`, {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        action:         p.action,
-        user_id:        p.user_id,
-        duration_hours: p.duration_hours ?? 0,
-        reason:         p.reason ?? '',
-      }),
-    })
-    const data = await res.json().catch(() => ({}))
-    return NextResponse.json({ ok: res.ok, data })
-  }
+    case 'send_broadcast': {
+      const p = action.params as unknown as BroadcastParams
+      const res = await fetch(`${api()}/admin/broadcast`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          subject:       p.subject,
+          body:          p.body,
+          audience:      { roles: p.roles ?? [], verifiedOnly: p.verified_only ?? false },
+          sendEmail:     p.send_email ?? true,
+          showBanner:    p.show_banner ?? false,
+          bannerMessage: p.banner_message ?? '',
+          bannerType:    p.banner_type ?? 'info',
+          bannerHours:   p.banner_hours ?? 0,
+        }),
+      })
+      const data = await res.json().catch(() => ({})) as Record<string, unknown>
+      return NextResponse.json({ ok: res.ok, data })
+    }
 
-  return NextResponse.json({ ok: false, error: 'Unknown tool' }, { status: 400 })
+    case 'send_alert_email': {
+      const p = action.params as unknown as AlertParams
+      const res = await fetch(`${api()}/admin/aria/email`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ subject: p.subject, body: p.body }),
+      })
+      const data = await res.json().catch(() => ({})) as Record<string, unknown>
+      return NextResponse.json({ ok: res.ok, data })
+    }
+
+    case 'draft_only':
+      // No execution — just acknowledge
+      return NextResponse.json({ ok: true, data: { message: 'Draft acknowledged' } })
+
+    case 'manage_user': {
+      const p = action.params as unknown as UserActionParams
+      const res = await fetch(`${api()}/admin/aria/user-action`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action:         p.action,
+          user_id:        p.user_id,
+          duration_hours: p.duration_hours ?? 0,
+          reason:         p.reason ?? '',
+        }),
+      })
+      const data = await res.json().catch(() => ({})) as Record<string, unknown>
+      return NextResponse.json({ ok: res.ok, data })
+    }
+
+    default:
+      return NextResponse.json({ ok: false, error: `Tool "${action.tool}" has no executor` }, { status: 400 })
+  }
 }
+
+// ── GET: return tool registry for frontend display ───────────────────────────
+export async function GET(request: NextRequest) {
+  const cookieStore = await cookies()
+  const token = cookieStore.get('admin_token')?.value
+  if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  void request
+  return NextResponse.json({
+    tools: ARIA_TOOLS.map(t => ({
+      name:             t.function!.name,
+      description:      t.function!.description,
+      requiresApproval: TOOL_REQUIRES_APPROVAL[t.function!.name] ?? true,
+    })),
+  })
+}
+
+// ── Types ────────────────────────────────────────────────────────────────────
 
 interface ActionPayload {
   tool: string
@@ -181,6 +297,7 @@ interface BroadcastParams {
 }
 
 interface AlertParams { subject: string; body: string }
+
 interface UserActionParams {
   action: 'ban' | 'unban' | 'verify' | 'look_up'
   user_id: string

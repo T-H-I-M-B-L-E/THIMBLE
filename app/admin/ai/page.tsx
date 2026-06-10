@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback, useRef } from 'react'
 import {
   Sparkles, Send, RefreshCw, Users, Activity, Database, Cloud,
   Zap, TrendingUp, AlertTriangle, CheckCircle, XCircle, Edit3,
-  Mail, Bot, ChevronRight, Shield, Eye
+  Mail, Bot, ChevronRight, Shield, Eye, UserX, UserCheck, Search,
 } from 'lucide-react'
 import { adminFetch } from '@/lib/adminFetch'
 
@@ -49,7 +49,7 @@ interface ActionPayload {
   reason: string
 }
 
-type MessageStatus = 'pending' | 'approved' | 'executing' | 'done' | 'failed' | 'cancelled' | 'editing'
+type MessageStatus = 'pending' | 'approved' | 'executing' | 'done' | 'failed' | 'cancelled'
 
 interface ChatMessage {
   role: 'user' | 'ai' | 'system'
@@ -57,6 +57,7 @@ interface ChatMessage {
   ts: number
   action?: ActionPayload
   actionStatus?: MessageStatus
+  requiresApproval?: boolean
   actionResult?: string
   editedParams?: Record<string, unknown>
 }
@@ -69,41 +70,31 @@ function buildContext(d: AllData): string {
   const transferMB = n?.data_transfer_bytes != null ? (n.data_transfer_bytes / 1024 / 1024).toFixed(1) : 'unknown'
   const monitor = i.uptimeRobot?.monitors[0]
   const ratios = monitor ? (monitor.custom_uptime_ratio || '').split('-') : []
-  return `You are ARIA, the AI operator for THIMBLE — a platform for creative professionals. You have full access to all live metrics AND can take real actions.
-
-=== LIVE DATA (${d.fetchedAt}) ===
-INFRA: backend ${i.backend.ok ? 'UP' : 'DOWN'} (${i.backend.uptime}), DB ping ${i.database.latencyMs}ms (${i.database.ok ? 'healthy' : 'ERROR'}), goroutines ${i.runtime.goroutines}, heap ${i.runtime.heapAllocMB}MB
-HTTP: ${i.requests.total} requests, ${i.requests.err5xx} 5xx errors, ${i.requests.errRatePct}% error rate, ${i.websockets.activeConns} websockets
-UPTIME: 24h ${ratios[0] ? parseFloat(ratios[0]).toFixed(2) + '%' : 'unknown'}, 7d ${ratios[1] ? parseFloat(ratios[1]).toFixed(2) + '%' : 'unknown'}, 30d ${ratios[2] ? parseFloat(ratios[2]).toFixed(2) + '%' : 'unknown'}
-USERS: ${s.totalUsers} total, ${s.todaySignups} new today, ${s.weekSignups} this week, ${i.userActivity.active24h} active 24h, ${i.userActivity.banned} banned, ${s.pendingVerifications} pending verification
-CONTENT: ${s.totalPosts} posts (${s.postsThisWeek} this week), ${s.totalGigs} gigs
-EMAIL: ${i.emailStats.sentToday} sent today, ${i.emailStats.sentWeek} this week, ${i.emailStats.sentTotal} total
-NEON: ${computeHrs}/100 CU-hrs compute, ${transferMB}MB data transfer
-ROLES: ${s.roleBreakdown.map(r => `${r.role || 'none'}:${r.count}`).join(', ')}
-${i.tableSizes?.length ? 'TABLES: ' + i.tableSizes.slice(0,3).map(t => `${t.name}(${t.size})`).join(', ') : ''}
-=== END DATA ===
-
-ACTIONS YOU CAN TAKE:
-- send_broadcast: Email users (segment by role/verified), optionally add in-app banner
-- send_alert_email: Email all admins (for alerts/reports)
-- draft_only: Show a draft for the user to review before you send
-
-RULES:
-- ALWAYS show the full draft (subject + body) in your message text before proposing an action
-- Use draft_only first, then send_broadcast/send_alert_email only when user confirms
-- When you propose an action, end with: <action>{"tool":"...","params":{...},"reason":"..."}</action>
-- Be warm and professional — THIMBLE is a creative community`
+  return `=== LIVE THIMBLE PLATFORM DATA (${d.fetchedAt}) ===
+INFRA: backend ${i.backend.ok ? 'UP' : 'DOWN'} (${i.backend.uptime}), DB ${i.database.latencyMs}ms (${i.database.ok ? 'healthy' : 'ERROR: ' + i.database.error}), goroutines ${i.runtime.goroutines}, heap ${i.runtime.heapAllocMB}MB
+HTTP: ${i.requests.total} total requests, ${i.requests.err5xx} 5xx errors, ${i.requests.errRatePct}% error rate, ${i.websockets.activeConns} active websockets
+UPTIME: 24h=${ratios[0] ? parseFloat(ratios[0]).toFixed(2) + '%' : 'unknown'}, 7d=${ratios[1] ? parseFloat(ratios[1]).toFixed(2) + '%' : 'unknown'}, 30d=${ratios[2] ? parseFloat(ratios[2]).toFixed(2) + '%' : 'unknown'}
+USERS: ${s.totalUsers} total, ${s.todaySignups} new today, ${s.weekSignups} this week, ${i.userActivity.active24h} active 24h, ${i.userActivity.banned} banned, ${s.pendingVerifications} pending verification, ${s.neverLoggedIn} never logged in
+CONTENT: ${s.totalPosts} posts (${s.postsThisWeek} this week), ${s.totalGigs} gigs, ${s.totalLogins} total logins
+EMAIL: ${i.emailStats.sentToday} sent today, ${i.emailStats.sentWeek} this week, ${i.emailStats.sentTotal} all-time
+NEON DB: ${computeHrs}/100 CU-hrs compute used, ${transferMB}MB data transfer this period
+ROLES: ${s.roleBreakdown.map(r => `${r.role || 'none'}=${r.count}`).join(', ')}
+${i.tableSizes?.length ? 'DB TABLES: ' + i.tableSizes.map(t => `${t.name}(${t.size},${t.rowCount}rows)`).join(', ') : ''}
+${i.recentErrors.length > 0 ? 'RECENT ERRORS: ' + i.recentErrors.slice(0,3).map(e => `${e.method} ${e.path} → ${e.status}`).join('; ') : 'RECENT ERRORS: none'}
+=== END DATA ===`
 }
 
-/* ── helpers ── */
+/* ── text formatter ── */
 function formatText(text: string) {
   return text.split('\n').map((line, i) => {
     const boldHeader = line.match(/^\*\*(.+)\*\*$/)
     if (boldHeader) return <div key={i} style={{ fontWeight: 700, color: '#ededef', marginTop: i > 0 ? 10 : 0, marginBottom: 2 }}>{boldHeader[1]}</div>
-    const inlineBold = line.match(/\*\*(.+?)\*\*/)
-    if (inlineBold) {
-      const parts = line.split(/\*\*(.+?)\*\*/)
-      return <div key={i} style={{ color: '#cfcfd3', marginTop: 2 }}>{parts.map((p, j) => j % 2 === 1 ? <strong key={j} style={{ color: '#ededef' }}>{p}</strong> : p)}</div>
+    const parts = line.split(/(\*\*[^*]+\*\*)/)
+    if (parts.length > 1) {
+      return <div key={i} style={{ color: '#cfcfd3', marginTop: 2 }}>{parts.map((p, j) => {
+        const m = p.match(/^\*\*(.+)\*\*$/)
+        return m ? <strong key={j} style={{ color: '#ededef' }}>{m[1]}</strong> : p
+      })}</div>
     }
     if (line.startsWith('- ') || line.startsWith('• ')) return <div key={i} style={{ display: 'flex', gap: 8, color: '#b5b5ba', marginTop: 3 }}><span style={{ color: '#5a5a60', flexShrink: 0 }}>·</span><span>{line.slice(2)}</span></div>
     if (line.trim() === '') return <div key={i} style={{ height: 5 }} />
@@ -111,86 +102,72 @@ function formatText(text: string) {
   })
 }
 
-const TOOL_LABELS: Record<string, string> = {
-  send_broadcast:   'Send to Users',
-  send_alert_email: 'Email Admins',
-  draft_only:       'Draft Preview',
+/* ── tool config ── */
+const TOOL_META: Record<string, { label: string; color: string; icon: React.ElementType; autoLabel?: string }> = {
+  send_broadcast:   { label: 'Send to Users',  color: '#6366f1', icon: Users },
+  send_alert_email: { label: 'Email Admins',   color: '#f59e0b', icon: Shield,   autoLabel: 'Auto-send' },
+  draft_only:       { label: 'Draft Preview',  color: '#22d3ee', icon: Eye,      autoLabel: 'Preview only' },
+  manage_user:      { label: 'User Action',    color: '#e879f9', icon: UserX },
 }
 
-const TOOL_ICONS: Record<string, React.ElementType> = {
-  send_broadcast:   Users,
-  send_alert_email: Shield,
-  draft_only:       Eye,
-}
-
-const TOOL_COLORS: Record<string, string> = {
-  send_broadcast:   '#6366f1',
-  send_alert_email: '#f59e0b',
-  draft_only:       '#22d3ee',
-}
-
-function ActionCard({ msg, onApprove, onCancel, onEdit }: {
+/* ── ActionCard ── */
+function ActionCard({ msg, onApprove, onCancel }: {
   msg: ChatMessage
   onApprove: (editedParams?: Record<string, unknown>) => void
   onCancel: () => void
-  onEdit: () => void
 }) {
   const action = msg.action!
   const status = msg.actionStatus ?? 'pending'
-  const color = TOOL_COLORS[action.tool] ?? '#6366f1'
-  const Icon = TOOL_ICONS[action.tool] ?? Bot
-  const label = TOOL_LABELS[action.tool] ?? action.tool
+  const meta = TOOL_META[action.tool] ?? { label: action.tool, color: '#6366f1', icon: Bot }
+  const { color, icon: Icon, label } = meta
   const isDraft = action.tool === 'draft_only'
+  const needsApproval = msg.requiresApproval !== false
 
   const params = (msg.editedParams ?? action.params) as {
     subject?: string; body?: string; roles?: string[]
-    verified_only?: boolean; send_email?: boolean
-    show_banner?: boolean; banner_message?: string
+    verified_only?: boolean; show_banner?: boolean
     audience_description?: string
+    // manage_user fields
+    action?: string; user_id?: string; duration_hours?: number
   }
 
-  const [editing, setEditing] = useState(false)
+  const [editing, setEditing]       = useState(false)
   const [editSubject, setEditSubject] = useState(params.subject ?? '')
-  const [editBody, setEditBody]     = useState(params.body ?? '')
+  const [editBody, setEditBody]       = useState(params.body ?? '')
 
-  const statusConfig = {
-    pending:   { label: 'Awaiting approval', color: '#f59e0b', icon: AlertTriangle },
-    approved:  { label: 'Approved',          color: '#22c55e', icon: CheckCircle },
-    executing: { label: 'Executing…',         color: '#6366f1', icon: RefreshCw },
-    done:      { label: 'Done',              color: '#22c55e', icon: CheckCircle },
-    failed:    { label: 'Failed',            color: '#ef4444', icon: XCircle },
-    cancelled: { label: 'Cancelled',         color: '#5a5a60', icon: XCircle },
-    editing:   { label: 'Editing',           color: '#22d3ee', icon: Edit3 },
+  const statusConfig: Record<MessageStatus, { label: string; color: string; icon: React.ElementType }> = {
+    pending:   { label: needsApproval ? 'Awaiting approval' : 'Ready', color: needsApproval ? '#f59e0b' : '#22d3ee', icon: AlertTriangle },
+    approved:  { label: 'Approved',    color: '#22c55e', icon: CheckCircle },
+    executing: { label: 'Executing…',  color: '#6366f1', icon: RefreshCw },
+    done:      { label: 'Done',        color: '#22c55e', icon: CheckCircle },
+    failed:    { label: 'Failed',      color: '#ef4444', icon: XCircle },
+    cancelled: { label: 'Cancelled',   color: '#5a5a60', icon: XCircle },
   }
   const sc = statusConfig[status]
   const StatusIcon = sc.icon
 
   return (
-    <div style={{
-      border: `1px solid ${color}33`, borderRadius: 12, overflow: 'hidden',
-      background: '#0a0a12', marginTop: 8,
-    }}>
+    <div style={{ border: `1px solid ${color}33`, borderRadius: 12, overflow: 'hidden', background: '#090910', marginTop: 8 }}>
       {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 16px', background: `${color}0e`, borderBottom: `1px solid ${color}22` }}>
-        <div style={{ width: 28, height: 28, borderRadius: 8, background: `${color}20`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-          <Icon size={13} style={{ color }} />
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 16px', background: `${color}0c`, borderBottom: `1px solid ${color}20` }}>
+        <div style={{ width: 26, height: 26, borderRadius: 7, background: `${color}20`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+          <Icon size={12} style={{ color }} />
         </div>
-        <div style={{ flex: 1 }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontSize: 12, fontWeight: 700, color: '#ededef' }}>{label}</div>
-          <div style={{ fontSize: 11, color: '#5a5a60' }}>{action.reason}</div>
+          <div style={{ fontSize: 11, color: '#5a5a60', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{action.reason}</div>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-          <StatusIcon size={12} style={{ color: sc.color, animation: status === 'executing' ? 'spin 0.8s linear infinite' : 'none' }} />
+        <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexShrink: 0 }}>
+          <StatusIcon size={11} style={{ color: sc.color, animation: status === 'executing' ? 'spin 0.8s linear infinite' : 'none' }} />
           <span style={{ fontSize: 11, color: sc.color, fontWeight: 600 }}>{sc.label}</span>
         </div>
       </div>
 
       {/* Content */}
-      <div style={{ padding: '14px 16px' }}>
+      <div style={{ padding: '13px 16px' }}>
         {editing ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            <input value={editSubject} onChange={e => setEditSubject(e.target.value)}
-              placeholder="Subject"
+            <input value={editSubject} onChange={e => setEditSubject(e.target.value)} placeholder="Subject"
               style={{ background: '#111', border: '1px solid #2a2a3e', borderRadius: 8, padding: '8px 12px', color: '#ededef', fontSize: 13, outline: 'none' }} />
             <textarea value={editBody} onChange={e => setEditBody(e.target.value)} rows={6}
               style={{ background: '#111', border: '1px solid #2a2a3e', borderRadius: 8, padding: '8px 12px', color: '#ededef', fontSize: 13, outline: 'none', resize: 'vertical', fontFamily: 'inherit', lineHeight: 1.6 }} />
@@ -207,59 +184,57 @@ function ActionCard({ msg, onApprove, onCancel, onEdit }: {
           </div>
         ) : (
           <>
-            {params.subject && <div style={{ fontSize: 12, color: '#8a8a90', marginBottom: 4 }}>Subject</div>}
-            {params.subject && <div style={{ fontSize: 13, fontWeight: 600, color: '#ededef', marginBottom: 10 }}>{params.subject}</div>}
-            {params.body && <div style={{ fontSize: 12, color: '#8a8a90', marginBottom: 4 }}>Body</div>}
-            {params.body && (
-              <div style={{ fontSize: 13, color: '#b5b5ba', lineHeight: 1.65, whiteSpace: 'pre-wrap', background: '#0e0e18', border: '1px solid #1e1e2e', borderRadius: 8, padding: '10px 14px', marginBottom: 10 }}>
-                {params.body}
-              </div>
-            )}
-            {params.audience_description && (
-              <div style={{ fontSize: 12, color: '#5a5a60', marginBottom: 10 }}>Audience: {params.audience_description}</div>
-            )}
+            {/* Email preview */}
+            {params.subject && <>
+              <div style={{ fontSize: 11, color: '#5a5a60', marginBottom: 3 }}>Subject</div>
+              <div style={{ fontSize: 13, fontWeight: 600, color: '#ededef', marginBottom: 10 }}>{params.subject}</div>
+            </>}
+            {params.body && <>
+              <div style={{ fontSize: 11, color: '#5a5a60', marginBottom: 3 }}>Body</div>
+              <div style={{ fontSize: 13, color: '#b5b5ba', lineHeight: 1.65, whiteSpace: 'pre-wrap', background: '#0e0e18', border: '1px solid #1e1e2e', borderRadius: 8, padding: '10px 14px', marginBottom: 10 }}>{params.body}</div>
+            </>}
+            {params.audience_description && <div style={{ fontSize: 12, color: '#5a5a60', marginBottom: 8 }}>Audience: {params.audience_description}</div>}
             {params.roles !== undefined && (
               <div style={{ fontSize: 12, color: '#5a5a60', marginBottom: 6 }}>
-                Audience: {(params.roles as string[]).length === 0 ? 'All users' : (params.roles as string[]).join(', ')}
+                To: {(params.roles as string[]).length === 0 ? 'All users' : (params.roles as string[]).join(', ')}
                 {params.verified_only ? ' · Verified only' : ''}
                 {params.show_banner ? ' · + In-app banner' : ''}
+              </div>
+            )}
+            {/* User action preview */}
+            {action.tool === 'manage_user' && (
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 8, flexWrap: 'wrap' }}>
+                <span style={{ padding: '3px 9px', borderRadius: 6, background: `${color}20`, border: `1px solid ${color}30`, fontSize: 12, color, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{params.action}</span>
+                <span style={{ fontSize: 12, color: '#5a5a60', fontFamily: 'monospace' }}>{params.user_id}</span>
+                {params.duration_hours ? <span style={{ fontSize: 12, color: '#f59e0b' }}>{params.duration_hours}h</span> : null}
               </div>
             )}
           </>
         )}
 
-        {/* Action result */}
         {msg.actionResult && (
           <div style={{ fontSize: 12, padding: '8px 12px', borderRadius: 8, background: status === 'done' ? '#22c55e10' : '#ef444410', border: `1px solid ${status === 'done' ? '#22c55e30' : '#ef444430'}`, color: status === 'done' ? '#86efac' : '#fca5a5', marginTop: 8 }}>
             {msg.actionResult}
           </div>
         )}
 
-        {/* Buttons */}
-        {(status === 'pending') && !editing && (
+        {status === 'pending' && !editing && (
           <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
             {!isDraft && (
-              <button onClick={() => onApprove()} style={{
-                flex: 1, padding: '9px', background: `${color}18`, border: `1px solid ${color}40`,
-                borderRadius: 8, color, fontSize: 12, cursor: 'pointer', fontWeight: 600,
-                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-              }}>
-                <CheckCircle size={13} /> Approve & Execute
+              <button onClick={() => onApprove()} style={{ flex: 1, padding: '9px', background: `${color}18`, border: `1px solid ${color}40`, borderRadius: 8, color, fontSize: 12, cursor: 'pointer', fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                <CheckCircle size={12} /> {needsApproval ? 'Approve & Execute' : 'Execute'}
               </button>
             )}
-            <button onClick={() => { setEditing(true); onEdit() }} style={{
-              padding: '9px 14px', background: '#1a1a1d', border: '1px solid #2a2a2e',
-              borderRadius: 8, color: '#b5b5ba', fontSize: 12, cursor: 'pointer',
-              display: 'flex', alignItems: 'center', gap: 6,
-            }}>
-              <Edit3 size={12} /> Edit
-            </button>
-            <button onClick={onCancel} style={{
-              padding: '9px 14px', background: '#1a1a1d', border: '1px solid #2a2a2e',
-              borderRadius: 8, color: '#5a5a60', fontSize: 12, cursor: 'pointer',
-            }}>
-              Cancel
-            </button>
+            {(action.tool === 'send_broadcast' || action.tool === 'send_alert_email') && (
+              <button onClick={() => setEditing(true)} style={{ padding: '9px 14px', background: '#1a1a1d', border: '1px solid #2a2a2e', borderRadius: 8, color: '#b5b5ba', fontSize: 12, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5 }}>
+                <Edit3 size={11} /> Edit
+              </button>
+            )}
+            {!isDraft && (
+              <button onClick={onCancel} style={{ padding: '9px 14px', background: '#1a1a1d', border: '1px solid #2a2a2e', borderRadius: 8, color: '#5a5a60', fontSize: 12, cursor: 'pointer' }}>
+                Cancel
+              </button>
+            )}
           </div>
         )}
       </div>
@@ -267,16 +242,17 @@ function ActionCard({ msg, onApprove, onCancel, onEdit }: {
   )
 }
 
+/* ── StatChip ── */
 function StatChip({ icon: Icon, label, value, color, warn }: {
   icon: React.ElementType; label: string; value: string | number; color: string; warn?: boolean
 }) {
   return (
-    <div style={{ padding: '12px 14px', borderRadius: 10, background: '#0e0e10', border: `1px solid ${warn ? 'rgba(239,68,68,0.3)' : '#1e1e22'}` }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 6 }}>
-        <Icon size={11} style={{ color }} />
+    <div style={{ padding: '11px 13px', borderRadius: 10, background: '#0e0e10', border: `1px solid ${warn ? 'rgba(239,68,68,0.3)' : '#1e1e22'}` }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 5 }}>
+        <Icon size={10} style={{ color }} />
         <span style={{ fontSize: 9, color: '#5a5a60', fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase' }}>{label}</span>
       </div>
-      <div style={{ fontSize: 18, fontWeight: 700, color: warn ? '#f59e0b' : '#ededef', letterSpacing: '-0.02em' }}>{value}</div>
+      <div style={{ fontSize: 17, fontWeight: 700, color: warn ? '#f59e0b' : '#ededef', letterSpacing: '-0.02em' }}>{value}</div>
     </div>
   )
 }
@@ -284,10 +260,19 @@ function StatChip({ icon: Icon, label, value, color, warn }: {
 const QUICK = [
   'Give me a full health report',
   'Any issues to fix right now?',
-  'Send me a summary email',
-  'How is user growth this week?',
   'Am I near any free tier limits?',
-  'Draft an update email for all users',
+  'How is user growth this week?',
+  'Draft a welcome email for new users',
+  'Send me an admin summary email',
+]
+
+const CAPABILITY_CHIPS = [
+  { label: 'Email users',    color: '#6366f1', icon: Mail },
+  { label: 'Email admins',   color: '#f59e0b', icon: Shield },
+  { label: 'Analyse metrics',color: '#22c55e', icon: Activity },
+  { label: 'Manage users',   color: '#e879f9', icon: UserCheck },
+  { label: 'Draft content',  color: '#22d3ee', icon: Edit3 },
+  { label: 'Look up users',  color: '#a78bfa', icon: Search },
 ]
 
 /* ── main page ── */
@@ -298,8 +283,8 @@ export default function ARIAPage() {
   const [input, setInput]       = useState('')
   const [sending, setSending]   = useState(false)
   const [isMobile, setIsMobile] = useState(false)
-  const bottomRef  = useRef<HTMLDivElement>(null)
-  const inputRef   = useRef<HTMLInputElement>(null)
+  const bottomRef = useRef<HTMLDivElement>(null)
+  const inputRef  = useRef<HTMLInputElement>(null)
 
   const fetchAll = useCallback(async () => {
     setLoading(true)
@@ -310,9 +295,9 @@ export default function ARIAPage() {
         adminFetch('/api/admin/neon-usage'),
       ])
       const [infra, stats, neon] = await Promise.all([
-        iRes.ok ? iRes.json() : null,
-        sRes.ok ? sRes.json() : null,
-        nRes.ok ? nRes.json() : null,
+        iRes.ok ? iRes.json() as Promise<InfraData> : null,
+        sRes.ok ? sRes.json() as Promise<AppStats>  : null,
+        nRes.ok ? nRes.json() as Promise<NeonUsage> : null,
       ])
       setAllData({ infra, stats, neon, fetchedAt: new Date().toLocaleTimeString() })
     } finally { setLoading(false) }
@@ -334,35 +319,51 @@ export default function ARIAPage() {
     setSending(true)
     try {
       const ctx = buildContext(allData)
-      const history = [...messages, userMsg].slice(-10)
-        .map(m => `${m.role === 'user' ? 'User' : 'ARIA'}: ${m.text}`)
-        .join('\n\n')
-      const prompt = `${ctx}\n\n=== CONVERSATION ===\n${history}\n\nARIA:`
+      // Build conversation history for multi-turn context
+      const history = [...messages, userMsg].slice(-12).map(m => ({
+        role: m.role === 'user' ? 'user' : 'assistant',
+        content: m.text,
+      }))
 
       const res = await adminFetch('/api/admin/aria', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt, mode: 'chat' }),
+        body: JSON.stringify({ prompt: `${ctx}\n\n${msg}`, history }),
       })
-      const d = await res.json()
+      const d = await res.json() as { result: string; action: ActionPayload | null; requiresApproval: boolean | null; error?: string }
+
+      if (!res.ok) {
+        setMessages(m => [...m, { role: 'ai', text: `Error: ${d.error ?? 'ARIA is unavailable.'}`, ts: Date.now() }])
+        return
+      }
+
       const aiMsg: ChatMessage = {
-        role: 'ai', text: d.result || d.error || 'No response.', ts: Date.now(),
+        role: 'ai',
+        text: d.result || (d.action ? `Executing ${d.action.tool}…` : 'No response.'),
+        ts: Date.now(),
         action: d.action ?? undefined,
         actionStatus: d.action ? 'pending' : undefined,
+        requiresApproval: d.requiresApproval ?? undefined,
       }
       setMessages(m => [...m, aiMsg])
+
+      // Auto-execute low-risk tools that don't need approval
+      if (d.action && d.requiresApproval === false && d.action.tool !== 'draft_only') {
+        const idx = messages.length + 1 // the aiMsg index
+        setTimeout(() => void executeAction(idx, undefined, d.action!), 300)
+      }
     } catch {
-      setMessages(m => [...m, { role: 'ai', text: 'Error reaching ARIA.', ts: Date.now() }])
+      setMessages(m => [...m, { role: 'ai', text: 'Error reaching ARIA. Is your connection OK?', ts: Date.now() }])
     } finally { setSending(false); inputRef.current?.focus() }
   }
 
-  async function executeAction(msgIndex: number, editedParams?: Record<string, unknown>) {
+  async function executeAction(msgIndex: number, editedParams?: Record<string, unknown>, actionOverride?: ActionPayload) {
     setMessages(m => m.map((msg, i) => i === msgIndex
-      ? { ...msg, actionStatus: 'executing' as MessageStatus, editedParams }
+      ? { ...msg, actionStatus: 'executing' as MessageStatus, ...(editedParams ? { editedParams } : {}) }
       : msg))
 
     const msg = messages[msgIndex]
-    const action = { ...msg.action!, params: editedParams ?? msg.action!.params }
+    const action = actionOverride ?? { ...(msg?.action ?? { tool: '', params: {}, reason: '' }), params: editedParams ?? msg?.action?.params ?? {} }
 
     try {
       const res = await adminFetch('/api/admin/aria', {
@@ -370,22 +371,24 @@ export default function ARIAPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action }),
       })
-      const d = await res.json()
+      const d = await res.json() as { ok: boolean; data?: Record<string, unknown>; error?: string }
       const ok = res.ok && d.ok !== false
-      const resultText = ok
-        ? action.tool === 'send_broadcast'
-          ? `✓ Sent to ${d.data?.recipients ?? '?'} users (${d.data?.succeeded ?? '?'} succeeded)`
-          : '✓ Email sent successfully'
-        : `✗ ${d.data?.error || d.error || 'Execution failed'}`
+
+      let resultText = ''
+      if (ok) {
+        if (action.tool === 'send_broadcast') resultText = `✓ Sent to ${d.data?.recipients ?? '?'} users (${d.data?.succeeded ?? '?'} succeeded)`
+        else if (action.tool === 'manage_user') resultText = `✓ ${(d.data?.message as string) ?? 'Done'}`
+        else resultText = '✓ Executed successfully'
+      } else {
+        resultText = `✗ ${d.error ?? (d.data?.error as string) ?? 'Execution failed'}`
+      }
 
       setMessages(m => m.map((msg, i) => i === msgIndex
         ? { ...msg, actionStatus: ok ? 'done' : 'failed', actionResult: resultText }
         : msg))
-
       setMessages(m => [...m, {
-        role: 'ai', text: ok
-          ? `Done ✓ — ${resultText}`
-          : `Something went wrong: ${resultText}. Want me to retry or try a different approach?`,
+        role: 'ai',
+        text: ok ? `Done ✓ — ${resultText}` : `Something went wrong: ${resultText}\n\nWant me to retry or try a different approach?`,
         ts: Date.now(),
       }])
     } catch {
@@ -396,16 +399,14 @@ export default function ARIAPage() {
   }
 
   function cancelAction(msgIndex: number) {
-    setMessages(m => m.map((msg, i) => i === msgIndex
-      ? { ...msg, actionStatus: 'cancelled' }
-      : msg))
-    setMessages(m => [...m, { role: 'ai', text: 'Action cancelled. What would you like to do instead?', ts: Date.now() }])
+    setMessages(m => m.map((msg, i) => i === msgIndex ? { ...msg, actionStatus: 'cancelled' } : msg))
+    setMessages(m => [...m, { role: 'ai', text: 'Cancelled. What would you like to do instead?', ts: Date.now() }])
   }
 
   const i = allData.infra; const s = allData.stats; const n = allData.neon
-  const errRate = i ? parseFloat(i.requests.errRatePct) : 0
+  const errRate    = i ? parseFloat(i.requests.errRatePct) : 0
   const computeHrs = n?.compute_time_seconds != null ? (n.compute_time_seconds / 3600) : null
-  const hasIssues = i && (!i.database.ok || errRate >= 5 || i.requests.err5xx > 0)
+  const hasIssues  = i && (!i.database.ok || errRate >= 5 || i.requests.err5xx > 10)
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: isMobile ? 'calc(100vh - 120px)' : 'calc(100vh - 116px)', overflow: 'hidden', color: 'white' }}>
@@ -418,9 +419,9 @@ export default function ARIAPage() {
               <Sparkles size={16} style={{ color: '#818cf8' }} />
             </div>
             <div>
-              <h1 style={{ fontSize: 16, fontWeight: 700, margin: 0 }}>ARIA</h1>
+              <h1 style={{ fontSize: 16, fontWeight: 700, margin: 0, letterSpacing: '-0.02em' }}>ARIA</h1>
               <p style={{ fontSize: 10, color: '#5a5a60', margin: 0 }}>
-                AI operator · full data + action access
+                Autonomous operator · 4 tools · multi-turn context
                 {allData.fetchedAt && ` · ${allData.fetchedAt}`}
               </p>
             </div>
@@ -438,16 +439,16 @@ export default function ARIAPage() {
             <StatChip icon={Database}   label="DB ping"     value={`${i.database.latencyMs}ms`}    color="#22c55e"  warn={i.database.latencyMs > 100} />
             <StatChip icon={Users}      label="Active 24h"  value={i.userActivity.active24h}        color="#a78bfa" />
             <StatChip icon={TrendingUp} label="New today"   value={s.todaySignups}                  color="#22d3ee" />
-            <StatChip icon={Cloud}      label="Compute"     value={computeHrs != null ? `${computeHrs.toFixed(1)}` : '—'} color="#fb923c" warn={computeHrs != null && computeHrs >= 70} />
-            <StatChip icon={Zap}        label="WebSockets"  value={i.websockets.activeConns}        color="#6366f1" />
+            <StatChip icon={Cloud}      label="Compute"     value={computeHrs != null ? `${computeHrs.toFixed(1)}h` : '—'} color="#fb923c" warn={computeHrs != null && computeHrs >= 70} />
+            <StatChip icon={Zap}        label="WS conns"    value={i.websockets.activeConns}        color="#6366f1" />
           </div>
         )}
 
         {hasIssues && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '9px 12px', background: 'rgba(239,68,68,0.07)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: 9, marginBottom: 10, fontSize: 12, color: '#fca5a5' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', background: 'rgba(239,68,68,0.07)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: 9, marginBottom: 10, fontSize: 12, color: '#fca5a5' }}>
             <AlertTriangle size={12} color="#ef4444" />
             <span>Issues detected</span>
-            <button onClick={() => void sendMessage('There are active issues detected. Tell me exactly what is wrong and what to do right now.')}
+            <button onClick={() => void sendMessage('Active issues detected. Tell me exactly what is wrong and what to do right now.')}
               style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 4, padding: '4px 10px', background: '#ef444418', border: '1px solid #ef444430', borderRadius: 6, color: '#fca5a5', fontSize: 11, cursor: 'pointer' }}>
               Diagnose <ChevronRight size={10} />
             </button>
@@ -456,15 +457,10 @@ export default function ARIAPage() {
 
         {/* Capability chips */}
         <div style={{ display: 'flex', gap: 6, marginBottom: 10, flexWrap: 'wrap' }}>
-          {[
-            { label: 'Email users', color: '#6366f1', icon: Mail },
-            { label: 'Email admins', color: '#f59e0b', icon: Shield },
-            { label: 'Analyse metrics', color: '#22c55e', icon: Activity },
-            { label: 'Draft content', color: '#22d3ee', icon: Edit3 },
-          ].map(c => {
+          {CAPABILITY_CHIPS.map(c => {
             const CIcon = c.icon
             return (
-              <div key={c.label} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '4px 10px', background: `${c.color}10`, border: `1px solid ${c.color}25`, borderRadius: 20, fontSize: 10, color: c.color, fontWeight: 600 }}>
+              <div key={c.label} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '4px 10px', background: `${c.color}10`, border: `1px solid ${c.color}22`, borderRadius: 20, fontSize: 10, color: c.color, fontWeight: 600 }}>
                 <CIcon size={10} />{c.label}
               </div>
             )
@@ -479,14 +475,33 @@ export default function ARIAPage() {
 
         {messages.length === 0 && (
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', flex: 1, gap: 20, paddingTop: 10 }}>
-            <div style={{ textAlign: 'center', maxWidth: 400 }}>
+            <div style={{ textAlign: 'center', maxWidth: 420 }}>
               <div style={{ width: 52, height: 52, borderRadius: 14, margin: '0 auto 14px', background: 'linear-gradient(135deg,#6366f120,#8b5cf620)', border: '1px solid #6366f128', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <Bot size={22} style={{ color: '#818cf8' }} />
               </div>
               <p style={{ fontSize: 14, fontWeight: 600, color: '#ededef', margin: '0 0 6px' }}>What can I do for you today?</p>
-              <p style={{ fontSize: 12, color: '#5a5a60', margin: 0, lineHeight: 1.6 }}>
-                I can analyse metrics, diagnose issues, draft emails, and send them — with your approval before anything goes out.
+              <p style={{ fontSize: 12, color: '#5a5a60', margin: '0 0 16px', lineHeight: 1.6 }}>
+                I analyse metrics, answer questions, manage users, and send emails — with your approval before anything impactful goes out.
               </p>
+              {/* Tool registry display */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, maxWidth: 360, margin: '0 auto' }}>
+                {Object.entries(TOOL_META).map(([name, meta]) => {
+                  const TIcon = meta.icon
+                  return (
+                    <div key={name} style={{ display: 'flex', gap: 9, alignItems: 'center', padding: '9px 12px', background: '#0e0e10', border: `1px solid ${meta.color}20`, borderRadius: 9 }}>
+                      <div style={{ width: 22, height: 22, borderRadius: 6, background: `${meta.color}20`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                        <TIcon size={11} style={{ color: meta.color }} />
+                      </div>
+                      <div>
+                        <div style={{ fontSize: 11, fontWeight: 600, color: '#ededef' }}>{meta.label}</div>
+                        <div style={{ fontSize: 10, color: meta.autoLabel ? '#22d3ee' : '#f59e0b' }}>
+                          {meta.autoLabel ?? 'Needs approval'}
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 7, width: '100%', maxWidth: 520 }}>
               {QUICK.map(p => (
@@ -506,20 +521,18 @@ export default function ARIAPage() {
               </div>
               <div style={{ maxWidth: '82%', padding: '10px 14px', borderRadius: 11, background: m.role === 'ai' ? '#0e0e14' : '#131308', border: `1px solid ${m.role === 'ai' ? '#1e1e2e' : '#28280e'}`, fontSize: 13, lineHeight: 1.65 }}>
                 {m.role === 'ai' ? formatText(m.text) : <span style={{ color: '#ededef' }}>{m.text}</span>}
-                <div style={{ fontSize: 10, color: '#2a2a30', marginTop: 5 }}>
+                <div style={{ fontSize: 10, color: '#2a2a30', marginTop: 4 }}>
                   {new Date(m.ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                 </div>
               </div>
             </div>
 
-            {/* Action card attached to AI messages */}
             {m.role === 'ai' && m.action && (
               <div style={{ paddingLeft: 38 }}>
                 <ActionCard
                   msg={m}
                   onApprove={(editedParams) => void executeAction(idx, editedParams)}
                   onCancel={() => cancelAction(idx)}
-                  onEdit={() => {}}
                 />
               </div>
             )}
@@ -562,8 +575,8 @@ export default function ARIAPage() {
             <Send size={14} style={{ color: input.trim() && !sending ? 'white' : '#5a5a60' }} />
           </button>
         </div>
-        <p style={{ fontSize: 10, color: '#1e1e22', textAlign: 'center', margin: '7px 0 0' }}>
-          ARIA · Llama 3.1 via Groq · approval required before any action executes
+        <p style={{ fontSize: 10, color: '#222228', textAlign: 'center', margin: '7px 0 0' }}>
+          ARIA · Llama 3.1 · Groq · native tool-calling · approval required for high-impact actions
         </p>
       </div>
 

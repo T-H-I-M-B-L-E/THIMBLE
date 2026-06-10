@@ -17,6 +17,11 @@ interface MsgNotif {
   visible: boolean
 }
 
+interface SystemAlert {
+  level: 'critical' | 'warning'
+  messages: string[]
+}
+
 function AdminLayoutInner({ children }: { children: React.ReactNode }) {
   const [adminName, setAdminName] = useState('')
   const [adminId, setAdminId] = useState('')
@@ -27,6 +32,8 @@ function AdminLayoutInner({ children }: { children: React.ReactNode }) {
   const [unread, setUnread] = useState(0)
   const [pendingVerifications, setPendingVerifications] = useState(0)
   const [notif, setNotif] = useState<MsgNotif>({ senderFirstName: '', visible: false })
+  const [systemAlert, setSystemAlert] = useState<SystemAlert | null>(null)
+  const [alertDismissed, setAlertDismissed] = useState(false)
   const chatWs = useRef<WebSocket | null>(null)
   const notifTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const lastSeenId = useRef<number>(0)
@@ -58,6 +65,37 @@ function AdminLayoutInner({ children }: { children: React.ReactNode }) {
         .catch(() => {})
     void load()
     const id = setInterval(load, 60000)
+    return () => clearInterval(id)
+  }, [authChecked])
+
+  // System health polling — every 2 minutes, surfaces critical issues in the nav
+  useEffect(() => {
+    if (!authChecked) return
+    const checkHealth = () => {
+      adminFetch('/api/admin/infra')
+        .then(r => r.ok ? r.json() : null)
+        .then((d: { backend?: { ok: boolean }; database?: { ok: boolean; latencyMs: number }; requests?: { errRatePct: string; err5xx: number } } | null) => {
+          if (!d) return
+          const issues: string[] = []
+          if (!d.backend?.ok)                                          issues.push('Backend is DOWN')
+          if (!d.database?.ok)                                         issues.push('Database unreachable')
+          if (d.database?.latencyMs && d.database.latencyMs > 500)    issues.push(`DB latency ${d.database.latencyMs}ms`)
+          if (d.requests?.err5xx && d.requests.err5xx > 20)           issues.push(`${d.requests.err5xx} server errors`)
+          const errRate = parseFloat(d.requests?.errRatePct ?? '0')
+          if (errRate >= 10)                                           issues.push(`${errRate.toFixed(1)}% error rate`)
+
+          if (issues.length > 0) {
+            const level = (!d.backend?.ok || !d.database?.ok) ? 'critical' : 'warning'
+            setSystemAlert({ level, messages: issues })
+            setAlertDismissed(false)
+          } else {
+            setSystemAlert(null)
+          }
+        })
+        .catch(() => {})
+    }
+    checkHealth()
+    const id = setInterval(checkHealth, 2 * 60 * 1000)
     return () => clearInterval(id)
   }, [authChecked])
 
@@ -113,12 +151,15 @@ function AdminLayoutInner({ children }: { children: React.ReactNode }) {
     window.location.href = '/admin/login'
   }
 
-  const navLinks: { href: string; label: string; badge?: number }[] = [
+  const hasAlert = systemAlert !== null && !alertDismissed
+  const isCritical = systemAlert?.level === 'critical'
+
+  const navLinks: { href: string; label: string; badge?: number; alert?: boolean }[] = [
     { href: '/admin', label: 'Dashboard' },
     { href: '/admin/users', label: 'Users' },
     { href: '/admin/ads', label: 'Ads' },
     { href: '/admin/broadcast', label: 'Broadcast' },
-    { href: '/admin/infra', label: 'Infra' },
+    { href: '/admin/infra', label: 'Infra', alert: hasAlert },
     { href: '/admin/ai', label: '✦ ARIA' },
     { href: '/admin/verification', label: 'Verify', badge: pendingVerifications > 0 ? pendingVerifications : undefined },
     { href: '/admin/chat', label: 'Messages', badge: unread > 0 ? unread : undefined },
@@ -146,6 +187,37 @@ function AdminLayoutInner({ children }: { children: React.ReactNode }) {
         </div>
       </header>
 
+      {/* ── System alert banner ── */}
+      {hasAlert && systemAlert && (
+        <div style={{
+          background: isCritical ? 'rgba(239,68,68,0.12)' : 'rgba(245,158,11,0.10)',
+          borderBottom: `1px solid ${isCritical ? 'rgba(239,68,68,0.35)' : 'rgba(245,158,11,0.3)'}`,
+          padding: '9px 20px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 10,
+          flexWrap: 'wrap',
+        }}>
+          <span style={{ fontSize: 14, flexShrink: 0 }}>{isCritical ? '🔴' : '🟡'}</span>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <span style={{ fontSize: 12, fontWeight: 700, color: isCritical ? '#fca5a5' : '#fcd34d', letterSpacing: '0.04em', textTransform: 'uppercase' }}>
+              {isCritical ? 'Critical Issue' : 'Warning'}
+            </span>
+            <span style={{ fontSize: 12, color: isCritical ? '#fca5a5' : '#fcd34d', marginLeft: 10 }}>
+              {systemAlert.messages.join(' · ')}
+            </span>
+          </div>
+          <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
+            <a href="/admin/infra" style={{ fontSize: 11, padding: '4px 10px', background: isCritical ? 'rgba(239,68,68,0.2)' : 'rgba(245,158,11,0.15)', border: `1px solid ${isCritical ? 'rgba(239,68,68,0.4)' : 'rgba(245,158,11,0.35)'}`, borderRadius: 6, color: isCritical ? '#fca5a5' : '#fcd34d', textDecoration: 'none', fontWeight: 600 }}>
+              View Infra
+            </a>
+            <button onClick={() => setAlertDismissed(true)} style={{ fontSize: 11, padding: '4px 10px', background: 'transparent', border: '1px solid #2a2a2e', borderRadius: 6, color: '#5a5a60', cursor: 'pointer' }}>
+              Dismiss
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Main content */}
       <main style={{ flex: 1, overflow: 'auto' }}>{children}</main>
 
@@ -153,6 +225,7 @@ function AdminLayoutInner({ children }: { children: React.ReactNode }) {
       <nav style={{ position: 'sticky', bottom: 0, borderTop: '1px solid #232326', background: '#0c0c0d', display: 'flex', justifyContent: 'center', gap: 2, padding: '8px 8px', overflowX: 'auto' }}>
         {navLinks.map(link => {
           const active = isActive(link.href)
+          const alerting = link.alert === true
           return (
             <a
               key={link.href}
@@ -161,10 +234,13 @@ function AdminLayoutInner({ children }: { children: React.ReactNode }) {
                 position: 'relative', display: 'flex', alignItems: 'center', gap: 6,
                 padding: '8px 14px', borderRadius: 8, fontSize: 13, fontWeight: 500,
                 textDecoration: 'none', whiteSpace: 'nowrap',
-                color: active ? '#ededef' : '#7a7a80',
-                background: active ? '#1a1a1d' : 'transparent',
+                color: alerting ? '#fca5a5' : active ? '#ededef' : '#7a7a80',
+                background: alerting ? 'rgba(239,68,68,0.1)' : active ? '#1a1a1d' : 'transparent',
+                border: alerting ? '1px solid rgba(239,68,68,0.3)' : '1px solid transparent',
+                animation: alerting ? 'alertPulse 2s ease-in-out infinite' : 'none',
               }}
             >
+              {alerting && <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#ef4444', flexShrink: 0 }} />}
               {link.label}
               {link.badge != null && link.badge > 0 && (
                 <span style={{ minWidth: 16, height: 16, padding: '0 4px', background: '#f0616d', color: '#fff', fontSize: 10, fontWeight: 700, borderRadius: 999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -175,6 +251,8 @@ function AdminLayoutInner({ children }: { children: React.ReactNode }) {
           )
         })}
       </nav>
+
+      <style>{`@keyframes alertPulse { 0%,100% { opacity:1; } 50% { opacity:0.65; } }`}</style>
 
       {/* ── New message splash notification ── */}
       <div
