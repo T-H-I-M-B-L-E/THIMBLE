@@ -88,7 +88,7 @@ const ARIA_TOOLS: ChatCompletionTool[] = [
 // ── Autonomy rules — what needs approval vs auto-executes ───────────────────
 // Approval is enforced on the FRONTEND (ActionCard). The backend executes
 // whatever the frontend sends — the frontend only sends after user clicks Approve.
-export const TOOL_REQUIRES_APPROVAL: Record<string, boolean> = {
+const TOOL_REQUIRES_APPROVAL: Record<string, boolean> = {
   send_broadcast:   true,   // always confirm before emailing users
   send_alert_email: false,  // admin emails are low-risk, auto-ok
   draft_only:       false,  // no-op, just shows preview
