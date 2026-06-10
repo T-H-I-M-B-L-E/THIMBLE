@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
-import Anthropic from '@anthropic-ai/sdk'
+import Groq from 'groq-sdk'
 
 export async function POST(request: NextRequest) {
   const cookieStore = await cookies()
@@ -10,16 +10,16 @@ export async function POST(request: NextRequest) {
   const { prompt } = await request.json() as { prompt: string; mode: string }
   if (!prompt) return NextResponse.json({ error: 'Missing prompt' }, { status: 400 })
 
-  const apiKey = process.env.ANTHROPIC_API_KEY
-  if (!apiKey) return NextResponse.json({ error: 'ANTHROPIC_API_KEY not configured' }, { status: 503 })
+  const apiKey = process.env.GROQ_API_KEY
+  if (!apiKey) return NextResponse.json({ error: 'GROQ_API_KEY not configured' }, { status: 503 })
 
-  const client = new Anthropic({ apiKey })
-  const message = await client.messages.create({
-    model: 'claude-haiku-4-5-20251001',
+  const client = new Groq({ apiKey })
+  const response = await client.chat.completions.create({
+    model: 'llama-3.1-8b-instant',
     max_tokens: 600,
     messages: [{ role: 'user', content: prompt }],
   })
 
-  const result = message.content[0].type === 'text' ? message.content[0].text : ''
+  const result = response.choices[0]?.message?.content ?? ''
   return NextResponse.json({ result })
 }
