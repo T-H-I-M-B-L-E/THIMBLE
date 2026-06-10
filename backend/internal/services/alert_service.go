@@ -400,6 +400,16 @@ func SendTestAlert(ctx context.Context) error {
 		fmt.Sprintf("This is a manual test alert fired from the admin panel at %s.\n\nIf you received this, your alerting pipeline is working correctly.\n\nNo action needed.", time.Now().UTC().Format(time.RFC3339)))
 }
 
+// SendARIAEmail sends an ARIA-composed email to all admins with a custom
+// subject and body. Used when the user asks ARIA to send an admin alert.
+func SendARIAEmail(ctx context.Context, subject, body string) error {
+	adminEmails, err := repositories.ListAdminEmails(ctx)
+	if err != nil || len(adminEmails) == 0 {
+		return fmt.Errorf("no admin emails found")
+	}
+	return sendAlertRaw(ctx, adminEmails, "✦ "+subject, body)
+}
+
 func sendAlert(ctx context.Context, key, subject, body string) {
 	if !canAlert(key) {
 		return

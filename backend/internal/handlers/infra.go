@@ -70,6 +70,21 @@ func AdminTestAlert(c *fiber.Ctx) error {
 	return c.JSON(fiber.Map{"ok": true, "message": "Test alert email sent to all admins"})
 }
 
+// AdminARIAEmail sends an ARIA-composed admin email with a custom subject + body.
+func AdminARIAEmail(c *fiber.Ctx) error {
+	var body struct {
+		Subject string `json:"subject"`
+		Body    string `json:"body"`
+	}
+	if err := c.BodyParser(&body); err != nil || body.Subject == "" || body.Body == "" {
+		return c.Status(400).JSON(fiber.Map{"error": "subject and body are required"})
+	}
+	if err := services.SendARIAEmail(c.Context(), body.Subject, body.Body); err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+	}
+	return c.JSON(fiber.Map{"ok": true})
+}
+
 // fetchEmailStats counts email_log rows grouped by day window.
 type emailStats struct {
 	SentToday  int64  `json:"sentToday"`
