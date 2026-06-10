@@ -119,6 +119,7 @@ function AdminLayoutInner({ children }: { children: React.ReactNode }) {
     { href: '/admin/ads', label: 'Ads' },
     { href: '/admin/broadcast', label: 'Broadcast' },
     { href: '/admin/infra', label: 'Infra' },
+    { href: '/admin/ai', label: '✦ ARIA' },
     { href: '/admin/verification', label: 'Verify', badge: pendingVerifications > 0 ? pendingVerifications : undefined },
     { href: '/admin/chat', label: 'Messages', badge: unread > 0 ? unread : undefined },
   ]

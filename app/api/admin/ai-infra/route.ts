@@ -16,8 +16,14 @@ export async function POST(request: NextRequest) {
   const client = new Groq({ apiKey })
   const response = await client.chat.completions.create({
     model: 'llama-3.1-8b-instant',
-    max_tokens: 600,
-    messages: [{ role: 'user', content: prompt }],
+    max_tokens: 1024,
+    messages: [
+      {
+        role: 'system',
+        content: 'You are ARIA, the AI infrastructure analyst for THIMBLE. You have full access to live metrics. Be concise, direct, and actionable. Use markdown-style bold (**text**) for headers. Keep responses under 400 words unless a full report is requested.',
+      },
+      { role: 'user', content: prompt },
+    ],
   })
 
   const result = response.choices[0]?.message?.content ?? ''
