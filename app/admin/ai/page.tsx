@@ -576,7 +576,7 @@ export default function ARIAPage() {
           </button>
         </div>
         <p style={{ fontSize: 10, color: '#222228', textAlign: 'center', margin: '7px 0 0' }}>
-          ARIA · Llama 3.1 · Groq · native tool-calling · approval required for high-impact actions
+          ARIA · Llama 3.3 70B · Groq · native tool-calling · approval required for high-impact actions
         </p>
       </div>
 

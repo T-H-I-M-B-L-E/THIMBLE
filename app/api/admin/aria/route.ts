@@ -1,9 +1,44 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
+import { createHash } from 'crypto'
 import Groq from 'groq-sdk'
 import type { ChatCompletionTool } from 'groq-sdk/resources/chat/completions'
 
 const api = () => process.env.API_BASE_URL || process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8080'
+
+// Model: 70b is free on Groq and far better at tool selection than 8b-instant.
+const ARIA_MODEL = 'llama-3.3-70b-versatile'
+
+// ── Idempotency guard — prevents the same action executing twice ─────────────
+// Keyed by a hash of tool + params. An identical action within the window is
+// blocked, so a double-click or retry can't send a broadcast twice.
+const recentExecutions = new Map<string, number>()
+const DEDUP_WINDOW_MS = 60_000 // 1 minute
+
+function actionHash(action: ActionPayload): string {
+  return createHash('sha256')
+    .update(action.tool + JSON.stringify(action.params))
+    .digest('hex')
+    .slice(0, 16)
+}
+
+function alreadyExecuted(hash: string): boolean {
+  const now = Date.now()
+  // prune expired entries
+  for (const [k, t] of recentExecutions) {
+    if (now - t > DEDUP_WINDOW_MS) recentExecutions.delete(k)
+  }
+  return recentExecutions.has(hash)
+}
+
+function markExecuted(hash: string): void {
+  recentExecutions.set(hash, Date.now())
+}
+
+// ── Lightweight decision logging — see what ARIA actually decided ────────────
+function logDecision(stage: string, detail: Record<string, unknown>): void {
+  console.log(`[ARIA:${stage}]`, JSON.stringify(detail))
+}
 
 // ── Tool registry — single source of truth ──────────────────────────────────
 // These are passed directly to the Groq API as native function-call tools.
@@ -114,77 +149,113 @@ export async function POST(request: NextRequest) {
     content: m.content,
   }))
 
-  const response = await client.chat.completions.create({
-    model: 'llama-3.1-8b-instant',
-    max_tokens: 1400,
-    tools: ARIA_TOOLS,
-    tool_choice: 'auto',
-    messages: [
-      {
-        role: 'system',
-        content: `You are ARIA — the autonomous AI operator for THIMBLE, a platform for creative professionals (designers, models, manufacturers, photographers, brands). You have full access to live platform metrics and can take real actions.
+  let response
+  try {
+    response = await client.chat.completions.create({
+      model: ARIA_MODEL,
+      temperature: 0.4,
+      max_tokens: 1400,
+      tools: ARIA_TOOLS,
+      tool_choice: 'auto',
+      messages: [
+        {
+          role: 'system',
+          content: `You are ARIA — the AI operator for THIMBLE, a platform for creative professionals (designers, models, manufacturers, photographers, brands). You have live platform metrics and can take real actions through tools.
 
-INTENT CLASSIFICATION — for every message, decide if it is:
-• QUESTION → answer directly from the data, no tool needed
-• ACTION REQUEST → use a tool (subject to approval rules below)
-• AUTOMATION TRIGGER → describe the automation you would set up and draft the action
+HOW TO DECIDE WHAT TO DO:
+1. If the admin is ASKING for information ("how many users?", "any issues?", "is X ok?") → answer in plain text from the live data. Do NOT call a tool.
+2. If the admin wants to SEND something but has NOT confirmed yet, or says "draft"/"write"/"show me" → call draft_only with the proposed subject + body.
+3. If the admin EXPLICITLY confirms a send ("yes", "send it", "go ahead", "confirm", "do it") → call the real tool (send_broadcast or send_alert_email).
+4. If the admin wants to act on ONE user (ban/verify/unban/look up) → call manage_user. Always look_up first if you don't already have their details.
 
-AUTONOMY RULES:
-• send_broadcast (email ALL users) → always show preview first, only execute after admin says "yes/send/go/confirm"
-• send_alert_email (admin only) → can propose and execute in one step, low risk
-• draft_only → use when admin hasn't confirmed yet, or for any first-time proposal
-• manage_user → always look_up first to confirm identity, then propose ban/verify with reason
+TOOL PICKING RULES (follow exactly):
+• "email/message all users" or a segment → send_broadcast
+• "email/alert the admins" or "send me a report/summary" → send_alert_email
+• "ban/verify/unban/find user X" → manage_user
+• Anything not yet confirmed → draft_only
+• A plain question → NO tool, just answer
 
-BEHAVIOR:
-• Be concise and direct — no fluff
-• Use **bold** for section headers
-• When drafting emails, write warm professional copy suited to a creative community
-• When you call a tool, ALSO write what you are doing in your text reply so the admin sees context
-• If data shows something unusual, proactively flag it
-• You DO NOT need to apologise or add disclaimers — just act professionally`,
-      },
-      ...historyMessages,
-      { role: 'user', content: body.prompt },
-    ],
-  })
+NEVER invent a tool name. Only use: send_broadcast, send_alert_email, draft_only, manage_user.
+
+STYLE:
+• Be concise and direct. Use **bold** for headers.
+• When you call a tool, ALSO write 1-2 sentences in plain text explaining what you're doing — never reply with only a tool call and no text.
+• Email copy should be warm and professional, suited to a creative community.
+• Flag anything unusual in the data proactively.`,
+        },
+        ...historyMessages,
+        { role: 'user', content: body.prompt },
+      ],
+    })
+  } catch (err) {
+    logDecision('groq_error', { error: String(err) })
+    return NextResponse.json({
+      result: 'ARIA had trouble reaching its model. Try again in a moment.',
+      action: null,
+      requiresApproval: null,
+    }, { status: 200 })
+  }
 
   const choice = response.choices[0]
   const textContent = choice.message.content ?? ''
+  const validToolNames = ARIA_TOOLS.map(t => t.function!.name)
 
   // Extract native tool call if model used it
   let parsedAction: ActionPayload | null = null
   const toolCall = choice.message.tool_calls?.[0]
   if (toolCall?.function) {
-    try {
-      const params = JSON.parse(toolCall.function.arguments) as Record<string, unknown>
-      const { reason, ...rest } = params
-      parsedAction = {
-        tool:   toolCall.function.name,
-        params: rest,
-        reason: (reason as string) ?? '',
+    // Reject hallucinated tool names before they reach the executor
+    if (!validToolNames.includes(toolCall.function.name)) {
+      logDecision('rejected_unknown_tool', { tool: toolCall.function.name })
+    } else {
+      try {
+        const params = JSON.parse(toolCall.function.arguments) as Record<string, unknown>
+        const { reason, ...rest } = params
+        parsedAction = {
+          tool:   toolCall.function.name,
+          params: rest,
+          reason: (reason as string) ?? '',
+        }
+      } catch (e) {
+        logDecision('bad_tool_args', { tool: toolCall.function.name, error: String(e) })
       }
-    } catch {
-      // malformed tool arguments — ignore
     }
   }
 
-  // Also check for legacy <action> tag fallback (in case model ignores tool_choice)
+  // Legacy <action> tag fallback (in case model emits it as text)
   if (!parsedAction) {
     const tagMatch = textContent.match(/<action>([\s\S]*?)<\/action>/)
     if (tagMatch) {
       try {
         const parsed = JSON.parse(tagMatch[1].trim()) as ActionPayload
-        if (ARIA_TOOLS.some(t => t.function!.name === parsed.tool)) {
-          parsedAction = parsed
-        }
+        if (validToolNames.includes(parsed.tool)) parsedAction = parsed
       } catch { /* ignore */ }
     }
   }
 
   const cleanText = textContent.replace(/<action>[\s\S]*?<\/action>/g, '').trim()
 
+  // Sensible fallback text so the user never sees "Executing: send_broadcast"
+  let resultText = cleanText
+  if (!resultText && parsedAction) {
+    const verb: Record<string, string> = {
+      send_broadcast:   "I've drafted a broadcast for your review below.",
+      send_alert_email: "I've prepared an admin alert email below.",
+      draft_only:       "Here's a draft for you to review below.",
+      manage_user:      "I've prepared a user action below.",
+    }
+    resultText = verb[parsedAction.tool] ?? 'Here is the proposed action below.'
+  }
+  if (!resultText) resultText = 'No response.'
+
+  logDecision('chat', {
+    hasAction: !!parsedAction,
+    tool: parsedAction?.tool ?? null,
+    requiresApproval: parsedAction ? (TOOL_REQUIRES_APPROVAL[parsedAction.tool] ?? true) : null,
+  })
+
   return NextResponse.json({
-    result: cleanText || (parsedAction ? `Executing: ${parsedAction.tool}` : 'No response.'),
+    result: resultText,
     action: parsedAction,
     requiresApproval: parsedAction ? (TOOL_REQUIRES_APPROVAL[parsedAction.tool] ?? true) : null,
   })
@@ -208,6 +279,23 @@ export async function PUT(request: NextRequest) {
     }, { status: 400 })
   }
 
+  // Idempotency — block duplicate sends within the dedup window. Only guards
+  // the irreversible/spammy actions; drafts and look-ups can repeat freely.
+  const guarded = action.tool === 'send_broadcast' || action.tool === 'send_alert_email'
+  const hash = actionHash(action)
+  if (guarded) {
+    if (alreadyExecuted(hash)) {
+      logDecision('blocked_duplicate', { tool: action.tool, hash })
+      return NextResponse.json({
+        ok: false,
+        error: 'This exact action was just sent moments ago — blocked to prevent a duplicate. Wait a minute if you really need to resend.',
+      }, { status: 409 })
+    }
+    markExecuted(hash) // reserve immediately so a double-click can't slip through
+  }
+
+  logDecision('execute', { tool: action.tool, hash: guarded ? hash : null })
+
   switch (action.tool) {
 
     case 'send_broadcast': {
@@ -227,6 +315,7 @@ export async function PUT(request: NextRequest) {
         }),
       })
       const data = await res.json().catch(() => ({})) as Record<string, unknown>
+      if (!res.ok) recentExecutions.delete(hash) // failed — allow retry
       return NextResponse.json({ ok: res.ok, data })
     }
 
@@ -238,6 +327,7 @@ export async function PUT(request: NextRequest) {
         body: JSON.stringify({ subject: p.subject, body: p.body }),
       })
       const data = await res.json().catch(() => ({})) as Record<string, unknown>
+      if (!res.ok) recentExecutions.delete(hash) // failed — allow retry
       return NextResponse.json({ ok: res.ok, data })
     }
 
