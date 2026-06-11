@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"strconv"
 	"strings"
 
 	"github.com/gofiber/fiber/v2"
@@ -41,6 +42,26 @@ func AdminBroadcastHistory(c *fiber.Ctx) error {
 		return c.Status(500).JSON(fiber.Map{"error": "failed to fetch history"})
 	}
 	return c.JSON(list)
+}
+
+// AdminBroadcastFailures returns the failed recipients (and reasons) for a
+// broadcast. ?id=N targets a specific broadcast; omitting it uses the most
+// recent one, so ARIA can answer "which just failed and why".
+func AdminBroadcastFailures(c *fiber.Ctx) error {
+	var id int64
+	if idStr := c.Query("id"); idStr != "" {
+		if n, err := strconv.ParseInt(idStr, 10, 64); err == nil {
+			id = n
+		}
+	}
+	resolvedID, failures, err := services.BroadcastFailuresFor(c.Context(), id)
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": "failed to fetch failures"})
+	}
+	if failures == nil {
+		failures = []services.BroadcastFailure{}
+	}
+	return c.JSON(fiber.Map{"broadcastId": resolvedID, "failures": failures, "count": len(failures)})
 }
 
 // AdminBannerCurrent returns the currently-active banner (if any) for the

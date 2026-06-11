@@ -227,6 +227,7 @@ func registerRoutes(app *fiber.App, authLimiter fiber.Handler, apiLimiter fiber.
 	adminGroup.Post("/aria/user-action", handlers.AdminARIAUserAction)
 	adminGroup.Get("/broadcast/preview", handlers.AdminBroadcastPreview)
 	adminGroup.Get("/broadcast/history", handlers.AdminBroadcastHistory)
+	adminGroup.Get("/broadcast/failures", handlers.AdminBroadcastFailures)
 	adminGroup.Post("/broadcast", handlers.AdminBroadcast)
 	adminGroup.Get("/banner/current", handlers.AdminBannerCurrent)
 	adminGroup.Post("/banner/take-down", handlers.AdminBannerTakeDown)

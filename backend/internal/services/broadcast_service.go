@@ -124,6 +124,8 @@ func SendBroadcast(ctx context.Context, adminID string, input BroadcastInput) (*
 
 		const batchSize = 8 // Resend's per-second rate limit is 10
 		succeeded, failed := 0, 0
+		type failedSend struct{ email, reason string }
+		var failures []failedSend
 
 		for i := 0; i < len(emails); i += batchSize {
 			end := i + batchSize
@@ -140,6 +142,7 @@ func SendBroadcast(ctx context.Context, adminID string, input BroadcastInput) (*
 				if sendErr != nil {
 					log.Printf("broadcast %d: send to %s failed: %v", broadcastID, addr, sendErr)
 					failed++
+					failures = append(failures, failedSend{email: addr, reason: sendErr.Error()})
 				} else {
 					succeeded++
 				}
@@ -151,6 +154,15 @@ func SendBroadcast(ctx context.Context, adminID string, input BroadcastInput) (*
 
 		db.Pool.Exec(ctx, `UPDATE broadcasts SET succeeded = $1, failed = $2 WHERE id = $3`,
 			succeeded, failed, broadcastID)
+
+		// Persist per-recipient failure detail so it can be analysed later.
+		for _, f := range failures {
+			if _, err := db.Pool.Exec(ctx,
+				`INSERT INTO broadcast_failures (broadcast_id, email, reason) VALUES ($1, $2, $3)`,
+				broadcastID, f.email, f.reason); err != nil {
+				log.Printf("broadcast %d: failed to log failure row for %s: %v", broadcastID, f.email, err)
+			}
+		}
 		db.Pool.Exec(ctx, `INSERT INTO email_log (type, recipients) VALUES ('broadcast', $1)`, succeeded)
 
 		result.ID = broadcastID
@@ -277,4 +289,38 @@ func RecentBroadcasts(ctx context.Context, limit int) ([]BroadcastSummary, error
 		}
 	}
 	return out, nil
+}
+
+// BroadcastFailure is one recipient that a broadcast failed to reach.
+type BroadcastFailure struct {
+	Email     string    `json:"email"`
+	Reason    string    `json:"reason"`
+	CreatedAt time.Time `json:"createdAt"`
+}
+
+// BroadcastFailuresFor returns the failed recipients for a broadcast. If
+// broadcastID is 0, it returns failures from the most recent broadcast — which
+// is what ARIA wants when the admin asks "which just failed and why".
+func BroadcastFailuresFor(ctx context.Context, broadcastID int64) (int64, []BroadcastFailure, error) {
+	if broadcastID == 0 {
+		if err := db.Pool.QueryRow(ctx,
+			`SELECT id FROM broadcasts ORDER BY created_at DESC LIMIT 1`).Scan(&broadcastID); err != nil {
+			return 0, nil, nil // no broadcasts yet
+		}
+	}
+	rows, err := db.Pool.Query(ctx,
+		`SELECT email, reason, created_at FROM broadcast_failures
+		 WHERE broadcast_id = $1 ORDER BY created_at`, broadcastID)
+	if err != nil {
+		return broadcastID, nil, err
+	}
+	defer rows.Close()
+	var out []BroadcastFailure
+	for rows.Next() {
+		var f BroadcastFailure
+		if err := rows.Scan(&f.Email, &f.Reason, &f.CreatedAt); err == nil {
+			out = append(out, f)
+		}
+	}
+	return broadcastID, out, nil
 }

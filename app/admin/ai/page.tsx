@@ -63,7 +63,7 @@ interface ChatMessage {
 }
 
 /* ── context builder ── */
-function buildContext(d: AllData): string {
+function buildContext(d: AllData, sessionMemory?: string): string {
   const i = d.infra; const s = d.stats; const n = d.neon
   if (!i || !s) return 'Data not yet loaded.'
   const computeHrs = n?.compute_time_seconds != null ? (n.compute_time_seconds / 3600).toFixed(1) : 'unknown'
@@ -81,7 +81,8 @@ NEON DB: ${computeHrs}/100 CU-hrs compute used, ${transferMB}MB data transfer th
 ROLES: ${s.roleBreakdown.map(r => `${r.role || 'none'}=${r.count}`).join(', ')}
 ${i.tableSizes?.length ? 'DB TABLES: ' + i.tableSizes.map(t => `${t.name}(${t.size},${t.rowCount}rows)`).join(', ') : ''}
 ${i.recentErrors.length > 0 ? 'RECENT ERRORS: ' + i.recentErrors.slice(0,3).map(e => `${e.method} ${e.path} → ${e.status}`).join('; ') : 'RECENT ERRORS: none'}
-=== END DATA ===`
+=== END DATA ===
+${sessionMemory ? `\n=== THIS SESSION ===\n${sessionMemory}\n=== END SESSION ===\nWhen the admin asks "what happened", "did it work", "which failed", or "why", answer from THIS SESSION data above — do NOT start a new action.` : ''}`
 }
 
 /* ── text formatter ── */
@@ -285,6 +286,9 @@ export default function ARIAPage() {
   const [isMobile, setIsMobile] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
   const inputRef  = useRef<HTMLInputElement>(null)
+  // Short-term session memory — what ARIA last did, fed back into its context
+  // so follow-ups like "which failed?" are answered from real results.
+  const sessionMemory = useRef<string>('')
 
   const fetchAll = useCallback(async () => {
     setLoading(true)
@@ -318,7 +322,7 @@ export default function ARIAPage() {
     setMessages(m => [...m, userMsg])
     setSending(true)
     try {
-      const ctx = buildContext(allData)
+      const ctx = buildContext(allData, sessionMemory.current)
       // Build conversation history for multi-turn context
       const history = [...messages, userMsg].slice(-12).map(m => ({
         role: m.role === 'user' ? 'user' : 'assistant',
@@ -375,22 +379,53 @@ export default function ARIAPage() {
       const ok = res.ok && d.ok !== false
 
       let resultText = ''
+      let followUp = ''
+      let failedCount = 0
+
       if (ok) {
-        if (action.tool === 'send_broadcast') resultText = `✓ Sent to ${d.data?.recipients ?? '?'} users (${d.data?.succeeded ?? '?'} succeeded)`
-        else if (action.tool === 'manage_user') resultText = `✓ ${(d.data?.message as string) ?? 'Done'}`
-        else resultText = '✓ Executed successfully'
+        if (action.tool === 'send_broadcast') {
+          const recipients = Number(d.data?.recipients ?? 0)
+          const succeeded  = Number(d.data?.succeeded ?? 0)
+          failedCount      = Number(d.data?.failed ?? 0)
+          resultText = `✓ Sent to ${recipients} users — ${succeeded} succeeded${failedCount > 0 ? `, ${failedCount} failed` : ''}`
+          // Record in session memory so follow-ups are answered from real data
+          sessionMemory.current = `Last action: sent a broadcast "${(action.params as { subject?: string }).subject ?? ''}" to ${recipients} recipients. ${succeeded} succeeded, ${failedCount} failed.`
+          followUp = failedCount > 0
+            ? `Done ✓ — ${resultText}\n\n⚠️ ${failedCount} ${failedCount === 1 ? 'recipient' : 'recipients'} didn't go through. Ask me "which failed and why" and I'll pull the details.`
+            : `Done ✓ — ${resultText}`
+        } else if (action.tool === 'manage_user') {
+          resultText = `✓ ${(d.data?.message as string) ?? 'Done'}`
+          sessionMemory.current = `Last action: ${(action.params as { action?: string }).action} on user ${(action.params as { user_id?: string }).user_id}. Result: ${(d.data?.message as string) ?? 'done'}.`
+          followUp = `Done ✓ — ${resultText}`
+        } else {
+          resultText = '✓ Executed successfully'
+          followUp = `Done ✓ — ${resultText}`
+        }
       } else {
         resultText = `✗ ${d.error ?? (d.data?.error as string) ?? 'Execution failed'}`
+        sessionMemory.current = `Last action (${action.tool}) FAILED: ${resultText}`
+        followUp = `Something went wrong: ${resultText}\n\nWant me to retry or try a different approach?`
+      }
+
+      // If a broadcast partially failed, fetch the real failure detail into
+      // session memory so ARIA can explain it when asked.
+      if (action.tool === 'send_broadcast' && failedCount > 0) {
+        try {
+          const fRes = await adminFetch('/api/admin/broadcast-failures')
+          if (fRes.ok) {
+            const fd = await fRes.json() as { failures?: { email: string; reason: string }[] }
+            if (fd.failures?.length) {
+              const detail = fd.failures.slice(0, 20).map(f => `${f.email}: ${f.reason}`).join('; ')
+              sessionMemory.current += ` Failed recipients and reasons — ${detail}`
+            }
+          }
+        } catch { /* best-effort */ }
       }
 
       setMessages(m => m.map((msg, i) => i === msgIndex
         ? { ...msg, actionStatus: ok ? 'done' : 'failed', actionResult: resultText }
         : msg))
-      setMessages(m => [...m, {
-        role: 'ai',
-        text: ok ? `Done ✓ — ${resultText}` : `Something went wrong: ${resultText}\n\nWant me to retry or try a different approach?`,
-        ts: Date.now(),
-      }])
+      setMessages(m => [...m, { role: 'ai', text: followUp, ts: Date.now() }])
     } catch {
       setMessages(m => m.map((msg, i) => i === msgIndex
         ? { ...msg, actionStatus: 'failed', actionResult: '✗ Network error' }
