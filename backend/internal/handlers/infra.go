@@ -92,6 +92,7 @@ func AdminARIAUserAction(c *fiber.Ctx) error {
 	if err := c.BodyParser(&input); err != nil || input.Action == "" || input.UserID == "" {
 		return c.Status(400).JSON(fiber.Map{"error": "action and user_id are required"})
 	}
+	input.AdminID, _ = c.Locals("userId").(string) // attribute to the real admin
 	result := services.ExecuteARIAUserAction(c.Context(), input)
 	if !result.OK {
 		return c.Status(400).JSON(result)

@@ -35,6 +35,32 @@ function markExecuted(hash: string): void {
   recentExecutions.set(hash, Date.now())
 }
 
+// ── Groq spend guard — protects the free-tier quota ─────────────────────────
+// Caps how many model calls this server instance makes per day and per minute.
+// Per-instance + in-memory, so it resets on cold start — but that's enough to
+// stop a runaway loop or rapid spam from silently draining the daily quota.
+const GROQ_DAILY_CAP   = Number(process.env.ARIA_DAILY_CALL_CAP ?? 500)
+const GROQ_MINUTE_CAP  = 20
+let groqDayKey   = ''
+let groqDayCount = 0
+const groqMinuteHits: number[] = []
+
+function checkGroqBudget(): { ok: boolean; reason?: string } {
+  const today = new Date().toISOString().slice(0, 10)
+  if (today !== groqDayKey) { groqDayKey = today; groqDayCount = 0 } // new day
+  if (groqDayCount >= GROQ_DAILY_CAP) {
+    return { ok: false, reason: `Daily ARIA limit reached (${GROQ_DAILY_CAP} calls). Resets at midnight UTC.` }
+  }
+  const now = Date.now()
+  while (groqMinuteHits.length && now - groqMinuteHits[0] > 60_000) groqMinuteHits.shift()
+  if (groqMinuteHits.length >= GROQ_MINUTE_CAP) {
+    return { ok: false, reason: 'Too many ARIA requests in the last minute. Give it a moment.' }
+  }
+  groqDayCount++
+  groqMinuteHits.push(now)
+  return { ok: true }
+}
+
 // ── Lightweight decision logging — see what ARIA actually decided ────────────
 function logDecision(stage: string, detail: Record<string, unknown>): void {
   console.log(`[ARIA:${stage}]`, JSON.stringify(detail))
@@ -140,6 +166,13 @@ export async function POST(request: NextRequest) {
 
   const apiKey = process.env.GROQ_API_KEY
   if (!apiKey) return NextResponse.json({ error: 'GROQ_API_KEY not configured' }, { status: 503 })
+
+  // Spend guard — bail before hitting Groq if over budget
+  const budget = checkGroqBudget()
+  if (!budget.ok) {
+    logDecision('budget_blocked', { reason: budget.reason })
+    return NextResponse.json({ result: budget.reason, action: null, requiresApproval: null }, { status: 429 })
+  }
 
   const client = new Groq({ apiKey })
 
@@ -267,8 +300,9 @@ export async function PUT(request: NextRequest) {
   const token = cookieStore.get('admin_token')?.value
   if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const body = await request.json() as { action: ActionPayload }
+  const body = await request.json() as { action: ActionPayload; prompt?: string }
   const { action } = body
+  const instructingPrompt = body.prompt ?? ''
 
   // Validate tool is in registry
   const knownTool = ARIA_TOOLS.find(t => t.function!.name === action.tool)
@@ -345,6 +379,7 @@ export async function PUT(request: NextRequest) {
           user_id:        p.user_id,
           duration_hours: p.duration_hours ?? 0,
           reason:         p.reason ?? '',
+          prompt:         instructingPrompt,
         }),
       })
       const data = await res.json().catch(() => ({})) as Record<string, unknown>

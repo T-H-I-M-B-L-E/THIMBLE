@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback, useRef } from 'react'
 import {
   Sparkles, Send, RefreshCw, Users, Activity, Database, Cloud,
   Zap, TrendingUp, AlertTriangle, CheckCircle, XCircle, Edit3,
-  Mail, Bot, ChevronRight, Shield, Eye, UserX, UserCheck, Search,
+  Mail, Bot, ChevronRight, Shield, Eye, UserX, UserCheck, Search, Trash2,
 } from 'lucide-react'
 import { adminFetch } from '@/lib/adminFetch'
 
@@ -80,8 +80,11 @@ EMAIL: ${i.emailStats.sentToday} sent today, ${i.emailStats.sentWeek} this week,
 NEON DB: ${computeHrs}/100 CU-hrs compute used, ${transferMB}MB data transfer this period
 ROLES: ${s.roleBreakdown.map(r => `${r.role || 'none'}=${r.count}`).join(', ')}
 ${i.tableSizes?.length ? 'DB TABLES: ' + i.tableSizes.map(t => `${t.name}(${t.size},${t.rowCount}rows)`).join(', ') : ''}
-${i.recentErrors.length > 0 ? 'RECENT ERRORS: ' + i.recentErrors.slice(0,3).map(e => `${e.method} ${e.path} → ${e.status}`).join('; ') : 'RECENT ERRORS: none'}
+${i.recentErrors.length > 0 ? 'RECENT 5xx ERRORS (' + i.recentErrors.length + '):\n' + i.recentErrors.slice(0,15).map(e => `  ${e.time} ${e.method} ${e.path} → ${e.status} (${e.latencyMs}ms)`).join('\n') : 'RECENT 5xx ERRORS: none'}
+${i.recentSlows?.length ? 'RECENT SLOW REQUESTS (' + i.recentSlows.length + '):\n' + i.recentSlows.slice(0,10).map(e => `  ${e.method} ${e.path} → ${e.status} (${e.latencyMs}ms)`).join('\n') : ''}
+${i.slowestRoutes?.length ? 'SLOWEST ROUTES:\n' + i.slowestRoutes.slice(0,8).map(r => `  ${r.method} ${r.path} — avg ${r.avgMs}ms, max ${r.maxMs}ms (${r.hits} hits)`).join('\n') : ''}
 === END DATA ===
+When asked to diagnose, use the error paths, slow requests, and slowest routes above to identify which endpoints are failing or degraded.
 ${sessionMemory ? `\n=== THIS SESSION ===\n${sessionMemory}\n=== END SESSION ===\nWhen the admin asks "what happened", "did it work", "which failed", or "why", answer from THIS SESSION data above — do NOT start a new action.` : ''}`
 }
 
@@ -314,12 +317,47 @@ export default function ARIAPage() {
     c(); window.addEventListener('resize', c); return () => window.removeEventListener('resize', c)
   }, [])
 
+  // Load persisted chat history once on mount
+  useEffect(() => {
+    void (async () => {
+      try {
+        const res = await adminFetch('/api/admin/aria-history')
+        if (!res.ok) return
+        const d = await res.json() as { messages?: { role: string; content: string; actionJson: string; createdAt: string }[] }
+        if (d.messages?.length) {
+          setMessages(d.messages.map(m => ({
+            role: m.role === 'user' ? 'user' : 'ai',
+            text: m.content,
+            ts: new Date(m.createdAt).getTime() || Date.now(),
+            action: m.actionJson ? (JSON.parse(m.actionJson) as ActionPayload) : undefined,
+          })))
+        }
+      } catch { /* history is best-effort */ }
+    })()
+  }, [])
+
+  // Persist a single message (best-effort; never blocks the UI)
+  const persistMessage = useCallback((role: 'user' | 'ai', content: string, action?: ActionPayload) => {
+    void adminFetch('/api/admin/aria-history', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ role, content, actionJson: action ? JSON.stringify(action) : '' }),
+    }).catch(() => {})
+  }, [])
+
+  async function clearHistory() {
+    setMessages([])
+    sessionMemory.current = ''
+    await adminFetch('/api/admin/aria-history', { method: 'DELETE' }).catch(() => {})
+  }
+
   async function sendMessage(text?: string) {
     const msg = (text ?? input).trim()
     if (!msg || sending) return
     setInput('')
     const userMsg: ChatMessage = { role: 'user', text: msg, ts: Date.now() }
     setMessages(m => [...m, userMsg])
+    persistMessage('user', msg)
     setSending(true)
     try {
       const ctx = buildContext(allData, sessionMemory.current)
@@ -337,7 +375,10 @@ export default function ARIAPage() {
       const d = await res.json() as { result: string; action: ActionPayload | null; requiresApproval: boolean | null; error?: string }
 
       if (!res.ok) {
-        setMessages(m => [...m, { role: 'ai', text: `Error: ${d.error ?? 'ARIA is unavailable.'}`, ts: Date.now() }])
+        // Budget/rate-limit blocks return a friendly message in `result`
+        const errText = d.result || `Error: ${d.error ?? 'ARIA is unavailable.'}`
+        setMessages(m => [...m, { role: 'ai', text: errText, ts: Date.now() }])
+        persistMessage('ai', errText)
         return
       }
 
@@ -350,6 +391,7 @@ export default function ARIAPage() {
         requiresApproval: d.requiresApproval ?? undefined,
       }
       setMessages(m => [...m, aiMsg])
+      persistMessage('ai', aiMsg.text, aiMsg.action)
 
       // Auto-execute low-risk tools that don't need approval
       if (d.action && d.requiresApproval === false && d.action.tool !== 'draft_only') {
@@ -368,12 +410,14 @@ export default function ARIAPage() {
 
     const msg = messages[msgIndex]
     const action = actionOverride ?? { ...(msg?.action ?? { tool: '', params: {}, reason: '' }), params: editedParams ?? msg?.action?.params ?? {} }
+    // Most recent user message — what the admin typed to trigger this, for the audit trail
+    const instructingPrompt = [...messages].reverse().find(m => m.role === 'user')?.text ?? ''
 
     try {
       const res = await adminFetch('/api/admin/aria', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action }),
+        body: JSON.stringify({ action, prompt: instructingPrompt }),
       })
       const d = await res.json() as { ok: boolean; data?: Record<string, unknown>; error?: string }
       const ok = res.ok && d.ok !== false
@@ -461,10 +505,17 @@ export default function ARIAPage() {
               </p>
             </div>
           </div>
-          <button onClick={() => void fetchAll()} disabled={loading} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 12px', background: '#0e0e10', border: '1px solid #1e1e22', borderRadius: 8, color: '#8a8a90', fontSize: 11, cursor: 'pointer' }}>
-            <RefreshCw size={11} style={{ animation: loading ? 'spin 0.8s linear infinite' : 'none' }} />
-            {loading ? 'Loading…' : 'Refresh'}
-          </button>
+          <div style={{ display: 'flex', gap: 6 }}>
+            {messages.length > 0 && (
+              <button onClick={() => void clearHistory()} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 12px', background: '#0e0e10', border: '1px solid #1e1e22', borderRadius: 8, color: '#8a8a90', fontSize: 11, cursor: 'pointer' }}>
+                <Trash2 size={11} /> Clear
+              </button>
+            )}
+            <button onClick={() => void fetchAll()} disabled={loading} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 12px', background: '#0e0e10', border: '1px solid #1e1e22', borderRadius: 8, color: '#8a8a90', fontSize: 11, cursor: 'pointer' }}>
+              <RefreshCw size={11} style={{ animation: loading ? 'spin 0.8s linear infinite' : 'none' }} />
+              {loading ? 'Loading…' : 'Refresh'}
+            </button>
+          </div>
         </div>
 
         {/* Stat chips */}

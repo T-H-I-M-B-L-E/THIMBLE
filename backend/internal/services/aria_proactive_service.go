@@ -165,6 +165,8 @@ type ARIAUserActionInput struct {
 	UserID        string `json:"user_id"`        // UUID
 	DurationHours int    `json:"duration_hours"` // for ban (0 = permanent)
 	Reason        string `json:"reason"`
+	AdminID       string `json:"-"`              // real admin who instructed ARIA (set server-side)
+	Prompt        string `json:"prompt"`         // what the admin typed, for the audit trail
 }
 
 type ARIAUserActionResult struct {
@@ -174,7 +176,18 @@ type ARIAUserActionResult struct {
 }
 
 func ExecuteARIAUserAction(ctx context.Context, input ARIAUserActionInput) ARIAUserActionResult {
-	const ariaAdminID = "aria-system"
+	// Attribute to the real admin who instructed ARIA, falling back to the
+	// system actor only if (somehow) no admin identity was passed.
+	actor := input.AdminID
+	if actor == "" {
+		actor = "aria-system"
+	}
+	// Suffix appended to audit details so the trail shows it came through ARIA
+	// and what the admin actually typed.
+	via := "via ARIA"
+	if input.Prompt != "" {
+		via = fmt.Sprintf("via ARIA — admin asked: %q", input.Prompt)
+	}
 
 	switch input.Action {
 	case "look_up":
@@ -185,7 +198,7 @@ func ExecuteARIAUserAction(ctx context.Context, input ARIAUserActionInput) ARIAU
 		return ARIAUserActionResult{OK: true, Message: "User found", User: u}
 
 	case "ban":
-		svcErr := AdminBanUser(ctx, ariaAdminID, input.UserID, input.DurationHours, input.Reason)
+		svcErr := AdminBanUser(ctx, actor, input.UserID, input.DurationHours, input.Reason)
 		if svcErr != nil {
 			return ARIAUserActionResult{OK: false, Message: svcErr.Message}
 		}
@@ -193,13 +206,17 @@ func ExecuteARIAUserAction(ctx context.Context, input ARIAUserActionInput) ARIAU
 		if input.DurationHours > 0 {
 			dur = fmt.Sprintf("for %d hours", input.DurationHours)
 		}
+		repositories.WriteAuditLog(ctx, actor, "aria_ban_user", input.UserID,
+			repositories.GetUserFullName(ctx, input.UserID), via)
 		return ARIAUserActionResult{OK: true, Message: fmt.Sprintf("User banned %s", dur)}
 
 	case "unban":
-		svcErr := AdminUnbanUser(ctx, ariaAdminID, input.UserID)
+		svcErr := AdminUnbanUser(ctx, actor, input.UserID)
 		if svcErr != nil {
 			return ARIAUserActionResult{OK: false, Message: svcErr.Message}
 		}
+		repositories.WriteAuditLog(ctx, actor, "aria_unban_user", input.UserID,
+			repositories.GetUserFullName(ctx, input.UserID), via)
 		return ARIAUserActionResult{OK: true, Message: "User unbanned"}
 
 	case "verify":
@@ -209,8 +226,8 @@ func ExecuteARIAUserAction(ctx context.Context, input ARIAUserActionInput) ARIAU
 		if err != nil {
 			return ARIAUserActionResult{OK: false, Message: "DB error: " + err.Error()}
 		}
-		repositories.WriteAuditLog(ctx, ariaAdminID, "verify_user", input.UserID,
-			repositories.GetUserFullName(ctx, input.UserID), "verified via ARIA")
+		repositories.WriteAuditLog(ctx, actor, "aria_verify_user", input.UserID,
+			repositories.GetUserFullName(ctx, input.UserID), via)
 		return ARIAUserActionResult{OK: true, Message: "User verified"}
 
 	default:
