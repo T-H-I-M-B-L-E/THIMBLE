@@ -5,6 +5,7 @@ import (
 	"log"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -21,6 +22,13 @@ func Init(ctx context.Context, connStr string) func() {
 	cfg.MaxConnLifetime = 30 * time.Minute
 	cfg.MaxConnIdleTime = 10 * time.Minute
 	cfg.HealthCheckPeriod = 1 * time.Minute
+
+	// We connect through Neon's connection pooler (PgBouncer in transaction
+	// mode). PgBouncer doesn't support server-side prepared statements across
+	// pooled transactions, so disable pgx's prepared-statement cache by using
+	// the simple query protocol. Without this, queries fail intermittently
+	// under load with "prepared statement already exists".
+	cfg.ConnConfig.DefaultQueryExecMode = pgx.QueryExecModeSimpleProtocol
 
 	p, err := pgxpool.NewWithConfig(ctx, cfg)
 	if err != nil {
