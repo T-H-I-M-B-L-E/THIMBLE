@@ -106,10 +106,16 @@ func main() {
 // one thing you read to understand the public API.
 func registerRoutes(app *fiber.App, authLimiter fiber.Handler, apiLimiter fiber.Handler) {
 	// ── Health check ──────────────────────────────────────────────────────────
-	// External uptime monitors hit this. Returns 200 only if DB is reachable.
+	// Default: confirms the app process is alive WITHOUT touching the database.
+	// External uptime monitors hit this every few minutes; if it pinged the DB
+	// each time it would keep Neon's compute awake 24/7 and drain the free-tier
+	// CU-hour budget. Use /health?deep=1 for an explicit DB-reachability check.
 	app.Get("/health", func(c *fiber.Ctx) error {
-		if err := db.Pool.Ping(c.Context()); err != nil {
-			return c.Status(503).JSON(fiber.Map{"status": "down", "db": err.Error()})
+		if c.Query("deep") == "1" {
+			if err := db.Pool.Ping(c.Context()); err != nil {
+				return c.Status(503).JSON(fiber.Map{"status": "down", "db": err.Error()})
+			}
+			return c.JSON(fiber.Map{"status": "ok", "db": "ok"})
 		}
 		return c.JSON(fiber.Map{"status": "ok"})
 	})
