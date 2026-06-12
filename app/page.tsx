@@ -4,77 +4,75 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/useAuth";
 import { getPostAuthPath } from "@/lib/platform";
-import {
-  ArrowRight,
-  BadgeCheck,
-  Users,
-  Handshake,
-  ShieldCheck,
-  ChevronDown,
-  Plus,
-} from "lucide-react";
 
 const ROLES = [
-  { label: "I'm a Designer", value: "designer" },
-  { label: "I'm a Model", value: "model" },
-  { label: "I'm a Manufacturer", value: "manufacturer" },
-  { label: "I'm a Photographer", value: "photographer" },
-  { label: "I'm a Fashion Brand", value: "brand" },
+  { num: "01", name: "Designer", value: "designer", desc: "Showcase your collections, find trusted manufacturers, and build the industry connections that take your work further." },
+  { num: "02", name: "Model", value: "model", desc: "Build a verified portfolio, connect with designers and agencies, and land your next booking — all in one place." },
+  { num: "03", name: "Manufacturer", value: "manufacturer", desc: "Source emerging design talent and forge long-term relationships with the brands shaping tomorrow's fashion." },
+  { num: "04", name: "Photographer", value: "photographer", desc: "Find editorial clients, grow your fashion portfolio, and collaborate with designers, models, and brands worldwide." },
+  { num: "05", name: "Brand", value: "brand", desc: "Discover verified creative talent, source production partners, and assemble the team that brings your vision to life." },
+];
+
+const LETTERS = [
+  { l: "T", word: "Talent" },
+  { l: "V", word: "Vision" },
+  { l: "I", word: "Industry" },
+  { l: "M", word: "Market" },
+  { l: "B", word: "Brand" },
+  { l: "L", word: "Legacy" },
+  { l: "E", word: "Expression" },
 ];
 
 const STEPS = [
-  {
-    number: "01",
-    icon: Users,
-    title: "Create Your Profile",
-    body: "Sign up and choose your role — designer, model, manufacturer, photographer, or brand. Upload your portfolio, experience, and verification documents.",
-  },
-  {
-    number: "02",
-    icon: BadgeCheck,
-    title: "Get Verified & Build Trust",
-    body: "We verify identities and portfolios to protect every user from scams. A verified badge helps you stand out and attract serious collaborations.",
-  },
-  {
-    number: "03",
-    icon: Handshake,
-    title: "Discover & Collaborate",
-    body: "Browse opportunities, find inspiration from other creatives, post jobs, send offers, and chat safely inside the platform.",
-    examples: [
-      "Designers & brands find manufacturers",
-      "Brands book models and photographers",
-      "Creatives join real fashion projects",
-    ],
-  },
-  {
-    number: "04",
-    icon: ShieldCheck,
-    title: "Pay & Get Paid Securely",
-    body: "All payments happen inside Thimble using secure escrow. Money is only released when work is delivered and approved.",
-    footnote: "No scams. No ghosting. No stress.",
-  },
+  { num: "01", title: "Create your profile", desc: "Build a professional profile that tells your story — showcase your work, your role, and what you bring to the fashion world." },
+  { num: "02", title: "Connect with the industry", desc: "Discover and follow designers, brands, models, photographers, and manufacturers from across the globe — all verified." },
+  { num: "03", title: "Collaborate and grow", desc: "Post opportunities, respond to briefs, and build the kind of collaborations that shape careers and define collections." },
 ];
+
+const TICKER = ["Designers", "Models", "Manufacturers", "Photographers", "Fashion Brands", "Collaborate", "Create", "Connect", "Grow"];
 
 export default function HomePage() {
   const router = useRouter();
   const { user, isLoading } = useAuth();
-  const [activeRole, setActiveRole] = useState<string | null>(null);
+  const [scrolled, setScrolled] = useState(false);
 
   useEffect(() => {
     if (isLoading || !user) return;
     router.push(getPostAuthPath(user));
   }, [user, isLoading, router]);
 
-  const scrollToHowItWorks = () => {
-    document
-      .getElementById("how-it-works")
-      ?.scrollIntoView({ behavior: "smooth" });
-  };
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 48);
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
+  // Scroll-reveal: add .tv-visible when elements enter the viewport
+  useEffect(() => {
+    if (isLoading || user) return;
+    const obs = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((e) => {
+          if (e.isIntersecting) {
+            e.target.classList.add("tv-visible");
+            obs.unobserve(e.target);
+          }
+        });
+      },
+      { threshold: 0.12 }
+    );
+    document.querySelectorAll(".tv-reveal").forEach((el) => obs.observe(el));
+    return () => obs.disconnect();
+  }, [isLoading, user]);
+
+  const goSignup = () => router.push("/auth/signup");
+  const scrollToHow = () =>
+    document.getElementById("how-it-works")?.scrollIntoView({ behavior: "smooth" });
 
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-black">
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-neutral-700 border-t-white" />
+      <div className="min-h-screen flex items-center justify-center bg-[#080808]">
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-neutral-700 border-t-[#c49a28]" />
       </div>
     );
   }
@@ -82,246 +80,145 @@ export default function HomePage() {
   if (user) return null;
 
   return (
-    <div className="min-h-screen flex flex-col bg-[#080808] text-white">
-      {/* ── Navbar ── */}
-      <nav className="sticky top-0 z-50 w-full bg-white/80 dark:bg-black/60 backdrop-blur-md border-b border-gray-200/60 shadow-sm">
-        <span className="text-white font-light tracking-[0.35em] text-lg select-none">
-          THIMBLE
-        </span>
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => router.push("/auth")}
-            className="text-sm text-neutral-400 hover:text-white transition-colors px-3 py-2 hidden sm:block"
-          >
-            Sign In
-          </button>
-          <button
-            onClick={() => router.push("/auth/signup")}
-            className="text-sm bg-white text-black font-medium px-5 py-2 hover:bg-neutral-100 transition-colors"
-          >
-            Join Free
-          </button>
-          <button
-            onClick={() => router.push("/upload")}
-            aria-label="Create post"
-            className="hidden sm:inline-flex items-center h-9 px-3.5 rounded-full bg-white text-black font-semibold text-sm ml-2 hover:bg-neutral-100 transition-colors"
-          >
-            <Plus className="h-4 w-4" />
-            <span className="hidden sm:inline-flex ml-2">Post</span>
-          </button>
+    <div className="tv-root">
+      {/* ── NAV ── */}
+      <nav className={`tv-nav ${scrolled ? "tv-nav-scrolled" : ""}`}>
+        <button onClick={() => router.push("/")} className="tv-logo" aria-label="Tvimble home">
+          T<span className="tv-logo-v">V</span>IMBLE
+        </button>
+        <div className="tv-nav-right">
+          <button onClick={() => router.push("/auth")} className="tv-nav-link">Sign In</button>
+          <button onClick={() => router.push("/upload")} className="tv-nav-link">+ Post</button>
+          <button onClick={goSignup} className="tv-nav-btn">Join Free →</button>
         </div>
       </nav>
 
-      {/* ══════════════════════════════════════════
-          HERO
-      ══════════════════════════════════════════ */}
-      <section className="relative flex flex-col justify-center min-h-[90vh] px-6 md:px-12 lg:px-16 pt-12 pb-20 overflow-hidden">
-        {/* Ambient background glow */}
-        <div
-          className="pointer-events-none absolute inset-0"
-          style={{
-            backgroundImage:
-              "radial-gradient(ellipse 70% 55% at 10% 60%, rgba(201,168,76,0.12) 0%, transparent 65%), radial-gradient(ellipse 50% 60% at 90% 15%, rgba(255,255,255,0.04) 0%, transparent 60%)",
-          }}
-        />
-
-        <div className="relative z-10 max-w-4xl">
-          {/* Eyebrow */}
-          <p className="text-xs uppercase tracking-[0.3em] text-[#C9A84C] mb-6 font-medium">
-            The Fashion Creative Platform
-          </p>
-
-          {/* Headline */}
-          <h1 className="text-[clamp(2.6rem,7.5vw,6rem)] font-bold leading-[1.04] tracking-tight mb-6">
-            Where fashion
-            <br />
-            meets its own{" "}
-            <span className="relative inline-block whitespace-nowrap">
+      {/* ── HERO ── */}
+      <section className="tv-hero">
+        <div className="tv-hero-content">
+          <p className="tv-overline">The Fashion Creative Platform</p>
+          <h1 className="tv-headline">
+            Where fashion<br />meets its own<br />
+            <span className="tv-accent-word">
               world.
-              <svg
-                aria-hidden="true"
-                className="absolute -bottom-3 left-0 w-full"
-                viewBox="0 0 200 24"
-                fill="none"
-                xmlns="http://www.w3.org/2000/svg"
-                preserveAspectRatio="none"
-              >
-                <ellipse
-                  cx="100"
-                  cy="12"
-                  rx="97"
-                  ry="9"
-                  stroke="#C9A84C"
-                  strokeWidth="2.5"
-                  fill="none"
-                />
+              <svg viewBox="0 0 260 18" fill="none" preserveAspectRatio="none" aria-hidden="true">
+                <path d="M4 12 C60 4, 200 4, 256 12" stroke="#c49a28" strokeWidth="1.4" fill="none" strokeLinecap="round" />
               </svg>
             </span>
           </h1>
-
-          {/* Subheadline */}
-          <p className="text-base md:text-lg text-neutral-400 leading-relaxed mb-10 max-w-xl">
-            Designers, Models, Manufacturers, Photographers and Fashion Brands —
-            all in one trusted platform built to make collaboration easy.
+          <p className="tv-hero-sub">
+            Designers, Models, Manufacturers, Photographers and Fashion Brands — all in one
+            trusted platform built to make collaboration effortless.
           </p>
-
-          {/* CTAs */}
-          <div className="flex flex-wrap gap-4 items-center">
-            <button
-              onClick={() => router.push("/auth/signup")}
-              className="flex items-center gap-2 h-14 px-8 bg-[#C9A84C] text-black font-semibold text-sm hover:bg-[#b8963e] transition-colors"
-            >
-              Join Thimble — It&apos;s Free <ArrowRight className="h-4 w-4" />
-            </button>
-            <button
-              onClick={scrollToHowItWorks}
-              className="flex items-center gap-2 h-14 px-8 border border-neutral-600 text-white text-sm font-medium hover:border-neutral-400 hover:bg-white/5 transition-all"
-            >
-              See How It Works <ChevronDown className="h-4 w-4" />
-            </button>
+          <div className="tv-hero-actions">
+            <button onClick={goSignup} className="tv-btn-gold">Join Tvimble — It&apos;s Free →</button>
+            <button onClick={scrollToHow} className="tv-btn-outline">See How It Works ↓</button>
           </div>
         </div>
-
-        {/* Scroll hint */}
-        <div className="absolute bottom-8 left-1/2 -translate-x-1/2 flex flex-col items-center gap-1 opacity-30">
-          <div className="w-px h-10 bg-white animate-pulse" />
-        </div>
-      </section>
-
-      {/* ══════════════════════════════════════════
-          MINI ROLE SELECTOR
-      ══════════════════════════════════════════ */}
-      <section className="border-y border-white/8 bg-[#0d0d0d] px-6 md:px-12 lg:px-16 py-14">
-        <p className="text-xs uppercase tracking-[0.25em] text-neutral-500 mb-6 text-center">
-          Who are you on Thimble?
-        </p>
-        <div className="flex flex-wrap justify-center gap-3">
-          {ROLES.map((role) => (
-            <button
-              key={role.value}
-              onClick={() => {
-                setActiveRole(role.value);
-                router.push("/auth/signup");
-              }}
-              className={`text-sm px-6 py-3 rounded-full border transition-all duration-200 ${
-                activeRole === role.value
-                  ? "border-[#C9A84C] bg-[#C9A84C]/10 text-[#C9A84C]"
-                  : "border-neutral-700 text-neutral-300 hover:border-neutral-400 hover:bg-white/5"
-              }`}
-            >
-              {role.label}
-            </button>
+        <div className="tv-hero-letters" aria-hidden="true">
+          {LETTERS.map((x, i) => (
+            <span key={x.l} className="tv-big-letter" style={{ animationDelay: `${0.7 + i * 0.16}s` }}>
+              {x.l}
+            </span>
           ))}
         </div>
       </section>
 
-      {/* ══════════════════════════════════════════
-          HOW IT WORKS — 4 STEPS
-      ══════════════════════════════════════════ */}
-      <section
-        id="how-it-works"
-        className="px-6 md:px-12 lg:px-16 py-20 md:py-28"
-      >
-        {/* Section header */}
-        <div className="text-center mb-16">
-          <p className="text-xs uppercase tracking-[0.3em] text-[#C9A84C] mb-3 font-medium">
-            The Process
-          </p>
-          <h2 className="text-3xl md:text-4xl lg:text-5xl font-bold tracking-tight">
-            How Thimble works
-            <br className="hidden md:block" /> in 4 steps
-          </h2>
+      {/* ── TICKER ── */}
+      <div className="tv-ticker" aria-hidden="true">
+        <div className="tv-ticker-track">
+          {[...TICKER, ...TICKER, ...TICKER, ...TICKER, ...TICKER, ...TICKER].map((item, i) => (
+            <span key={i} className="tv-t-item">
+              {item} <span className="tv-t-star">✦</span>
+            </span>
+          ))}
         </div>
+      </div>
 
-        {/* Steps grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-5xl mx-auto">
-          {STEPS.map((step, i) => {
-            const Icon = step.icon;
-            return (
-              <div
-                key={i}
-                className="group relative border border-neutral-800 bg-[#0d0d0d] p-8 hover:border-neutral-600 transition-all duration-300"
-              >
-                {/* Step number */}
-                <span className="text-[4rem] font-bold text-white/5 leading-none select-none absolute top-6 right-8 group-hover:text-white/8 transition-colors">
-                  {step.number}
-                </span>
-
-                {/* Icon */}
-                <div className="mb-5 inline-flex items-center justify-center w-11 h-11 border border-[#C9A84C]/30 bg-[#C9A84C]/8">
-                  <Icon className="h-5 w-5 text-[#C9A84C]" />
-                </div>
-
-                <h3 className="text-lg font-semibold mb-3 tracking-tight">
-                  {step.title}
-                </h3>
-                <p className="text-sm text-neutral-400 leading-relaxed mb-4">
-                  {step.body}
-                </p>
-
-                {/* Examples (step 3) */}
-                {step.examples && (
-                  <ul className="space-y-1.5 mb-2">
-                    {step.examples.map((ex) => (
-                      <li
-                        key={ex}
-                        className="flex items-start gap-2 text-xs text-neutral-500"
-                      >
-                        <span className="text-[#C9A84C] mt-0.5 shrink-0">
-                          ›
-                        </span>
-                        {ex}
-                      </li>
-                    ))}
-                  </ul>
-                )}
-
-                {/* Footnote (step 4) */}
-                {step.footnote && (
-                  <p className="text-xs text-[#C9A84C] font-medium mt-3">
-                    {step.footnote}
-                  </p>
-                )}
-              </div>
-            );
-          })}
+      {/* ── LETTER BAND ── */}
+      <section className="tv-letter-band" aria-hidden="true">
+        <div className="tv-letter-band-grid">
+          {LETTERS.map((x) => (
+            <div key={x.l} className="tv-lc">
+              <span className="tv-lc-letter">{x.l}</span>
+              <span className="tv-lc-word">{x.word}</span>
+            </div>
+          ))}
         </div>
       </section>
 
-      {/* ══════════════════════════════════════════
-          FINAL CTA
-      ══════════════════════════════════════════ */}
-      <section className="bg-[#C9A84C] px-6 md:px-12 lg:px-16 py-20 md:py-24 text-center">
-        <h2 className="text-3xl md:text-4xl lg:text-5xl font-bold text-black tracking-tight mb-4 max-w-2xl mx-auto leading-tight">
-          Create your free account today
-        </h2>
-        <p className="text-black/60 text-base mb-10 max-w-md mx-auto">
-          Join thousands of fashion creatives already collaborating on Thimble.
-        </p>
-        <button
-          onClick={() => router.push("/auth/signup")}
-          className="inline-flex items-center gap-2 h-14 px-10 bg-black text-white font-semibold text-sm hover:bg-neutral-900 transition-colors"
-        >
-          Join Thimble — It&apos;s Free <ArrowRight className="h-4 w-4" />
-        </button>
+      {/* ── ROLES ── */}
+      <section id="roles" className="tv-roles">
+        <div className="tv-roles-header">
+          <p className="tv-section-tag tv-reveal">Built for every creative</p>
+          <h2 className="tv-section-title tv-reveal tv-d1">One platform.<br />Every role in fashion.</h2>
+        </div>
+        <div className="tv-roles-grid">
+          {ROLES.map((r, i) => (
+            <div key={r.value} className={`tv-role-card tv-reveal tv-d${i}`}>
+              <div className="tv-role-num">{r.num}</div>
+              <div className="tv-role-name">{r.name}</div>
+              <p className="tv-role-desc">{r.desc}</p>
+              <button onClick={goSignup} className="tv-role-cta">Explore →</button>
+            </div>
+          ))}
+        </div>
       </section>
 
-      {/* ── Footer ── */}
-      <footer className="border-t border-white/5 px-6 md:px-12 lg:px-16 py-8 bg-[#080808]">
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-          <span className="text-white font-light tracking-[0.35em] text-sm select-none">
-            THIMBLE
-          </span>
-          <p className="text-xs text-neutral-600 text-center">
-            &copy; {new Date().getFullYear()} Thimble. All rights reserved.
-          </p>
-          <div className="flex gap-5 text-xs text-neutral-600">
-            <button onClick={() => router.push("/about")} className="hover:text-neutral-400 transition-colors">About</button>
-            <button onClick={() => router.push("/help")} className="hover:text-neutral-400 transition-colors">Help</button>
-            <button onClick={() => router.push("/terms")} className="hover:text-neutral-400 transition-colors">Terms</button>
-            <button onClick={() => router.push("/auth")} className="hover:text-neutral-400 transition-colors">Sign In</button>
-            <a href="mailto:support@tvimble.tech" className="hover:text-neutral-400 transition-colors">Contact</a>
+      {/* ── HOW IT WORKS ── */}
+      <section id="how-it-works" className="tv-how">
+        <div className="tv-how-inner">
+          <div>
+            <p className="tv-section-tag tv-reveal">Simple by design</p>
+            <h2 className="tv-section-title tv-reveal tv-d1">How<br />Tvimble<br />works.</h2>
           </div>
+          <div className="tv-steps-list">
+            {STEPS.map((s, i) => (
+              <div key={s.num} className={`tv-step tv-reveal tv-d${i}`}>
+                <div className="tv-step-num">{s.num}</div>
+                <div>
+                  <div className="tv-step-title">{s.title}</div>
+                  <p className="tv-step-desc">{s.desc}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ── QUOTE ── */}
+      <div className="tv-quote-band">
+        <div className="tv-quote-mark tv-reveal">&ldquo;</div>
+        <p className="tv-quote-text tv-reveal tv-d1">
+          Fashion is not something that exists in dresses only. It is in the sky, in the street —
+          and now, it has its own world.
+        </p>
+        <p className="tv-quote-attr tv-reveal tv-d2">Tvimble — Where it all comes together</p>
+      </div>
+
+      {/* ── CTA ── */}
+      <section id="cta" className="tv-cta">
+        <p className="tv-cta-tag tv-reveal">Start today — it&apos;s free</p>
+        <h2 className="tv-cta-title tv-reveal tv-d1">Your fashion world<br />starts here.</h2>
+        <p className="tv-cta-sub tv-reveal tv-d2">
+          Join the creatives already building connections, booking collaborations, and shaping the
+          future of fashion.
+        </p>
+        <div className="tv-cta-actions tv-reveal tv-d3">
+          <button onClick={goSignup} className="tv-btn-gold-lg">Join Tvimble — It&apos;s Free →</button>
+          <button onClick={() => router.push("/auth")} className="tv-btn-outline tv-btn-outline-lg">Sign In</button>
+        </div>
+      </section>
+
+      {/* ── FOOTER ── */}
+      <footer className="tv-footer">
+        <div className="tv-footer-logo">T<span>V</span>IMBLE</div>
+        <div className="tv-footer-copy">© {new Date().getFullYear()} Tvimble. All rights reserved.</div>
+        <div className="tv-footer-links">
+          <button onClick={() => router.push("/about")}>About</button>
+          <button onClick={() => router.push("/help")}>Help</button>
+          <button onClick={() => router.push("/terms")}>Terms</button>
+          <a href="mailto:support@tvimble.tech">Contact</a>
         </div>
       </footer>
     </div>
