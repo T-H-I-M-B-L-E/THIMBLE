@@ -205,6 +205,7 @@ func registerRoutes(app *fiber.App, authLimiter fiber.Handler, apiLimiter fiber.
 	api.Post("/verification", middleware.RequireJWT, handlers.SubmitVerification)
 
 	api.Get("/banner", middleware.OptionalJWT, handlers.PublicActiveBanner)
+	api.Get("/public-stats", handlers.PublicStats)
 
 	// ── Admin ─────────────────────────────────────────────────────────────────
 	adminGroup := app.Group("/admin", middleware.RequireJWT, middleware.RequireAdmin)

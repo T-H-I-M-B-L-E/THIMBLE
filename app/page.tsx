@@ -31,23 +31,66 @@ const STEPS = [
 
 const TICKER = ["Designers", "Models", "Manufacturers", "Photographers", "Fashion Brands", "Collaborate", "Create", "Connect", "Grow"];
 
-// Qualitative proof points — all factually true, no invented counts.
-const PROOF = [
-  { big: "5", label: "Creative roles, one platform" },
-  { big: "✓", label: "Verified profiles you can trust" },
-  { big: "₦", label: "Built for Nigeria & beyond" },
-  { big: "0", label: "Cost to join — always free" },
+// Proof band. Each item has a qualitative fallback (always true) and an
+// optional live-count rule: once the real number crosses `floor`, we show it
+// instead of the fallback. This stays honest AND never looks empty pre-launch.
+interface ProofItem {
+  fallbackBig: string;
+  fallbackLabel: string;
+  countKey?: keyof PublicStats;
+  floor?: number;
+  liveLabel?: string;
+  format?: (n: number) => string;
+}
+const PROOF: ProofItem[] = [
+  { fallbackBig: "5", fallbackLabel: "Creative roles, one platform" },
+  {
+    fallbackBig: "✓", fallbackLabel: "Verified profiles you can trust",
+    countKey: "verified", floor: 25, liveLabel: "Verified creatives",
+    format: (n) => compact(n),
+  },
+  {
+    fallbackBig: "₦", fallbackLabel: "Built for Nigeria & beyond",
+  },
+  {
+    fallbackBig: "0", fallbackLabel: "Cost to join — always free",
+    countKey: "creatives", floor: 50, liveLabel: "Creatives and counting",
+    format: (n) => compact(n),
+  },
 ];
+
+interface PublicStats { creatives?: number; verified?: number; posts?: number; gigs?: number }
+
+// 1234 -> "1.2K", 980 -> "980"
+function compact(n: number): string {
+  if (n >= 1000) {
+    const k = n / 1000;
+    return (k % 1 === 0 ? k.toFixed(0) : k.toFixed(1)) + "K+";
+  }
+  return String(n) + "+";
+}
 
 export default function HomePage() {
   const router = useRouter();
   const { user, isLoading } = useAuth();
   const [scrolled, setScrolled] = useState(false);
+  const [stats, setStats] = useState<PublicStats | null>(null);
 
   useEffect(() => {
     if (isLoading || !user) return;
     router.push(getPostAuthPath(user));
   }, [user, isLoading, router]);
+
+  // Fetch real public counts (best-effort; band falls back to facts if absent)
+  useEffect(() => {
+    if (isLoading || user) return;
+    let alive = true;
+    fetch("/api/public-stats")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (alive && d) setStats(d as PublicStats); })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, [isLoading, user]);
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 48);
@@ -155,14 +198,20 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* ── PROOF (qualitative, all true) ── */}
+      {/* ── PROOF (real counts once past floor, else true facts) ── */}
       <section className="tv-proof">
-        {PROOF.map((p, i) => (
-          <div key={i} className={`tv-proof-item tv-reveal tv-d${i}`}>
-            <div className="tv-proof-big">{p.big}</div>
-            <div className="tv-proof-label">{p.label}</div>
-          </div>
-        ))}
+        {PROOF.map((p, i) => {
+          const n = p.countKey ? stats?.[p.countKey] : undefined;
+          const live = p.floor != null && n != null && n >= p.floor;
+          const big = live && p.format ? p.format(n as number) : p.fallbackBig;
+          const label = live && p.liveLabel ? p.liveLabel : p.fallbackLabel;
+          return (
+            <div key={i} className={`tv-proof-item tv-reveal tv-d${i}`}>
+              <div className="tv-proof-big">{big}</div>
+              <div className="tv-proof-label">{label}</div>
+            </div>
+          );
+        })}
       </section>
 
       {/* ── ROLES ── */}
