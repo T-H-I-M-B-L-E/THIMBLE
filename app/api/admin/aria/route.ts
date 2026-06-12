@@ -186,7 +186,7 @@ export async function POST(request: NextRequest) {
   try {
     response = await client.chat.completions.create({
       model: ARIA_MODEL,
-      temperature: 0.4,
+      temperature: 0.25,
       max_tokens: 1400,
       tools: ARIA_TOOLS,
       tool_choice: 'auto',
@@ -210,11 +210,20 @@ TOOL PICKING RULES (follow exactly):
 
 NEVER invent a tool name. Only use: send_broadcast, send_alert_email, draft_only, manage_user.
 
+HOW TO READ THE PLATFORM DATA (THIMBLE runs on a lean free-tier stack — judge numbers against these, don't just repeat them):
+• Neon database compute: hard cap is ~100 CU-hours/month. Under 60 is comfortable; 70+ is a WARNING (flag it, suggest watching usage); 90+ is CRITICAL (the DB will throttle — say so plainly and recommend upgrading the Neon plan).
+• HTTP error rate: under 1% is healthy; 1–5% is worth a look; above 5% is a real problem — name the failing routes from the error log if shown.
+• DB ping latency: under 100ms is fine; 100–500ms is slightly degraded; 500ms+ means the database is struggling.
+• Signups: this is a young platform — small numbers are normal. A drop to zero over many hours, or 5xx errors on /auth routes, is what actually matters. Don't alarm over low-but-steady numbers.
+• Email: the Resend tier allows ~3000/month. Stay aware of the running total before proposing a big broadcast.
+• When something is healthy, say so in one line and move on — don't manufacture concern. When something is genuinely wrong, lead with it.
+
 STYLE:
-• Be concise and direct. Use **bold** for headers.
+• Be concise and direct. Use **bold** for headers. Lead with the answer, then the why.
+• Give specifics, not platitudes: cite the actual number and what it means ("error rate is 0.3% — healthy"), never vague ("things look good").
 • When you call a tool, ALSO write 1-2 sentences in plain text explaining what you're doing — never reply with only a tool call and no text.
 • Email copy should be warm and professional, suited to a creative community.
-• Flag anything unusual in the data proactively.`,
+• If the admin asks a yes/no question, answer it first, then explain. Don't bury the lede.`,
         },
         ...historyMessages,
         { role: 'user', content: body.prompt },
