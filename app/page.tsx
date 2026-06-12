@@ -31,6 +31,14 @@ const STEPS = [
 
 const TICKER = ["Designers", "Models", "Manufacturers", "Photographers", "Fashion Brands", "Collaborate", "Create", "Connect", "Grow"];
 
+// Qualitative proof points — all factually true, no invented counts.
+const PROOF = [
+  { big: "5", label: "Creative roles, one platform" },
+  { big: "✓", label: "Verified profiles you can trust" },
+  { big: "₦", label: "Built for Nigeria & beyond" },
+  { big: "0", label: "Cost to join — always free" },
+];
+
 export default function HomePage() {
   const router = useRouter();
   const { user, isLoading } = useAuth();
@@ -145,6 +153,16 @@ export default function HomePage() {
             </div>
           ))}
         </div>
+      </section>
+
+      {/* ── PROOF (qualitative, all true) ── */}
+      <section className="tv-proof">
+        {PROOF.map((p, i) => (
+          <div key={i} className={`tv-proof-item tv-reveal tv-d${i}`}>
+            <div className="tv-proof-big">{p.big}</div>
+            <div className="tv-proof-label">{p.label}</div>
+          </div>
+        ))}
       </section>
 
       {/* ── ROLES ── */}

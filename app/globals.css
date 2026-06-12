@@ -3733,6 +3733,25 @@ aside.fixed.right-0 { display: none !important; }
 }
 .tv-lc-word { font-size: 9.5px; letter-spacing: 0.25em; text-transform: uppercase; color: var(--tv-white-dim); }
 
+/* PROOF BAND (qualitative) */
+.tv-proof {
+  display: grid; grid-template-columns: repeat(4, 1fr);
+  background: var(--tv-gold-line); gap: 1px;
+  border-bottom: 1px solid var(--tv-gold-line);
+}
+.tv-proof-item {
+  background: var(--tv-black); padding: 56px 32px; text-align: center;
+  display: flex; flex-direction: column; align-items: center; gap: 14px;
+}
+.tv-proof-big {
+  font-family: 'Bebas Neue', sans-serif; font-size: 64px; line-height: 1;
+  color: var(--tv-gold);
+}
+.tv-proof-label {
+  font-size: 12px; letter-spacing: 0.08em; line-height: 1.5;
+  color: var(--tv-white-dim); max-width: 180px;
+}
+
 /* SECTION SHARED */
 .tv-section-tag { font-size: 10.5px; font-weight: 400; letter-spacing: 0.28em; text-transform: uppercase; color: var(--tv-gold); margin-bottom: 16px; }
 .tv-section-title {
@@ -3845,6 +3864,7 @@ aside.fixed.right-0 { display: none !important; }
   .tv-hero-letters { display: none; }
   .tv-hero-content { padding-top: 110px; }
   .tv-letter-band-grid { grid-template-columns: repeat(4, 1fr); }
+  .tv-proof { grid-template-columns: repeat(2, 1fr); }
   .tv-roles-grid { grid-template-columns: repeat(2, 1fr); }
   .tv-how-inner { grid-template-columns: 1fr; gap: 40px; }
   .tv-roles, .tv-how, .tv-cta { padding: 80px 32px; }
