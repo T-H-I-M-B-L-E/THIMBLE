@@ -139,7 +139,7 @@ export default function HomePage() {
         </button>
         <div className="tv-nav-right">
           <button onClick={() => router.push("/auth")} className="tv-nav-link">Sign In</button>
-          <button onClick={() => router.push("/upload")} className="tv-nav-link">+ Post</button>
+          <button onClick={() => router.push("/upload")} className="tv-nav-link tv-nav-link-post">+ Post</button>
           <button onClick={goSignup} className="tv-nav-btn">Join Free →</button>
         </div>
       </nav>

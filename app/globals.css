@@ -1,6 +1,5 @@
 @import 'tailwindcss';
 @import 'tw-animate-css';
-@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,600;0,700;1,300&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500&family=Bebas+Neue&display=swap');
 
 @custom-variant dark (&:is(.dark *));
 
@@ -3596,9 +3595,11 @@ aside.fixed.right-0 { display: none !important; }
   font-family: 'DM Sans', system-ui, sans-serif;
   font-weight: 300;
   min-height: 100vh;
-  overflow-x: hidden;
+  overflow-x: clip;
+  max-width: 100vw;
   -webkit-font-smoothing: antialiased;
 }
+.tv-root, .tv-root * { min-width: 0; }
 .tv-root button { font-family: inherit; }
 
 /* NAV */
@@ -3751,6 +3752,8 @@ aside.fixed.right-0 { display: none !important; }
   font-size: 12px; letter-spacing: 0.08em; line-height: 1.5;
   color: var(--tv-white-dim); max-width: 180px;
 }
+.tv-proof-item { min-width: 0; }
+.tv-proof-big { white-space: nowrap; }
 
 /* SECTION SHARED */
 .tv-section-tag { font-size: 10.5px; font-weight: 400; letter-spacing: 0.28em; text-transform: uppercase; color: var(--tv-gold); margin-bottom: 16px; }
@@ -3871,11 +3874,70 @@ aside.fixed.right-0 { display: none !important; }
   .tv-quote-band { padding: 80px 32px; }
   .tv-footer { flex-direction: column; text-align: center; }
 }
-@media (max-width: 600px) {
-  .tv-nav { padding: 18px 20px; }
+
+/* Tablet / large phone */
+@media (max-width: 700px) {
+  .tv-nav { padding: 16px 18px; }
+  .tv-nav-right { gap: 14px; }
+  .tv-nav-link { font-size: 12px; }
+  .tv-nav-btn { padding: 8px 14px; font-size: 12px; white-space: nowrap; }
+  /* "+ Post" is an authenticated action — drop it from the logged-out nav on phones */
+  .tv-nav-link-post { display: none; }
+
+  .tv-hero { padding: 0 22px; min-height: auto; }
+  .tv-hero-content { padding-top: 100px; padding-bottom: 56px; }
+  .tv-hero-sub { margin-bottom: 36px; }
+
+  /* Full-width, stacked CTAs — easy thumb targets */
+  .tv-hero-actions { flex-direction: column; align-items: stretch; gap: 12px; }
+  .tv-hero-actions .tv-btn-gold,
+  .tv-hero-actions .tv-btn-outline { width: 100%; justify-content: center; text-align: center; }
+
   .tv-letter-band-grid { grid-template-columns: repeat(4, 1fr); }
+  .tv-lc { padding: 30px 8px; gap: 8px; }
+  .tv-lc-word { font-size: 8px; letter-spacing: 0.15em; }
+
+  .tv-proof { grid-template-columns: repeat(2, 1fr); }
+  .tv-proof-item { padding: 40px 18px; gap: 10px; }
+  .tv-proof-big { font-size: 48px; }
+  .tv-proof-label { font-size: 11px; }
+
+  .tv-roles, .tv-how, .tv-cta { padding: 64px 22px; }
+  .tv-quote-band { padding: 64px 22px; }
   .tv-roles-grid { grid-template-columns: 1fr; }
-  .tv-cta-actions { flex-direction: column; align-items: center; }
+  .tv-roles-header { margin-bottom: 40px; }
+
+  .tv-how { padding: 64px 22px; }
+  .tv-how-inner { gap: 28px; }
+  .tv-step { padding: 28px 0; grid-template-columns: 40px 1fr; gap: 16px; }
+  .tv-step-num { font-size: 34px; }
+
+  .tv-cta { padding: 96px 22px; }
+  .tv-cta-actions { flex-direction: column; align-items: stretch; gap: 12px; }
+  .tv-cta-actions .tv-btn-gold-lg,
+  .tv-cta-actions .tv-btn-outline-lg { width: 100%; justify-content: center; text-align: center; }
+
+  .tv-footer { padding: 28px 22px; gap: 16px; }
+  .tv-footer-links { flex-wrap: wrap; justify-content: center; gap: 18px; }
+}
+
+/* Small phones (iPhone SE / mini, ~360px) */
+@media (max-width: 400px) {
+  .tv-nav { padding: 14px 16px; }
+  .tv-nav-right { gap: 12px; }
+  .tv-nav-link { font-size: 11px; }
+  .tv-logo { font-size: 22px; }
+
+  .tv-hero-content { padding-top: 92px; }
+  .tv-headline { font-size: clamp(38px, 12vw, 50px); }
+  .tv-hero-sub { font-size: 14.5px; }
+
+  /* 2-up letter band reads better than cramped 4-up */
+  .tv-letter-band-grid { grid-template-columns: repeat(2, 1fr); }
+  .tv-lc { padding: 26px 12px; }
+
+  .tv-proof-big { font-size: 42px; }
+  .tv-cta-title { font-size: clamp(40px, 13vw, 56px); }
 }
 @media (prefers-reduced-motion: reduce) {
   .tv-reveal, .tv-overline, .tv-headline, .tv-hero-sub, .tv-hero-actions, .tv-big-letter, .tv-ticker-track {
