@@ -255,12 +255,12 @@ func buildFashionHTML(nigerian, international []newsItem) string {
 	sb.WriteString(`<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;max-width:600px;margin:0 auto;background:#0a0a0a;color:#e5e5e5;border-radius:12px;overflow:hidden">`)
 
 	// Header
-	sb.WriteString(`
+	fmt.Fprintf(&sb, `
   <div style="background:linear-gradient(135deg,#1a0a1a,#0a0a0f);padding:28px 32px;border-bottom:1px solid #2a1a2a">
     <p style="font-size:10px;letter-spacing:0.3em;color:#666;text-transform:uppercase;margin:0 0 10px">THIMBLE · Fashion Digest</p>
     <h1 style="margin:0 0 4px;font-size:26px;font-weight:700;color:#fff;letter-spacing:-0.02em">Today in Fashion ✦</h1>
-    <p style="margin:0;font-size:13px;color:#666">` + time.Now().UTC().Format("Monday, January 2 · 12:00pm WAT") + `</p>
-  </div>`)
+    <p style="margin:0;font-size:13px;color:#666">%s</p>
+  </div>`, time.Now().UTC().Format("Monday, January 2 · 12:00pm WAT"))
 
 	// Nigerian section
 	sb.WriteString(`
