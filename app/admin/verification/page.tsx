@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
-import { CheckCircle2, XCircle, ExternalLink, Loader2 } from 'lucide-react'
+import { CheckCircle2, XCircle, ExternalLink, Loader2, Lock } from 'lucide-react'
 import { useNotify } from '@/components/notify-provider'
 import { adminFetch } from '@/lib/adminFetch'
 import { Page, Card, Pill, Button, C } from '../_ui'
@@ -44,6 +44,26 @@ export default function AdminVerificationPage() {
   const [reviewing, setReviewing] = useState<{ id: number; action: 'approve' | 'reject' } | null>(null)
   const [rejectModal, setRejectModal] = useState<VerificationRequest | null>(null)
   const [rejectNote, setRejectNote] = useState('')
+  const [viewingDoc, setViewingDoc] = useState<number | null>(null)
+
+  const openDoc = async (requestId: number, rawUrl: string) => {
+    if (!rawUrl) return
+    setViewingDoc(requestId)
+    try {
+      const res = await adminFetch('/api/admin/verification-doc', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: rawUrl }),
+      })
+      if (!res.ok) throw new Error('Failed')
+      const { signedUrl } = await res.json()
+      window.open(signedUrl, '_blank', 'noopener,noreferrer')
+    } catch {
+      notify.error('Could not load document')
+    } finally {
+      setViewingDoc(null)
+    }
+  }
 
   const load = useCallback(() => {
     setLoading(true)
@@ -126,9 +146,13 @@ export default function AdminVerificationPage() {
                   {r.adminNote && <p style={{ fontSize: 12, color: C.faint, margin: '6px 0 0', fontStyle: 'italic' }}>Note: {r.adminNote}</p>}
 
                   <div style={{ display: 'flex', gap: 8, marginTop: 14, flexWrap: 'wrap' }}>
-                    <a href={r.idDocumentUrl} target="_blank" rel="noopener noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, color: C.dim, padding: '6px 12px', background: C.surfaceHover, borderRadius: 8, textDecoration: 'none' }}>
-                      <ExternalLink size={12} /> View ID
-                    </a>
+                    {r.idDocumentUrl ? (
+                      <button onClick={() => openDoc(r.id, r.idDocumentUrl)} disabled={viewingDoc === r.id} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, color: C.dim, padding: '6px 12px', background: C.surfaceHover, border: 'none', borderRadius: 8, cursor: 'pointer' }}>
+                        {viewingDoc === r.id ? <Loader2 size={12} style={{ animation: 'spin 0.8s linear infinite' }} /> : <Lock size={12} />} View ID
+                      </button>
+                    ) : (
+                      <span style={{ fontSize: 12, color: C.faint, padding: '6px 12px' }}>Doc removed</span>
+                    )}
                     {r.status === 'pending' && (
                       <>
                         <button onClick={() => review(r.id, 'approve')} disabled={reviewing?.id === r.id} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, color: C.green, padding: '6px 12px', background: 'rgba(63,207,142,0.1)', border: 'none', borderRadius: 8, cursor: 'pointer' }}>
