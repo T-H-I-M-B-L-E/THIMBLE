@@ -154,7 +154,7 @@ function AdminLayoutInner({ children }: { children: React.ReactNode }) {
   const hasAlert = systemAlert !== null && !alertDismissed
   const isCritical = systemAlert?.level === 'critical'
 
-  const navLinks: { href: string; label: string; badge?: number; alert?: boolean }[] = [
+  const navLinks: { href: string; label: string; badge?: number; alert?: boolean; danger?: boolean }[] = [
     { href: '/admin', label: 'Dashboard' },
     { href: '/admin/users', label: 'Users' },
     { href: '/admin/ads', label: 'Ads' },
@@ -163,6 +163,7 @@ function AdminLayoutInner({ children }: { children: React.ReactNode }) {
     { href: '/admin/ai', label: '✦ ARIA' },
     { href: '/admin/verification', label: 'Verify', badge: pendingVerifications > 0 ? pendingVerifications : undefined },
     { href: '/admin/chat', label: 'Messages', badge: unread > 0 ? unread : undefined },
+    { href: '/admin/shutdown', label: '⚠ Shutdown', danger: true },
   ]
 
   const isActive = (href: string) =>
@@ -226,6 +227,7 @@ function AdminLayoutInner({ children }: { children: React.ReactNode }) {
         {navLinks.map(link => {
           const active = isActive(link.href)
           const alerting = link.alert === true
+          const danger = link.danger === true
           return (
             <a
               key={link.href}
@@ -234,9 +236,9 @@ function AdminLayoutInner({ children }: { children: React.ReactNode }) {
                 position: 'relative', display: 'flex', alignItems: 'center', gap: 6,
                 padding: '8px 14px', borderRadius: 8, fontSize: 13, fontWeight: 500,
                 textDecoration: 'none', whiteSpace: 'nowrap',
-                color: alerting ? '#fca5a5' : active ? '#ededef' : '#7a7a80',
-                background: alerting ? 'rgba(239,68,68,0.1)' : active ? '#1a1a1d' : 'transparent',
-                border: alerting ? '1px solid rgba(239,68,68,0.3)' : '1px solid transparent',
+                color: danger ? '#ef4444' : alerting ? '#fca5a5' : active ? '#ededef' : '#7a7a80',
+                background: danger ? 'rgba(239,68,68,0.07)' : alerting ? 'rgba(239,68,68,0.1)' : active ? '#1a1a1d' : 'transparent',
+                border: danger ? '1px solid rgba(239,68,68,0.25)' : alerting ? '1px solid rgba(239,68,68,0.3)' : '1px solid transparent',
                 animation: alerting ? 'alertPulse 2s ease-in-out infinite' : 'none',
               }}
             >

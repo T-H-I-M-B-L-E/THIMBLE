@@ -1,0 +1,1 @@
+ALTER TABLE users ADD COLUMN IF NOT EXISTS shutdown_pin_hash TEXT NOT NULL DEFAULT '';

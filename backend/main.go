@@ -247,4 +247,12 @@ func registerRoutes(app *fiber.App, authLimiter fiber.Handler, apiLimiter fiber.
 	adminGroup.Patch("/ads/:id", handlers.UpdateAd)
 	adminGroup.Delete("/ads/:id", handlers.DeleteAd)
 	adminGroup.Patch("/ads/:id/toggle", handlers.ToggleAd)
+
+	// ── Shutdown (critical action, multi-layer auth) ──────────────────────────
+	adminGroup.Get("/shutdown/pin-status", handlers.AdminShutdownPinStatus)
+	adminGroup.Post("/shutdown/set-pin", handlers.AdminShutdownSetPin)
+	adminGroup.Post("/shutdown/verify-pin", handlers.AdminShutdownVerifyPin)
+	adminGroup.Post("/shutdown/request-otp", handlers.AdminShutdownRequestOTP)
+	adminGroup.Post("/shutdown/verify-otp", handlers.AdminShutdownVerifyOTP)
+	adminGroup.Post("/shutdown/execute", handlers.AdminShutdownExecute)
 }
