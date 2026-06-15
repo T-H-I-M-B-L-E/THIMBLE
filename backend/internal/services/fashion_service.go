@@ -46,20 +46,19 @@ type newsItem struct {
 
 func sendFashionDigest(ctx context.Context) {
 	groqKey := config.GroqAPIKey()
-	newsKey := config.NewsAPIKey()
+	guardianKey := config.NewsAPIKey() // reusing the env var — set GUARDIAN_API_KEY or NEWS_API_KEY
 
 	var nigerian, international []newsItem
 
-	// Try NewsAPI first if key is configured
-	if newsKey != "" {
-		nigerian = fetchNewsAPI(ctx, newsKey, "fashion Nigeria", "nigeria", 5)
-		international = fetchNewsAPI(ctx, newsKey, "fashion week runway trends", "international", 5)
-	}
+	// Guardian API: free, server-side allowed, high-quality fashion section
+	international = fetchGuardianNews(ctx, guardianKey, 5)
 
-	// Fall back to Groq-generated summaries if no news key or fetch failed
-	if groqKey != "" && len(nigerian) < 3 {
+	// Guardian has limited Nigerian fashion coverage — use Groq for Nigeria
+	if groqKey != "" {
 		nigerian = generateFashionNews(ctx, groqKey, "Nigeria", 5)
 	}
+
+	// Fall back to Groq for international too if Guardian returned nothing
 	if groqKey != "" && len(international) < 3 {
 		international = generateFashionNews(ctx, groqKey, "global", 5)
 	}
@@ -99,11 +98,17 @@ func sendFashionDigest(ctx context.Context) {
 	_ = html
 }
 
-// fetchNewsAPI pulls headlines from newsapi.org
-func fetchNewsAPI(ctx context.Context, apiKey, query, region string, limit int) []newsItem {
+// fetchGuardianNews pulls the latest fashion headlines from The Guardian's
+// open API. Works server-side on the free developer tier — no restrictions.
+// apiKey is optional; passing "" uses the test key (100 req/day limit).
+func fetchGuardianNews(ctx context.Context, apiKey string, limit int) []newsItem {
+	key := apiKey
+	if key == "" {
+		key = "test"
+	}
 	url := fmt.Sprintf(
-		"https://newsapi.org/v2/everything?q=%s&sortBy=publishedAt&pageSize=%d&language=en&apiKey=%s",
-		strings.ReplaceAll(query, " ", "+"), limit, apiKey,
+		"https://content.guardianapis.com/search?section=fashion&show-fields=headline,trailText&order-by=newest&page-size=%d&api-key=%s",
+		limit, key,
 	)
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
@@ -111,35 +116,45 @@ func fetchNewsAPI(ctx context.Context, apiKey, query, region string, limit int) 
 	}
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
+		log.Printf("fashion: guardian request error: %v", err)
 		return nil
 	}
 	defer resp.Body.Close()
 
 	var result struct {
-		Articles []struct {
-			Title       string `json:"title"`
-			Description string `json:"description"`
-			Source      struct{ Name string `json:"name"` } `json:"source"`
-		} `json:"articles"`
+		Response struct {
+			Results []struct {
+				WebTitle string `json:"webTitle"`
+				Fields   struct {
+					Headline  string `json:"headline"`
+					TrailText string `json:"trailText"`
+				} `json:"fields"`
+			} `json:"results"`
+		} `json:"response"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		log.Printf("fashion: guardian decode error: %v", err)
 		return nil
 	}
 
-	items := make([]newsItem, 0, len(result.Articles))
-	for _, a := range result.Articles {
-		if a.Title == "" || strings.Contains(a.Title, "[Removed]") {
+	items := make([]newsItem, 0, len(result.Response.Results))
+	for _, r := range result.Response.Results {
+		headline := r.Fields.Headline
+		if headline == "" {
+			headline = r.WebTitle
+		}
+		if headline == "" {
 			continue
 		}
-		summary := a.Description
+		summary := r.Fields.TrailText
 		if len(summary) > 160 {
 			summary = summary[:157] + "…"
 		}
 		items = append(items, newsItem{
-			Headline: a.Title,
+			Headline: headline,
 			Summary:  summary,
-			Source:   a.Source.Name,
-			Region:   region,
+			Source:   "The Guardian",
+			Region:   "international",
 		})
 	}
 	return items
