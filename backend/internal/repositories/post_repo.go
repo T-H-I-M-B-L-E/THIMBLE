@@ -228,6 +228,7 @@ func InsertPost(ctx context.Context, p *models.Post) error {
 		if isUniqueViolation(err) {
 			continue
 		}
+		log.Printf("InsertPost error: %v", err)
 		return err
 	}
 }
