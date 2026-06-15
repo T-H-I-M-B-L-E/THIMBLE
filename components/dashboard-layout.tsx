@@ -12,7 +12,7 @@ import { BottomNav } from "./bottom-nav"
 import { NotificationCenter } from "./notification-center"
 import { SearchBar } from "./search-bar"
 import { useState, useEffect, useRef } from "react"
-import { Home, Briefcase, MessageSquare, User, Settings, LogOut, Newspaper } from "lucide-react"
+import { Home, MessageSquare, User, Settings, LogOut, Newspaper } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { RightRail } from "./right-rail"
 

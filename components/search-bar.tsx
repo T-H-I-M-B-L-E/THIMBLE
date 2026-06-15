@@ -40,7 +40,7 @@ export function SearchBar({ role: _role }: SearchBarProps) {
   const copyUsername = (e: React.MouseEvent, username: string, fullName: string) => {
     e.stopPropagation()
     const handle = username || fullName.toLowerCase().replace(/\s+/g, "")
-    navigator.clipboard.writeText(`@${handle}`).then(() => {
+    void navigator.clipboard.writeText(`@${handle}`).then(() => {
       setCopied(handle)
       setTimeout(() => setCopied(null), 2000)
     })
