@@ -217,9 +217,9 @@ func InsertPost(ctx context.Context, p *models.Post) error {
 		slug := utils.GenerateSlug()
 		err := db.Pool.QueryRow(ctx,
 			`INSERT INTO posts (user_id, author_name, author_avatar, image_url, images, description, tagged_users, slug)
-			 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+			 VALUES ($1, $2, $3, $4, $5::jsonb, $6, $7::jsonb, $8)
 			 RETURNING id, slug, created_at`,
-			p.UserId, p.AuthorName, p.AuthorAvatar, p.ImageUrl, imagesJSON, p.Description, taggedJSON, slug,
+			p.UserId, p.AuthorName, p.AuthorAvatar, p.ImageUrl, string(imagesJSON), p.Description, string(taggedJSON), slug,
 		).Scan(&p.Id, &p.Slug, &p.CreatedAt)
 		if err == nil {
 			return nil
