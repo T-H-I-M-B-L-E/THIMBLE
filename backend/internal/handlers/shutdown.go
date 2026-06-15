@@ -33,8 +33,8 @@ func AdminShutdownSetPin(c *fiber.Ctx) error {
 	var body struct {
 		Pin string `json:"pin"`
 	}
-	if err := c.BodyParser(&body); err != nil || len(body.Pin) < 4 || len(body.Pin) > 8 {
-		return c.Status(400).JSON(fiber.Map{"error": "PIN must be 4–8 digits"})
+	if err := c.BodyParser(&body); err != nil || len(body.Pin) != 4 {
+		return c.Status(400).JSON(fiber.Map{"error": "PIN must be exactly 4 digits"})
 	}
 	for _, ch := range body.Pin {
 		if ch < '0' || ch > '9' {

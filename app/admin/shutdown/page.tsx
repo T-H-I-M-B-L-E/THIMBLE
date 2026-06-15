@@ -87,7 +87,7 @@ export default function ShutdownPage() {
   const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   const [loading, setLoading]          = useState(false)
-  const [result, setResult]            = useState<{ notified?: number; simulate?: boolean } | null>(null)
+  const [result, setResult]            = useState<{ notified?: number; simulate?: boolean; actions?: string[]; executedAt?: string } | null>(null)
 
   // On mount: check if admin already has a PIN set
   useEffect(() => {
@@ -227,7 +227,7 @@ export default function ShutdownPage() {
       const data = await res.json() as { executed?: boolean; pending?: boolean; notified?: number; simulate?: boolean; error?: string }
       if (!res.ok) throw new Error(data.error || 'Execution failed')
       if (data.pending) { setStep('pending_approval'); return }
-      setResult(data); setStep('done')
+      setResult({ ...data, executedAt: new Date().toUTCString() }); setStep('done')
     } catch (e: unknown) {
       alert(e instanceof Error ? e.message : 'Execution failed')
       setStep('verified')
@@ -414,11 +414,11 @@ export default function ShutdownPage() {
               </div>
               <div style={{ fontSize: 12, color: '#666', marginBottom: 24 }}>
                 {pinSetupStage === 'enter'
-                  ? 'This PIN is required every time you access the shutdown panel. Choose 4–6 digits.'
+                  ? 'This PIN is required every time you access the shutdown panel. Choose 4 digits.'
                   : 'Enter the same PIN again to confirm.'}
               </div>
 
-              <PinDots value={pinSetupStage === 'enter' ? newPin : confirmPin} max={6} />
+              <PinDots value={pinSetupStage === 'enter' ? newPin : confirmPin} max={4} />
 
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 10, maxWidth: 240, margin: '20px auto 0' }}>
                 {['1','2','3','4','5','6','7','8','9','','0','⌫'].map((k, i) => (
@@ -427,7 +427,7 @@ export default function ShutdownPage() {
                     const setter = pinSetupStage === 'enter' ? setNewPin : setConfirmPin
                     const cur = pinSetupStage === 'enter' ? newPin : confirmPin
                     if (k === '⌫') { setter(cur.slice(0,-1)); setPinSetupError('') }
-                    else if (cur.length < 6) setter(cur + k)
+                    else if (cur.length < 4) setter(cur + k)
                   }}
                   style={{ padding: '14px', background: k === '' ? 'transparent' : '#111', border: k === '' ? 'none' : '1px solid #222', borderRadius: 8, color: '#e5e5e5', fontSize: 18, fontWeight: 600, cursor: k === '' ? 'default' : 'pointer', transition: 'background .1s' }}>
                     {k}
@@ -447,12 +447,12 @@ export default function ShutdownPage() {
               </button>
               {pinSetupStage === 'enter' ? (
                 <button className="sd-btn-red" onClick={handlePinSetupNext} disabled={newPin.length < 4}
-                  style={{ flex: 2, padding: '12px', background: newPin.length >= 4 ? '#7f1d1d' : '#1a0a0a', border: `1px solid ${newPin.length >= 4 ? '#ef4444' : '#222'}`, borderRadius: 8, color: newPin.length >= 4 ? '#fff' : '#333', cursor: newPin.length >= 4 ? 'pointer' : 'not-allowed', fontSize: 12, fontWeight: 700, letterSpacing: '0.1em', transition: 'all .15s' }}>
+                  style={{ flex: 2, padding: '12px', background: newPin.length >= 4 ? '#7f1d1d' : '#1a0a0a', border: `1px solid ${newPin.length >= 4 ? '#ef4444' : '#222'}`, borderRadius: 8, color: newPin.length >= 4 ? '#fff' : '#333', cursor: newPin.length === 4 ? 'pointer' : 'not-allowed', fontSize: 12, fontWeight: 700, letterSpacing: '0.1em', transition: 'all .15s' }}>
                   NEXT →
                 </button>
               ) : (
                 <button className="sd-btn-red" onClick={() => void handlePinSetupSave()} disabled={loading || confirmPin.length < 4}
-                  style={{ flex: 2, padding: '12px', background: confirmPin.length >= 4 ? '#7f1d1d' : '#1a0a0a', border: `1px solid ${confirmPin.length >= 4 ? '#ef4444' : '#222'}`, borderRadius: 8, color: confirmPin.length >= 4 ? '#fff' : '#333', cursor: confirmPin.length >= 4 && !loading ? 'pointer' : 'not-allowed', fontSize: 12, fontWeight: 700, letterSpacing: '0.1em', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, transition: 'all .15s' }}>
+                  style={{ flex: 2, padding: '12px', background: confirmPin.length >= 4 ? '#7f1d1d' : '#1a0a0a', border: `1px solid ${confirmPin.length >= 4 ? '#ef4444' : '#222'}`, borderRadius: 8, color: confirmPin.length >= 4 ? '#fff' : '#333', cursor: confirmPin.length === 4 && !loading ? 'pointer' : 'not-allowed', fontSize: 12, fontWeight: 700, letterSpacing: '0.1em', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, transition: 'all .15s' }}>
                   {loading ? <Spinner /> : null} {loading ? 'SAVING…' : 'SET PIN & CONTINUE'}
                 </button>
               )}
@@ -468,14 +468,14 @@ export default function ShutdownPage() {
               <div style={{ fontSize: 14, fontWeight: 700, color: '#fff', marginBottom: 6 }}>Enter Your Shutdown PIN</div>
               <div style={{ fontSize: 12, color: '#666', marginBottom: 24 }}>Layer 1 of 2 — your personal shutdown PIN</div>
 
-              <PinDots value={pin} max={6} />
+              <PinDots value={pin} max={4} />
 
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 10, maxWidth: 240, margin: '20px auto 0' }}>
                 {['1','2','3','4','5','6','7','8','9','','0','⌫'].map((k, i) => (
                   <button key={i} onClick={() => {
                     if (k === '') return
                     if (k === '⌫') { setPin(p => p.slice(0,-1)); setPinError('') }
-                    else if (pin.length < 6) setPin(p => p + k)
+                    else if (pin.length < 4) { const next = pin + k; setPin(next); if (next.length === 4) setTimeout(() => void handleVerifyPin(), 100) }
                   }}
                   style={{ padding: '14px', background: k === '' ? 'transparent' : '#111', border: k === '' ? 'none' : '1px solid #222', borderRadius: 8, color: '#e5e5e5', fontSize: 18, fontWeight: 600, cursor: k === '' ? 'default' : 'pointer', transition: 'background .1s' }}>
                     {k}
@@ -574,14 +574,48 @@ export default function ShutdownPage() {
 
         {/* ── DONE ── */}
         {step === 'done' && (
-          <div className="sd-animate" style={{ textAlign: 'center', padding: '40px 24px' }}>
-            <CheckCircle2 size={40} color={result?.simulate ? '#f59e0b' : '#ef4444'} style={{ marginBottom: 16 }} />
-            <div style={{ fontSize: 14, fontWeight: 700, letterSpacing: '0.1em', color: result?.simulate ? '#f59e0b' : '#ef4444', marginBottom: 8 }}>
-              {result?.simulate ? 'SIMULATION COMPLETE' : 'SHUTDOWN EXECUTED'}
+          <div className="sd-animate">
+            <div style={{ padding: '28px 24px', background: '#09090b', border: `2px solid ${result?.simulate ? '#f59e0b' : '#ef4444'}`, borderRadius: 10, marginBottom: 16, textAlign: 'center' }}>
+              <CheckCircle2 size={40} color={result?.simulate ? '#f59e0b' : '#ef4444'} style={{ marginBottom: 14 }} />
+              <div style={{ fontSize: 15, fontWeight: 700, letterSpacing: '0.12em', color: result?.simulate ? '#f59e0b' : '#ef4444', marginBottom: 4 }}>
+                {result?.simulate ? '⚠ SIMULATION COMPLETE' : '🔴 SHUTDOWN EXECUTED'}
+              </div>
+              <div style={{ fontSize: 11, color: '#555', letterSpacing: '0.1em', marginBottom: 24 }}>
+                {result?.simulate ? 'NO REAL ACTIONS WERE TAKEN' : 'PLATFORM ACTIONS HAVE BEEN EXECUTED'}
+              </div>
+
+              <div style={{ textAlign: 'left', background: '#060608', border: '1px solid #1c1c1c', borderRadius: 8, padding: '16px 20px', marginBottom: 16 }}>
+                <div style={{ fontSize: 11, color: '#555', letterSpacing: '0.1em', marginBottom: 12 }}>ACTIONS {result?.simulate ? 'SIMULATED' : 'EXECUTED'}</div>
+                {(result?.actions ?? Array.from(selectedActions)).map(id => {
+                  const a = ACTIONS.find(x => x.id === id)
+                  return (
+                    <div key={id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 0', borderBottom: '1px solid #111' }}>
+                      <span style={{ color: result?.simulate ? '#f59e0b' : '#ef4444', fontSize: 13 }}>✓</span>
+                      <span style={{ fontSize: 13, color: '#ccc' }}>{a?.label ?? id}</span>
+                      {result?.simulate && <span style={{ marginLeft: 'auto', fontSize: 9, color: '#555', letterSpacing: '0.1em' }}>SIMULATED</span>}
+                    </div>
+                  )
+                })}
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 4 }}>
+                <div style={{ background: '#060608', border: '1px solid #1c1c1c', borderRadius: 8, padding: '12px 16px', textAlign: 'left' }}>
+                  <div style={{ fontSize: 10, color: '#444', letterSpacing: '0.1em', marginBottom: 4 }}>ADMINS NOTIFIED</div>
+                  <div style={{ fontSize: 22, fontWeight: 700, color: result?.simulate ? '#f59e0b' : '#fff' }}>{result?.notified ?? 0}</div>
+                </div>
+                <div style={{ background: '#060608', border: '1px solid #1c1c1c', borderRadius: 8, padding: '12px 16px', textAlign: 'left' }}>
+                  <div style={{ fontSize: 10, color: '#444', letterSpacing: '0.1em', marginBottom: 4 }}>MODE</div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: result?.simulate ? '#f59e0b' : '#ef4444' }}>{result?.simulate ? 'SIMULATION' : 'REAL'}</div>
+                </div>
+              </div>
             </div>
-            <div style={{ fontSize: 13, color: '#666', marginBottom: 8 }}>{result?.notified ?? 0} admin{(result?.notified ?? 0) !== 1 ? 's' : ''} notified.</div>
-            <div style={{ fontSize: 12, color: '#444', marginBottom: 28 }}>All actions have been logged to the permanent audit trail.</div>
-            <button className="sd-btn-ghost" onClick={reset} style={{ padding: '10px 24px', background: 'transparent', border: '1px solid #333', borderRadius: 8, color: '#666', cursor: 'pointer', fontSize: 12, display: 'inline-flex', alignItems: 'center', gap: 8, transition: 'background .15s' }}>
+
+            <div style={{ padding: '12px 16px', background: '#0c0a06', border: '1px solid #2a2010', borderRadius: 8, marginBottom: 16 }}>
+              <div style={{ fontSize: 11, color: '#555' }}>Logged at: <span style={{ color: '#666' }}>{result?.executedAt ?? new Date().toUTCString()}</span></div>
+              <div style={{ fontSize: 11, color: '#444', marginTop: 4 }}>All actions recorded in the permanent audit trail.</div>
+            </div>
+
+            <button className="sd-btn-ghost" onClick={reset} style={{ width: '100%', padding: '12px', background: 'transparent', border: '1px solid #333', borderRadius: 8, color: '#666', cursor: 'pointer', fontSize: 12, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8, transition: 'background .15s' }}>
               <RotateCcw size={13} /> Reset
             </button>
           </div>
