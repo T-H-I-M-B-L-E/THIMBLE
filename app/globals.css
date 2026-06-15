@@ -3945,3 +3945,88 @@ aside.fixed.right-0 { display: none !important; }
     opacity: 1 !important; transform: none !important;
   }
 }
+
+/* ── News page ────────────────────────────────────────────────────────────── */
+.t-news { display: flex; flex-direction: column; gap: 20px; padding-bottom: 80px; }
+.t-news-header { display: flex; flex-direction: column; gap: 4px; }
+.t-news-title-row { display: flex; align-items: center; gap: 10px; }
+.t-news-icon { color: var(--t-gold); }
+.t-news-title { font-size: 22px; font-weight: 700; margin: 0; }
+.t-news-sub { font-size: 13px; color: var(--t-ink-3); margin: 0; }
+
+.t-news-tabs { display: flex; gap: 8px; flex-wrap: wrap; }
+.t-news-tab {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 6px 14px; border-radius: 999px; font-size: 13px; font-weight: 500;
+  border: 1px solid var(--t-line); background: transparent; color: var(--t-ink-3);
+  cursor: pointer; transition: all .15s;
+}
+.t-news-tab:hover { background: var(--t-surface-2); color: var(--t-ink); }
+.t-news-tab.active { background: var(--t-gold); border-color: var(--t-gold); color: #000; }
+.t-news-tab-count {
+  background: rgba(0,0,0,.12); color: inherit;
+  font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 999px;
+}
+.t-news-tab.active .t-news-tab-count { background: rgba(0,0,0,.18); }
+
+.t-news-loading {
+  display: flex; align-items: center; gap: 10px;
+  color: var(--t-ink-3); font-size: 14px; padding: 40px 0;
+}
+.t-news-spinner { animation: spin .8s linear infinite; color: var(--t-gold); }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.t-news-empty {
+  display: flex; flex-direction: column; align-items: center; gap: 12px;
+  color: var(--t-ink-3); padding: 60px 0; font-size: 14px;
+}
+
+.t-news-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 16px;
+}
+@media (max-width: 600px) { .t-news-grid { grid-template-columns: 1fr; } }
+
+.t-news-card {
+  display: flex; flex-direction: column;
+  background: var(--t-surface); border: 1px solid var(--t-line); border-radius: 12px;
+  overflow: hidden; text-decoration: none; color: inherit;
+  transition: box-shadow .15s, border-color .15s;
+}
+.t-news-card:hover { box-shadow: 0 4px 20px rgba(0,0,0,.08); border-color: var(--t-gold-soft); }
+
+.t-news-card-img { aspect-ratio: 16/9; overflow: hidden; flex-shrink: 0; }
+.t-news-card-img img { width: 100%; height: 100%; object-fit: cover; transition: transform .3s; }
+.t-news-card:hover .t-news-card-img img { transform: scale(1.03); }
+
+.t-news-card-body { display: flex; flex-direction: column; gap: 8px; padding: 14px; flex: 1; }
+.t-news-card-region { font-size: 11px; color: var(--t-ink-3); }
+.t-news-card-headline { font-size: 15px; font-weight: 600; line-height: 1.4; margin: 0; }
+.t-news-card-summary {
+  font-size: 13px; color: var(--t-ink-2); line-height: 1.5; margin: 0;
+  display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
+}
+.t-news-card-footer {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 11px; color: var(--t-ink-3); margin-top: auto; padding-top: 6px;
+}
+.t-news-card-source { font-weight: 500; }
+.t-news-card-time::before { content: "·"; margin-right: 6px; }
+.t-news-card-ext { margin-left: auto; opacity: .5; }
+
+/* ── Search username copy (Instagram-style) ───────────────────────────────── */
+.t-search-result-sub-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 1px; }
+.t-search-result-username {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 12px; color: var(--t-ink-3); cursor: pointer;
+  padding: 1px 4px; border-radius: 4px; transition: background .1s;
+}
+.t-search-result-username:hover { background: var(--t-surface-2); color: var(--t-ink); }
+.t-search-result-role {
+  font-size: 11px; color: var(--t-ink-3); text-transform: capitalize;
+}
+.t-search-result-role::before { content: "·"; margin-right: 4px; }
+.t-search-copy-icon { opacity: 0; transition: opacity .1s; }
+.t-search-result-username:hover .t-search-copy-icon { opacity: .6; }
+.t-search-copy-ok { opacity: 1 !important; color: #3fcf8e; }

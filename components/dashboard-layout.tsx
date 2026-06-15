@@ -12,7 +12,7 @@ import { BottomNav } from "./bottom-nav"
 import { NotificationCenter } from "./notification-center"
 import { SearchBar } from "./search-bar"
 import { useState, useEffect, useRef } from "react"
-import { Home, Briefcase, MessageSquare, User, Settings, LogOut } from "lucide-react"
+import { Home, Briefcase, MessageSquare, User, Settings, LogOut, Newspaper } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { RightRail } from "./right-rail"
 
@@ -63,7 +63,7 @@ export function DashboardLayout({ children, role: roleProp, showRail = false, fu
   // The dashboard root ("Explore") is still reachable via the brand logo.
   const navItems = [
     { href: `/feed`, icon: Home, label: "Home" },
-    { href: `/gigs`, icon: Briefcase, label: "Gigs" },
+    { href: `/news`, icon: Newspaper, label: "News" },
     { href: `/messages`, icon: MessageSquare, label: "Messages" },
     { href: `/profile`, icon: User, label: "Profile" },
   ]

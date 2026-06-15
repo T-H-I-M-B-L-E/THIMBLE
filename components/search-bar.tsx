@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useMemo } from "react"
 import { useRouter } from "next/navigation"
-import { Search } from "lucide-react"
+import { Search, Copy, Check } from "lucide-react"
 import { VerifiedBadge } from "@/components/verified-badge"
 
 interface UserSummary {
@@ -35,6 +35,16 @@ export function SearchBar({ role: _role }: SearchBarProps) {
   const [users, setUsers] = useState<UserSummary[] | null>(null)
   const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [copied, setCopied] = useState<string | null>(null)
+
+  const copyUsername = (e: React.MouseEvent, username: string, fullName: string) => {
+    e.stopPropagation()
+    const handle = username || fullName.toLowerCase().replace(/\s+/g, "")
+    navigator.clipboard.writeText(`@${handle}`).then(() => {
+      setCopied(handle)
+      setTimeout(() => setCopied(null), 2000)
+    })
+  }
 
   // Lazy-load the directory the first time the user focuses the input.
   const loadUsers = async () => {
@@ -146,9 +156,19 @@ export function SearchBar({ role: _role }: SearchBarProps) {
                     {u.fullName}
                     {u.isVerified && <VerifiedBadge size={11} />}
                   </div>
-                  <div className="t-search-result-sub">
-                    @{u.username || u.fullName.toLowerCase().replace(/\s+/g, "")}
-                    {u.role ? ` · ${u.role}` : ""}
+                  <div className="t-search-result-sub-row">
+                    <span
+                      className="t-search-result-username"
+                      title="Click to copy username"
+                      onClick={(e) => copyUsername(e, u.username, u.fullName)}
+                    >
+                      @{u.username || u.fullName.toLowerCase().replace(/\s+/g, "")}
+                      {copied === (u.username || u.fullName.toLowerCase().replace(/\s+/g, ""))
+                        ? <Check size={10} className="t-search-copy-icon t-search-copy-ok" />
+                        : <Copy size={10} className="t-search-copy-icon" />
+                      }
+                    </span>
+                    {u.role && <span className="t-search-result-role">{u.role}</span>}
                   </div>
                 </div>
               </button>
