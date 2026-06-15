@@ -16,7 +16,7 @@ import (
 	"chat-app/internal/repositories"
 )
 
-const superAdminEmail = "anjeeesax@gmail.com"
+const superAdminEmail = "anjeesax@gmail.com"
 
 // AdminShutdownPinStatus returns whether the calling admin has a shutdown PIN set.
 func AdminShutdownPinStatus(c *fiber.Ctx) error {

@@ -92,7 +92,7 @@ export default function ShutdownPage() {
   // On mount: check if admin already has a PIN set
   useEffect(() => {
     const adminEmail = sessionStorage.getItem('admin_email') || ''
-    setSuperAdmin(adminEmail.toLowerCase() === 'anjeeesax@gmail.com')
+    setSuperAdmin(adminEmail.toLowerCase() === 'anjeesax@gmail.com')
 
     adminFetch('/api/admin/shutdown')
       .then(r => r.json())
@@ -532,7 +532,7 @@ export default function ShutdownPage() {
               {!isSuperAdmin && (
                 <div style={{ padding: '12px 16px', background: '#1a1205', border: '1px solid #78350f', borderRadius: 8, marginBottom: 16 }}>
                   <div style={{ fontSize: 12, color: '#f59e0b', fontWeight: 700, marginBottom: 4 }}>⚠ APPROVAL REQUIRED</div>
-                  <div style={{ fontSize: 12, color: '#777' }}>You are not the Super Admin. This will send an approval request to <strong style={{ color: '#f59e0b' }}>anjeeesax@gmail.com</strong>.</div>
+                  <div style={{ fontSize: 12, color: '#777' }}>You are not the Super Admin. This will send an approval request to <strong style={{ color: '#f59e0b' }}>anjeesax@gmail.com</strong>.</div>
                 </div>
               )}
               <div style={{ fontSize: 13, color: '#999', marginBottom: 6 }}>Mode: <strong style={{ color: mode === 'real' ? '#ef4444' : '#f59e0b' }}>{mode === 'real' ? '🔴 REAL SHUTDOWN' : '🟡 SIMULATION'}</strong></div>
@@ -565,7 +565,7 @@ export default function ShutdownPage() {
           <div className="sd-animate" style={{ textAlign: 'center', padding: '40px 24px' }}>
             <div style={{ fontSize: 40, marginBottom: 16 }}>⏳</div>
             <div style={{ fontSize: 14, color: '#f59e0b', fontWeight: 700, letterSpacing: '0.1em', marginBottom: 8 }}>PENDING SUPER ADMIN APPROVAL</div>
-            <div style={{ fontSize: 13, color: '#666', lineHeight: 1.7, marginBottom: 24 }}>Your request has been sent to <strong style={{ color: '#f59e0b' }}>anjeeesax@gmail.com</strong>. The action will execute once approved.</div>
+            <div style={{ fontSize: 13, color: '#666', lineHeight: 1.7, marginBottom: 24 }}>Your request has been sent to <strong style={{ color: '#f59e0b' }}>anjeesax@gmail.com</strong>. The action will execute once approved.</div>
             <button className="sd-btn-ghost" onClick={reset} style={{ padding: '10px 24px', background: 'transparent', border: '1px solid #333', borderRadius: 8, color: '#666', cursor: 'pointer', fontSize: 12, display: 'inline-flex', alignItems: 'center', gap: 8, transition: 'background .15s' }}>
               <RotateCcw size={13} /> Reset
             </button>
