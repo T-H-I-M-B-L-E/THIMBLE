@@ -106,7 +106,7 @@ func sendShutdownOTP(to, code string) error {
   <div style="border-top:1px solid #2a0a0a;padding-top:20px">
     <p style="font-size:12px;color:#666;margin:0">If you did not request this code, someone may be attempting to access your admin account. Do not share this code with anyone.</p>
   </div>
-</div>`, code, code),
+</div>`, code),
 	})
 	return err
 }
