@@ -39,11 +39,12 @@ func ListPosts(ctx context.Context, callerID, beforeID, filterUserID string, lim
 			       COALESCE(u.avatar_url, p.author_avatar) AS author_avatar,
 			       COALESCE(u.is_verified, FALSE) AS author_verified,
 			       p.image_url, p.images, p.description, p.likes, p.tagged_users, p.created_at,
-			       (SELECT COUNT(*) FROM post_comments pc WHERE pc.post_id = p.id) AS comment_count,
+			       COUNT(pc.id) AS comment_count,
 			       CASE WHEN $1 <> '' THEN EXISTS(SELECT 1 FROM post_likes pl WHERE pl.post_id = p.id AND pl.user_id = $1) ELSE FALSE END AS liked_by_me,
 			       CASE WHEN $1 <> '' THEN EXISTS(SELECT 1 FROM post_saves ps WHERE ps.post_id = p.id AND ps.user_id = $1) ELSE FALSE END AS saved_by_me
 			FROM posts p
 			LEFT JOIN users u ON u.id = p.user_id
+			LEFT JOIN post_comments pc ON pc.post_id = p.id
 			WHERE ($1 = '' OR NOT EXISTS (
 			    SELECT 1 FROM blocks b
 			    WHERE (b.blocker_id = $1 AND b.blocked_id = p.user_id)
@@ -58,7 +59,7 @@ func ListPosts(ctx context.Context, callerID, beforeID, filterUserID string, lim
 		}
 		query += fmt.Sprintf(" AND p.user_id = $%d", argIdx)
 		args = append(args, filterUserID)
-		query += fmt.Sprintf(" ORDER BY p.id DESC LIMIT %d", limit)
+		query += fmt.Sprintf(` GROUP BY p.id, u.full_name, u.avatar_url, u.is_verified ORDER BY p.id DESC LIMIT %d`, limit)
 	} else {
 		// Main feed: ranked score.
 		//
@@ -79,23 +80,25 @@ func ListPosts(ctx context.Context, callerID, beforeID, filterUserID string, lim
 				       COALESCE(u.avatar_url, p.author_avatar) AS author_avatar,
 				       COALESCE(u.is_verified, FALSE)          AS author_verified,
 				       p.image_url, p.images, p.description, p.likes, p.tagged_users, p.created_at,
-				       (SELECT COUNT(*) FROM post_comments pc WHERE pc.post_id = p.id) AS comment_count,
+				       COUNT(pc.id) AS comment_count,
 				       CASE WHEN $1 <> '' THEN EXISTS(SELECT 1 FROM post_likes pl WHERE pl.post_id = p.id AND pl.user_id = $1) ELSE FALSE END AS liked_by_me,
 				       CASE WHEN $1 <> '' THEN EXISTS(SELECT 1 FROM post_saves ps WHERE ps.post_id = p.id AND ps.user_id = $1) ELSE FALSE END AS saved_by_me,
 				       (
 				           (p.likes * 3)
-				         + (SELECT COUNT(*) FROM post_comments pc WHERE pc.post_id = p.id) * 5
+				         + COUNT(pc.id) * 5
 				         - EXTRACT(EPOCH FROM (NOW() - p.created_at)) / 3600.0 * 2
 				         + CASE WHEN $1 <> '' AND EXISTS(SELECT 1 FROM follows f WHERE f.follower_id = $1 AND f.following_id = p.user_id) THEN 15 ELSE 0 END
 				         + (random() * 4)
 				       ) AS score
 				FROM posts p
 				LEFT JOIN users u ON u.id = p.user_id
+				LEFT JOIN post_comments pc ON pc.post_id = p.id
 				WHERE ($1 = '' OR NOT EXISTS (
 				    SELECT 1 FROM blocks b
 				    WHERE (b.blocker_id = $1 AND b.blocked_id = p.user_id)
 				       OR (b.blocker_id = p.user_id AND b.blocked_id = $1)
-				))`
+				))
+				`
 
 		argIdx := 2
 		if beforeID != "" {
@@ -105,6 +108,7 @@ func ListPosts(ctx context.Context, callerID, beforeID, filterUserID string, lim
 		}
 
 		query += fmt.Sprintf(`
+				GROUP BY p.id, u.full_name, u.avatar_url, u.is_verified
 			)
 			SELECT id, slug, user_id, author_name, author_avatar, author_verified,
 			       image_url, images, description, likes, tagged_users, created_at,
@@ -149,11 +153,12 @@ const postSelectFields = `
 	       COALESCE(u.avatar_url, p.author_avatar) AS author_avatar,
 	       COALESCE(u.is_verified, FALSE) AS author_verified,
 	       p.image_url, p.images, p.description, p.likes, p.tagged_users, p.created_at,
-	       (SELECT COUNT(*) FROM post_comments pc WHERE pc.post_id = p.id) AS comment_count,
+	       COUNT(pc.id) AS comment_count,
 	       CASE WHEN $1 <> '' THEN EXISTS(SELECT 1 FROM post_likes pl WHERE pl.post_id = p.id AND pl.user_id = $1) ELSE FALSE END AS liked_by_me,
 	       CASE WHEN $1 <> '' THEN EXISTS(SELECT 1 FROM post_saves ps WHERE ps.post_id = p.id AND ps.user_id = $1) ELSE FALSE END AS saved_by_me
 	FROM posts p
-	LEFT JOIN users u ON u.id = p.user_id`
+	LEFT JOIN users u ON u.id = p.user_id
+	LEFT JOIN post_comments pc ON pc.post_id = p.id`
 
 func scanPost(row pgx.Row) (*models.Post, error) {
 	var p models.Post
@@ -186,13 +191,13 @@ func scanPost(row pgx.Row) (*models.Post, error) {
 // GetPostByID fetches a single post by numeric id.
 func GetPostByID(ctx context.Context, callerID, postID string) (*models.Post, error) {
 	return scanPost(db.Pool.QueryRow(ctx,
-		postSelectFields+` WHERE p.id = $2`, callerID, postID))
+		postSelectFields+` WHERE p.id = $2 GROUP BY p.id, u.full_name, u.avatar_url, u.is_verified`, callerID, postID))
 }
 
 // GetPostBySlug fetches a single post by its short slug.
 func GetPostBySlug(ctx context.Context, callerID, slug string) (*models.Post, error) {
 	return scanPost(db.Pool.QueryRow(ctx,
-		postSelectFields+` WHERE p.slug = $2`, callerID, slug))
+		postSelectFields+` WHERE p.slug = $2 GROUP BY p.id, u.full_name, u.avatar_url, u.is_verified`, callerID, slug))
 }
 
 // InsertPost writes a new row and returns the assigned id, slug, and created_at.
@@ -454,19 +459,20 @@ func ListSavedPosts(ctx context.Context, userID, beforeSaveID string, limit int)
 		       COALESCE(u.avatar_url, p.author_avatar) AS author_avatar,
 		       COALESCE(u.is_verified, FALSE) AS author_verified,
 		       p.image_url, p.images, p.description, p.likes, p.tagged_users, p.created_at,
-		       (SELECT COUNT(*) FROM post_comments pc WHERE pc.post_id = p.id) AS comment_count,
+		       COUNT(pc.id) AS comment_count,
 		       EXISTS(SELECT 1 FROM post_likes pl WHERE pl.post_id = p.id AND pl.user_id = $1) AS liked_by_me,
 		       TRUE AS saved_by_me,
 		       ps.id AS save_id
 		FROM post_saves ps
 		JOIN posts p ON p.id = ps.post_id
 		LEFT JOIN users u ON u.id = p.user_id
+		LEFT JOIN post_comments pc ON pc.post_id = p.id
 		WHERE ps.user_id = $1`
 	if beforeSaveID != "" {
 		query += fmt.Sprintf(" AND ps.id < $%d", len(args)+1)
 		args = append(args, beforeSaveID)
 	}
-	query += fmt.Sprintf(" ORDER BY ps.id DESC LIMIT %d", limit)
+	query += fmt.Sprintf(" GROUP BY p.id, u.full_name, u.avatar_url, u.is_verified, ps.id ORDER BY ps.id DESC LIMIT %d", limit)
 
 	rows, err := db.Pool.Query(ctx, query, args...)
 	if err != nil {

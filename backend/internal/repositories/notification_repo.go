@@ -54,7 +54,7 @@ func ListNotifications(ctx context.Context, userID string) ([]models.Notificatio
 	return notifications, nil
 }
 
-func MarkNotificationRead(ctx context.Context, notificationID string) error {
-	_, err := db.Pool.Exec(ctx, `UPDATE notifications SET read = TRUE WHERE id = $1`, notificationID)
+func MarkNotificationRead(ctx context.Context, notificationID, userID string) error {
+	_, err := db.Pool.Exec(ctx, `UPDATE notifications SET read = TRUE WHERE id = $1 AND user_id = $2`, notificationID, userID)
 	return err
 }

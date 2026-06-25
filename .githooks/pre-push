@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT="$(git rev-parse --show-toplevel)"
+
+echo "▶ pre-push: running backend tests..."
+(cd "$ROOT/backend" && go test ./...)
+
+echo "▶ pre-push: running frontend tests..."
+(cd "$ROOT" && pnpm test --passWithNoTests)
+
+echo "✓ all checks passed"

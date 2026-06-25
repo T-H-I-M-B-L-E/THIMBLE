@@ -9,52 +9,112 @@ import (
 )
 
 func ListConversations(ctx context.Context, userId string) ([]models.Conversation, error) {
-	// Hide:
-	//   1. conversations the caller has "deleted for me" (hidden_at set)
-	//      AND no new message arrived since (updated_at < hidden_at).
-	//   2. conversations whose other participant is blocked in either
-	//      direction.
+	// Single query: fetch conversations with all participants and the last
+	// message in one round-trip using window functions.
 	rows, err := db.Pool.Query(ctx, `
-		SELECT c.id, c.updated_at
-		FROM conversations c
-		JOIN conversation_participants cp ON cp.conversation_id = c.id
-		WHERE cp.user_id = $1
-		  AND (cp.hidden_at IS NULL OR c.updated_at > cp.hidden_at)
-		  AND NOT EXISTS (
-		    SELECT 1
-		    FROM conversation_participants other
-		    JOIN blocks b
-		      ON (b.blocker_id = $1 AND b.blocked_id = other.user_id)
-		      OR (b.blocker_id = other.user_id AND b.blocked_id = $1)
-		    WHERE other.conversation_id = c.id AND other.user_id <> $1
-		  )
-		ORDER BY c.updated_at DESC`, userId)
+		WITH visible_convs AS (
+			SELECT c.id, c.updated_at
+			FROM conversations c
+			JOIN conversation_participants cp ON cp.conversation_id = c.id
+			WHERE cp.user_id = $1
+			  AND (cp.hidden_at IS NULL OR c.updated_at > cp.hidden_at)
+			  AND NOT EXISTS (
+			    SELECT 1
+			    FROM conversation_participants other
+			    JOIN blocks b
+			      ON (b.blocker_id = $1 AND b.blocked_id = other.user_id)
+			      OR (b.blocker_id = other.user_id AND b.blocked_id = $1)
+			    WHERE other.conversation_id = c.id AND other.user_id <> $1
+			  )
+		),
+		last_msgs AS (
+			SELECT DISTINCT ON (conversation_id)
+			       id, conversation_id, user_id, name, content, image_url, timestamp
+			FROM conversation_messages
+			WHERE conversation_id IN (SELECT id FROM visible_convs)
+			ORDER BY conversation_id, id DESC
+		)
+		SELECT
+			vc.id, vc.updated_at,
+			cp.id, cp.user_id, cp.user_name, cp.user_avatar, cp.joined_at,
+			lm.id, lm.user_id, lm.name, lm.content, lm.image_url, lm.timestamp
+		FROM visible_convs vc
+		JOIN conversation_participants cp ON cp.conversation_id = vc.id
+		LEFT JOIN last_msgs lm ON lm.conversation_id = vc.id
+		ORDER BY vc.updated_at DESC, vc.id, cp.id`, userId)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 
-	var convs []models.Conversation
+	// Collect rows into a map keyed by conversation ID to merge participants.
+	type convEntry struct {
+		conv    models.Conversation
+		lastMsg *models.ConvMessage
+	}
+	order := []int{}
+	convMap := map[int]*convEntry{}
+
 	for rows.Next() {
-		var conv models.Conversation
+		var convID int
 		var updatedAt time.Time
-		if err := rows.Scan(&conv.ID, &updatedAt); err != nil {
+		var p models.ConversationParticipant
+		var joinedAt time.Time
+		var lmID *int
+		var lmConvID *int
+		var lmUserID, lmName, lmContent, lmImageURL *string
+		var lmTimestamp *int64
+
+		if err := rows.Scan(
+			&convID, &updatedAt,
+			&p.ID, &p.UserID, &p.UserName, &p.UserAvatar, &joinedAt,
+			&lmID, &lmUserID, &lmName, &lmContent, &lmImageURL, &lmTimestamp,
+		); err != nil {
 			return nil, err
 		}
-		conv.UpdatedAt = updatedAt.Format(time.RFC3339)
+		_ = lmConvID
+		p.ConversationID = convID
+		p.JoinedAt = joinedAt.Format(time.RFC3339)
 
-		conv.Participants, _ = listParticipants(ctx, conv.ID)
-		if conv.Participants == nil {
-			conv.Participants = []models.ConversationParticipant{}
+		entry, exists := convMap[convID]
+		if !exists {
+			entry = &convEntry{
+				conv: models.Conversation{
+					ID:        convID,
+					UpdatedAt: updatedAt.Format(time.RFC3339),
+				},
+			}
+			if lmID != nil {
+				lm := models.ConvMessage{
+					ID:             *lmID,
+					ConversationID: convID,
+					UserID:         *lmUserID,
+					Name:           *lmName,
+					Content:        *lmContent,
+					ImageUrl:       *lmImageURL,
+					Timestamp:      *lmTimestamp,
+				}
+				entry.lastMsg = &lm
+			}
+			convMap[convID] = entry
+			order = append(order, convID)
 		}
-
-		if lm, ok := lastMessage(ctx, conv.ID); ok {
-			conv.LastMessage = &lm
-		}
-		convs = append(convs, conv)
+		entry.conv.Participants = append(entry.conv.Participants, p)
 	}
-	if convs == nil {
-		convs = []models.Conversation{}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	convs := make([]models.Conversation, 0, len(order))
+	for _, id := range order {
+		e := convMap[id]
+		if e.conv.Participants == nil {
+			e.conv.Participants = []models.ConversationParticipant{}
+		}
+		if e.lastMsg != nil {
+			e.conv.LastMessage = e.lastMsg
+		}
+		convs = append(convs, e.conv)
 	}
 	return convs, nil
 }
@@ -150,6 +210,14 @@ func GetUserNameAndAvatarForConv(ctx context.Context, userId string) (name, avat
 // hiding any messages the calling user has soft-deleted ("delete for me").
 // Receipt timestamps are returned as nullable ms-epoch values.
 func GetConversationMessages(ctx context.Context, convId, callerID string) ([]models.ConvMessage, error) {
+	// Verify caller is a participant before returning any messages.
+	var participantExists bool
+	db.Pool.QueryRow(ctx,
+		`SELECT EXISTS(SELECT 1 FROM conversation_participants WHERE conversation_id = $1 AND user_id = $2)`,
+		convId, callerID).Scan(&participantExists)
+	if !participantExists {
+		return nil, nil
+	}
 	rows, err := db.Pool.Query(ctx, `
 		SELECT id, conversation_id, user_id, name, content, image_url, timestamp,
 		       delivered_at, read_at
@@ -217,6 +285,13 @@ func MarkDelivered(ctx context.Context, convID int, msgIDs []int, recipientID st
 // MarkRead stamps read_at on all messages addressed TO `readerID` in the
 // conversation that aren't already read. Returns the affected IDs.
 func MarkRead(ctx context.Context, convID int, readerID string) ([]int, error) {
+	var participantExists bool
+	db.Pool.QueryRow(ctx,
+		`SELECT EXISTS(SELECT 1 FROM conversation_participants WHERE conversation_id = $1 AND user_id = $2)`,
+		convID, readerID).Scan(&participantExists)
+	if !participantExists {
+		return nil, nil
+	}
 	rows, err := db.Pool.Query(ctx, `
 		UPDATE conversation_messages
 		   SET read_at = NOW(),

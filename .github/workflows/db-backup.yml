@@ -1,0 +1,57 @@
+name: Daily DB Backup
+
+on:
+  schedule:
+    - cron: '0 2 * * *'  # 2:00am UTC daily
+  workflow_dispatch:
+
+jobs:
+  backup:
+    name: pg_dump → R2
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Install PostgreSQL client
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y postgresql-client
+
+      - name: Dump database
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          FILENAME="backup-$(date -u +%Y-%m-%d).sql.gz"
+          pg_dump "$DATABASE_URL" | gzip > "$FILENAME"
+          echo "FILENAME=$FILENAME" >> $GITHUB_ENV
+
+      - name: Upload to R2
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+          R2_BUCKET_NAME: ${{ secrets.R2_BUCKET_NAME }}
+        run: |
+          aws s3 cp "$FILENAME" "s3://$R2_BUCKET_NAME/db-backups/$FILENAME" \
+            --endpoint-url "$R2_ENDPOINT" \
+            --no-progress
+
+      - name: Delete backups older than 30 days
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+          R2_BUCKET_NAME: ${{ secrets.R2_BUCKET_NAME }}
+        run: |
+          CUTOFF=$(date -u -d '30 days ago' +%Y-%m-%d)
+          aws s3 ls "s3://$R2_BUCKET_NAME/db-backups/" \
+            --endpoint-url "$R2_ENDPOINT" \
+            | awk '{print $4}' \
+            | grep '^backup-' \
+            | while read key; do
+                DATE=$(echo "$key" | grep -oP '\d{4}-\d{2}-\d{2}')
+                if [[ "$DATE" < "$CUTOFF" ]]; then
+                  aws s3 rm "s3://$R2_BUCKET_NAME/db-backups/$key" \
+                    --endpoint-url "$R2_ENDPOINT"
+                  echo "Deleted old backup: $key"
+                fi
+              done

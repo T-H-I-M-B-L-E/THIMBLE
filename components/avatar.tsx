@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import Image from "next/image"
 
 interface AvatarProps {
   name: string
@@ -10,32 +11,52 @@ interface AvatarProps {
 
 function getAvatarColor(name: string): string {
   const colors = [
-    "0D8ABC", // Blue
-    "FF6B6B", // Red
-    "4ECDC4", // Teal
-    "FFE66D", // Yellow
-    "95E1D3", // Mint
-    "C780FA", // Purple
-    "FF85A2", // Pink
-    "A8E6CF", // Light Green
-    "FFD3B6", // Peach
-    "FFAAA5", // Salmon
+    "0D8ABC", "FF6B6B", "4ECDC4", "FFE66D", "95E1D3",
+    "C780FA", "FF85A2", "A8E6CF", "FFD3B6", "FFAAA5",
   ]
-
   let hash = 0
   for (let i = 0; i < name.length; i++) {
     hash = name.charCodeAt(i) + ((hash << 5) - hash)
   }
-
   return colors[Math.abs(hash) % colors.length]
+}
+
+function InitialsFallback({ name, size }: { name: string; size: number }) {
+  const color = getAvatarColor(name)
+  const initials = name
+    .split(" ")
+    .slice(0, 2)
+    .map(w => w[0]?.toUpperCase() ?? "")
+    .join("")
+
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox={`0 0 ${size} ${size}`}
+      xmlns="http://www.w3.org/2000/svg"
+      aria-label={name}
+    >
+      <circle cx={size / 2} cy={size / 2} r={size / 2} fill={`#${color}`} />
+      <text
+        x="50%"
+        y="50%"
+        dominantBaseline="central"
+        textAnchor="middle"
+        fill="#fff"
+        fontFamily="sans-serif"
+        fontWeight="700"
+        fontSize={size * 0.38}
+      >
+        {initials}
+      </text>
+    </svg>
+  )
 }
 
 export function Avatar({ name, image, size = 40 }: AvatarProps) {
   const [imageError, setImageError] = useState(false)
-  const shouldUseFallback = !image || imageError
-  const avatarColor = getAvatarColor(name)
-
-  const fallbackUrl = `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=${avatarColor}&color=fff&size=${size}&rounded=true&bold=true`
+  const showImage = !!image && !imageError
 
   return (
     <div
@@ -49,19 +70,21 @@ export function Avatar({ name, image, size = 40 }: AvatarProps) {
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
+        position: "relative",
       }}
     >
-      <img
-        src={shouldUseFallback ? fallbackUrl : image}
-        alt={name}
-        onError={() => setImageError(true)}
-        style={{
-          width: "100%",
-          height: "100%",
-          objectFit: "cover",
-          display: "block",
-        }}
-      />
+      {showImage ? (
+        <Image
+          src={image}
+          alt={name}
+          fill
+          sizes={`${size}px`}
+          style={{ objectFit: "cover" }}
+          onError={() => setImageError(true)}
+        />
+      ) : (
+        <InitialsFallback name={name} size={size} />
+      )}
     </div>
   )
 }

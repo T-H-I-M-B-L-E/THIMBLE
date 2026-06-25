@@ -9,6 +9,7 @@ import (
 
 	"github.com/gofiber/websocket/v2"
 
+	"chat-app/internal/db"
 	"chat-app/internal/models"
 	"chat-app/internal/repositories"
 )
@@ -127,6 +128,16 @@ func MarkConversationRead(ctx context.Context, convID int, readerID string) ([]i
 // "typing" events are forwarded; everything else is persisted as a
 // ConvMessage and broadcast to the room.
 func HandleConversationWS(c *websocket.Conn, userId string, convId int) {
+	if convId > 0 {
+		var ok bool
+		db.Pool.QueryRow(context.Background(),
+			`SELECT EXISTS(SELECT 1 FROM conversation_participants WHERE conversation_id = $1 AND user_id = $2)`,
+			convId, userId).Scan(&ok)
+		if !ok {
+			c.Close()
+			return
+		}
+	}
 	clientsMu.Lock()
 	if convId > 0 {
 		if rooms[convId] == nil {

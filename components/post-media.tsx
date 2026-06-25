@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useRef, useEffect } from "react"
+import NextImage from "next/image"
 import { ChevronLeft, ChevronRight } from "lucide-react"
 
 interface PostMediaProps {
@@ -128,13 +129,16 @@ export function PostMedia({
         className="t-post-media-stage"
         style={variant === "lightbox" ? undefined : { aspectRatio: aspect }}
       >
-        <img
+        <NextImage
           src={cleaned[index]}
           alt={`${alt}${hasMany ? ` (${index + 1} of ${cleaned.length})` : ""}`}
           className="t-post-media-img"
+          fill
           style={{ objectFit: resolvedFit }}
-          loading="lazy"
-          decoding="async"
+          sizes={variant === "lightbox"
+            ? "100vw"
+            : "(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 600px"}
+          priority={index === 0 && variant === "feed"}
         />
       </div>
 

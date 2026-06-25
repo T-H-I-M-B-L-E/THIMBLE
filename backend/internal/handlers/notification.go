@@ -19,7 +19,11 @@ func ListNotifications(c *fiber.Ctx) error {
 }
 
 func MarkNotificationRead(c *fiber.Ctx) error {
-	if err := services.MarkNotificationRead(c.Context(), c.Params("id")); err != nil {
+	userID, ok := c.Locals("userId").(string)
+	if !ok || userID == "" {
+		return c.Status(401).JSON(fiber.Map{"error": "unauthorized"})
+	}
+	if err := services.MarkNotificationRead(c.Context(), c.Params("id"), userID); err != nil {
 		return respondError(c, err)
 	}
 	return c.JSON(fiber.Map{"success": true})

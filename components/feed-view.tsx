@@ -1,5 +1,6 @@
 "use client"
 
+import { useMemo } from "react"
 import { useStore } from "@/lib/store"
 import { useAuth } from "@/lib/useAuth"
 import { ImageIcon } from "lucide-react"
@@ -68,7 +69,7 @@ export function FeedView() {
     setCached(FEED_KEY, posts.slice(0, 20))
   }, [items])
 
-  const visibleItems = (() => {
+  const visibleItems = useMemo(() => {
     if (activeFilter === "Following") {
       const followingIds = new Set(following.map(f => f.userId))
       return items.filter(i => {
@@ -78,7 +79,7 @@ export function FeedView() {
       })
     }
     return items
-  })()
+  }, [activeFilter, following, items, user?.id])
 
   const handleDelete = async (postId: number | string) => {
     const ok = await notify.confirm({

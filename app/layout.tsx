@@ -6,6 +6,7 @@ import { UserSync } from "@/components/user-sync";
 import { WelcomeOverlay } from "@/components/welcome-overlay";
 import { GrainientBackground } from "@/components/grainient-background";
 import { SiteBanner } from "@/components/SiteBanner";
+import { PWAInstallPrompt } from "@/components/pwa-install-prompt";
 import { headers } from "next/headers";
 import "./globals.css";
 
@@ -14,22 +15,28 @@ export const metadata: Metadata = {
   description:
     "Where fashion designers, models, and creatives showcase their work and collaborate",
   generator: "v0.app",
+  manifest: "/manifest.json",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "TVIMBLE",
+  },
   icons: {
     icon: [
       {
-        url: "/icon-light-32x32.png",
-        media: "(prefers-color-scheme: light)",
+        url: "/icons/favicon-96x96.png",
+        sizes: "96x96",
+        type: "image/png",
       },
       {
-        url: "/icon-dark-32x32.png",
-        media: "(prefers-color-scheme: dark)",
-      },
-      {
-        url: "/icon.svg",
+        url: "/icons/favicon.svg",
         type: "image/svg+xml",
       },
+      {
+        url: "/icons/favicon.ico",
+      },
     ],
-    apple: "/apple-icon.png",
+    apple: "/icons/apple-touch-icon.png",
   },
 };
 
@@ -38,6 +45,7 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 5,
   userScalable: true,
+  themeColor: "#0a0a0a",
 };
 
 export default async function RootLayout({
@@ -66,6 +74,7 @@ export default async function RootLayout({
             {!isAdmin && <SiteBanner />}
             {!isAdmin && <UserSync />}
             {!isAdmin && <WelcomeOverlay />}
+            {!isAdmin && <PWAInstallPrompt variant="inapp" />}
             {!isAdmin ? (
               <div id="main-content">{children}</div>
             ) : (

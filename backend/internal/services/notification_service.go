@@ -18,8 +18,8 @@ func ListNotifications(ctx context.Context, userID string) ([]models.Notificatio
 	return notifications, nil
 }
 
-func MarkNotificationRead(ctx context.Context, notificationID string) *ServiceError {
-	if err := repositories.MarkNotificationRead(ctx, notificationID); err != nil {
+func MarkNotificationRead(ctx context.Context, notificationID, userID string) *ServiceError {
+	if err := repositories.MarkNotificationRead(ctx, notificationID, userID); err != nil {
 		return NewError(500, "db_failed", "failed to mark notification as read")
 	}
 	return nil

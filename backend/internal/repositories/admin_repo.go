@@ -17,19 +17,38 @@ import (
 func FetchAdminStats(ctx context.Context) (models.AdminStats, error) {
 	var stats models.AdminStats
 
-	db.Pool.QueryRow(ctx, "SELECT COUNT(*) FROM users").Scan(&stats.TotalUsers)
-	db.Pool.QueryRow(ctx, "SELECT COUNT(*) FROM users WHERE created_at >= CURRENT_DATE").Scan(&stats.TodaySignups)
-	db.Pool.QueryRow(ctx, "SELECT COUNT(*) FROM users WHERE created_at >= NOW() - INTERVAL '7 days'").Scan(&stats.WeekSignups)
-	db.Pool.QueryRow(ctx, "SELECT COUNT(*) FROM verification_requests WHERE status = 'pending'").Scan(&stats.PendingVerifications)
-	db.Pool.QueryRow(ctx, "SELECT COUNT(*) FROM users WHERE is_verified = TRUE").Scan(&stats.VerifiedUsers)
-	db.Pool.QueryRow(ctx, "SELECT COUNT(*) FROM users WHERE is_verified = FALSE").Scan(&stats.UnverifiedUsers)
-	db.Pool.QueryRow(ctx, "SELECT COALESCE(SUM(total_logins), 0) FROM users").Scan(&stats.TotalLogins)
-	db.Pool.QueryRow(ctx, "SELECT COUNT(*) FROM users WHERE is_admin = true").Scan(&stats.AdminCount)
-	db.Pool.QueryRow(ctx, "SELECT COUNT(*) FROM users WHERE total_logins > 1").Scan(&stats.ReturnedUsers)
-	db.Pool.QueryRow(ctx, "SELECT COUNT(*) FROM users WHERE last_login_at IS NULL").Scan(&stats.NeverLoggedIn)
-	db.Pool.QueryRow(ctx, "SELECT COUNT(*) FROM posts").Scan(&stats.TotalPosts)
-	db.Pool.QueryRow(ctx, "SELECT COUNT(*) FROM posts WHERE created_at >= NOW() - INTERVAL '7 days'").Scan(&stats.PostsThisWeek)
-	db.Pool.QueryRow(ctx, "SELECT COUNT(*) FROM gigs").Scan(&stats.TotalGigs)
+	// All scalar counters in one round-trip using FILTER aggregates.
+	db.Pool.QueryRow(ctx, `
+		SELECT
+			(SELECT COUNT(*) FROM users),
+			COUNT(*) FILTER (WHERE created_at >= CURRENT_DATE),
+			COUNT(*) FILTER (WHERE created_at >= NOW() - INTERVAL '7 days'),
+			COUNT(*) FILTER (WHERE is_verified = TRUE),
+			COUNT(*) FILTER (WHERE is_verified = FALSE),
+			COALESCE(SUM(total_logins), 0),
+			COUNT(*) FILTER (WHERE is_admin = TRUE),
+			COUNT(*) FILTER (WHERE total_logins > 1),
+			COUNT(*) FILTER (WHERE last_login_at IS NULL)
+		FROM users`).Scan(
+		&stats.TotalUsers,
+		&stats.TodaySignups,
+		&stats.WeekSignups,
+		&stats.VerifiedUsers,
+		&stats.UnverifiedUsers,
+		&stats.TotalLogins,
+		&stats.AdminCount,
+		&stats.ReturnedUsers,
+		&stats.NeverLoggedIn,
+	)
+
+	db.Pool.QueryRow(ctx, `
+		SELECT
+			COUNT(*),
+			COUNT(*) FILTER (WHERE created_at >= NOW() - INTERVAL '7 days')
+		FROM posts`).Scan(&stats.TotalPosts, &stats.PostsThisWeek)
+
+	db.Pool.QueryRow(ctx, `SELECT COUNT(*) FROM gigs`).Scan(&stats.TotalGigs)
+	db.Pool.QueryRow(ctx, `SELECT COUNT(*) FROM verification_requests WHERE status = 'pending'`).Scan(&stats.PendingVerifications)
 
 	if rows, err := db.Pool.Query(ctx, `
 		SELECT COALESCE(NULLIF(role,''), 'unset'), COUNT(*)

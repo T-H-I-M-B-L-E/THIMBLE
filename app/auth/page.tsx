@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Eye, EyeOff, Sun, Moon } from "lucide-react"
 import { BanWall } from "@/components/ban-wall"
+import { PWAInstallPrompt } from "@/components/pwa-install-prompt"
 
 export default function LoginPage() {
   const router = useRouter()
@@ -218,6 +219,8 @@ export default function LoginPage() {
             Don&apos;t have an account?{" "}
             <a href="/auth/signup" className="text-neutral-600 hover:text-black dark:hover:text-white transition-colors">Create account</a>
           </p>
+
+          <PWAInstallPrompt variant="auth" />
         </div>
       </div>
     </div>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, memo } from "react";
 import { useRouter } from "next/navigation";
 import {
   Heart,
@@ -88,7 +88,7 @@ function CommentItem({ comment }: { comment: Comment }) {
   );
 }
 
-export function PostCard({ post, currentUserId, onDelete }: PostCardProps) {
+export const PostCard = memo(function PostCard({ post, currentUserId, onDelete }: PostCardProps) {
   const router = useRouter();
   const isOwn = !!currentUserId && currentUserId === post.userId;
   const {
@@ -384,4 +384,4 @@ export function PostCard({ post, currentUserId, onDelete }: PostCardProps) {
       </div>
     </article>
   );
-}
+})

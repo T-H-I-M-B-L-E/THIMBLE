@@ -37,8 +37,10 @@ func Follow(ctx context.Context, followerID, followingID string) *ServiceError {
 		go func() {
 			follower, ferr := repositories.FindUserByID(ctx, followerID)
 			recipient, rerr := repositories.GetUserEmailAndPrefs(ctx, followingID)
-			if ferr == nil && rerr == nil && recipient.WantsFollowEmail {
-				email.SendFollowNotification(recipient.Email, recipient.FullName, follower.FullName)
+			if ferr == nil && rerr == nil {
+				if recipient.WantsFollowEmail {
+					email.SendFollowNotification(recipient.Email, recipient.FullName, follower.FullName)
+				}
 			}
 		}()
 	}

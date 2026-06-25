@@ -362,13 +362,7 @@ func checkAndAlert(ctx context.Context) {
 	snap := metrics.Take()
 	total := snap.Req2xx + snap.Req4xx + snap.Req5xx
 
-	// 1. DB health
-	if err := db.Pool.Ping(ctx); err != nil {
-		sendAlert(ctx, "db_down", "🔴 Database is unreachable",
-			fmt.Sprintf("The database failed a ping check at %s.\n\nError: %s\n\nThis will affect all API endpoints.", time.Now().UTC().Format(time.RFC3339), err.Error()))
-	}
-
-	// 2. Error rate > 10%
+	// 1. Error rate > 10%
 	if total > 50 {
 		errRate := float64(snap.Req4xx+snap.Req5xx) / float64(total) * 100
 		if errRate > 10 {

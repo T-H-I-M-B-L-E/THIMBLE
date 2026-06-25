@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Eye, EyeOff, X, Sun, Moon, ArrowLeft } from "lucide-react"
+import { PWAInstallPrompt } from "@/components/pwa-install-prompt"
 import {
   InputOTP,
   InputOTPGroup,
@@ -434,6 +435,8 @@ export default function SignupPage() {
               </a>
             </p>
           )}
+
+          {!verifying && <PWAInstallPrompt variant="auth" />}
         </div>
       </div>
     </div>
