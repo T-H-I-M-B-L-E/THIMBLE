@@ -99,7 +99,7 @@ export function PWAInstallPrompt({ variant = "inapp", onDone }: PWAInstallPrompt
     <div
       className={
         isAuth
-          ? "w-full rounded-xl border border-white/10 bg-white/5 p-4 mt-6"
+          ? "w-full rounded-xl border border-black/10 bg-black/5 dark:border-white/10 dark:bg-white/5 p-4 mt-6"
           : "fixed bottom-6 left-1/2 -translate-x-1/2 z-50 w-[calc(100%-2rem)] max-w-sm rounded-2xl border border-white/10 bg-[#111] shadow-2xl p-5"
       }
     >
@@ -112,11 +112,11 @@ export function PWAInstallPrompt({ variant = "inapp", onDone }: PWAInstallPrompt
             className="w-12 h-12 rounded-xl flex-shrink-0"
           />
           <div>
-            <p className="font-semibold text-sm text-white">Add TVIMBLE to your home screen</p>
-            <p className="text-xs text-white/50 mt-0.5">Get the full app experience</p>
+            <p className={`font-semibold text-sm ${isAuth ? "text-black dark:text-white" : "text-white"}`}>Add TVIMBLE to your home screen</p>
+            <p className={`text-xs mt-0.5 ${isAuth ? "text-black/50 dark:text-white/50" : "text-white/50"}`}>Get the full app experience</p>
           </div>
         </div>
-        <button onClick={dismiss} className="text-white/30 hover:text-white/60 transition-colors mt-0.5">
+        <button onClick={dismiss} className={`transition-colors mt-0.5 ${isAuth ? "text-black/30 dark:text-white/30 hover:text-black/60 dark:hover:text-white/60" : "text-white/30 hover:text-white/60"}`}>
           <X size={16} />
         </button>
       </div>
@@ -124,18 +124,18 @@ export function PWAInstallPrompt({ variant = "inapp", onDone }: PWAInstallPrompt
       <div className="mt-4">
         {platform === "ios" ? (
           <div className="space-y-2">
-            <p className="text-xs text-white/60">To install on iPhone / iPad:</p>
+            <p className={`text-xs ${isAuth ? "text-black/60 dark:text-white/60" : "text-white/60"}`}>To install on iPhone / iPad:</p>
             <ol className="space-y-1.5">
-              <li className="flex items-center gap-2 text-xs text-white/80">
-                <span className="flex-shrink-0 w-5 h-5 rounded-full bg-white/10 flex items-center justify-center text-[10px] font-bold">1</span>
+              <li className={`flex items-center gap-2 text-xs ${isAuth ? "text-black/80 dark:text-white/80" : "text-white/80"}`}>
+                <span className={`flex-shrink-0 w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold ${isAuth ? "bg-black/10 dark:bg-white/10" : "bg-white/10"}`}>1</span>
                 Tap the <Share size={13} className="inline mx-0.5 text-blue-400" /> <strong>Share</strong> button in Safari
               </li>
-              <li className="flex items-center gap-2 text-xs text-white/80">
-                <span className="flex-shrink-0 w-5 h-5 rounded-full bg-white/10 flex items-center justify-center text-[10px] font-bold">2</span>
+              <li className={`flex items-center gap-2 text-xs ${isAuth ? "text-black/80 dark:text-white/80" : "text-white/80"}`}>
+                <span className={`flex-shrink-0 w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold ${isAuth ? "bg-black/10 dark:bg-white/10" : "bg-white/10"}`}>2</span>
                 Scroll down and tap <strong>&ldquo;Add to Home Screen&rdquo;</strong>
               </li>
-              <li className="flex items-center gap-2 text-xs text-white/80">
-                <span className="flex-shrink-0 w-5 h-5 rounded-full bg-white/10 flex items-center justify-center text-[10px] font-bold">3</span>
+              <li className={`flex items-center gap-2 text-xs ${isAuth ? "text-black/80 dark:text-white/80" : "text-white/80"}`}>
+                <span className={`flex-shrink-0 w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold ${isAuth ? "bg-black/10 dark:bg-white/10" : "bg-white/10"}`}>3</span>
                 Tap <Plus size={13} className="inline mx-0.5 text-blue-400" /> <strong>Add</strong> to confirm
               </li>
             </ol>
