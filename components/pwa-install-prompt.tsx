@@ -151,14 +151,14 @@ export function PWAInstallPrompt({ variant = "inapp", onDone }: PWAInstallPrompt
           </Button>
         ) : (
           <div className="space-y-2">
-            <p className="text-xs text-white/60">To install:</p>
+            <p className={`text-xs ${isAuth ? "text-black/60 dark:text-white/60" : "text-white/60"}`}>To install:</p>
             <ol className="space-y-1.5">
-              <li className="flex items-center gap-2 text-xs text-white/80">
-                <span className="flex-shrink-0 w-5 h-5 rounded-full bg-white/10 flex items-center justify-center text-[10px] font-bold">1</span>
+              <li className={`flex items-center gap-2 text-xs ${isAuth ? "text-black/80 dark:text-white/80" : "text-white/80"}`}>
+                <span className={`flex-shrink-0 w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold ${isAuth ? "bg-black/10 dark:bg-white/10" : "bg-white/10"}`}>1</span>
                 Open the browser menu <strong>(⋮ or ···)</strong>
               </li>
-              <li className="flex items-center gap-2 text-xs text-white/80">
-                <span className="flex-shrink-0 w-5 h-5 rounded-full bg-white/10 flex items-center justify-center text-[10px] font-bold">2</span>
+              <li className={`flex items-center gap-2 text-xs ${isAuth ? "text-black/80 dark:text-white/80" : "text-white/80"}`}>
+                <span className={`flex-shrink-0 w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold ${isAuth ? "bg-black/10 dark:bg-white/10" : "bg-white/10"}`}>2</span>
                 Tap <strong>&ldquo;Add to Home Screen&rdquo;</strong> or <strong>&ldquo;Install App&rdquo;</strong>
               </li>
             </ol>
