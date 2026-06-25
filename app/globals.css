@@ -421,6 +421,15 @@
   .t-shell.has-rail { grid-template-columns: var(--t-side-w) minmax(0, 1fr); }
   .t-rail { display: none !important; }
 }
+/* iPad landscape (1024px) and up: show the rail */
+@media (min-width: 1024px) and (max-width: 1180px) {
+  .t-shell.has-rail { grid-template-columns: var(--t-side-w) minmax(0, 1fr) 260px; }
+  .t-rail { display: flex !important; }
+}
+/* iPad portrait strip: show suggestions inline below feed */
+@media (min-width: 640px) and (max-width: 1023px) {
+  .t-rail-inline { display: block !important; }
+}
 @media (max-width: 880px) {
   .t-shell, .t-shell.has-rail { grid-template-columns: minmax(0, 1fr); padding: 0 12px; }
   .t-sidenav { display: none; }
@@ -428,6 +437,38 @@
 }
 @media (max-width: 480px) {
   .t-shell, .t-shell.has-rail { padding: 0 8px; }
+}
+
+/* Inline rail strip — shown on tablet portrait when sidebar rail is hidden */
+.t-rail-inline {
+  display: none;
+  margin: 24px 0;
+  padding: 16px;
+  border: 1px solid var(--t-line);
+  border-radius: 12px;
+  background: var(--t-surface);
+}
+.t-rail-inline .t-rail-h {
+  font-size: 13px; font-weight: 600; margin-bottom: 12px;
+  color: var(--t-ink-2); letter-spacing: -0.01em;
+}
+.t-rail-inline .t-suggest {
+  display: flex;
+  flex-direction: row;
+  gap: 12px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+  scrollbar-width: none;
+}
+.t-rail-inline .t-suggest::-webkit-scrollbar { display: none; }
+.t-rail-inline .t-suggest li {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  min-width: 80px;
+  text-align: center;
+  flex-shrink: 0;
 }
 
 /* ---- Role dashboard ---- */

@@ -3,6 +3,7 @@
 import { DashboardLayout } from "@/components/dashboard-layout"
 import { FeedView } from "@/components/feed-view"
 import { HowTo } from "@/components/how-to"
+import { SuggestionsStrip } from "@/components/suggestions-strip"
 
 export default function FeedPage() {
   return (
@@ -15,6 +16,7 @@ export default function FeedPage() {
           { icon: "🔖", title: "Save for later", body: "Hit the bookmark icon on any post to save it to your profile for easy reference later." },
         ]}
       />
+      <SuggestionsStrip />
       <FeedView />
     </DashboardLayout>
   )
