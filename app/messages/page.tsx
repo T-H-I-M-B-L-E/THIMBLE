@@ -283,7 +283,7 @@ export default function MessagesPage() {
 
   const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL || "https://thimble-production.up.railway.app"
   const websocketUrl = apiBase.replace(/^http/, "ws") + "/ws"
-  const isVerified = user?.verificationStatus === "verified"
+  const isVerified = !!user // any logged-in user can message
 
   const { conversations, setConversations, isLoading: loadingConvs, createConversation, refresh } = useConversations(user?.id)
   const selectedConv = conversations.find(c => c.id === selectedId)
@@ -593,7 +593,7 @@ export default function MessagesPage() {
     <HowTo
       id="messages"
       steps={[
-        { icon: "💬", title: "Start a conversation", body: "Click the compose icon to message any connection. You can only message people who follow you back." },
+        { icon: "💬", title: "Start a conversation", body: "Click the compose icon to message anyone on TVIMBLE — search by name, username, or role." },
         { icon: "🖼️", title: "Send images & files", body: "Tap the image icon in the chat bar to share a photo or file — up to 10 MB per upload." },
         { icon: "📞", title: "Voice & video calls", body: "Open a conversation and tap the phone or camera icon to start a live call — no app needed." },
       ]}

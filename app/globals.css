@@ -1570,17 +1570,27 @@
   height: calc(100dvh - var(--t-topbar-h));
   overflow: hidden;
 }
-@media (max-width: 880px) {
+/* iPad portrait: leave room for bottom nav on list, reclaim when chat open */
+@media (max-width: 1023px) {
   .t-main--messages {
-    /* Leave room for the floating pill nav on the list screen */
     height: calc(100dvh - var(--t-topbar-h) - var(--t-nav-h));
     padding-bottom: 0 !important;
   }
-  /* Chat open: reclaim all space including the nav clearance */
   .t-main--messages:has(.t-messages--chat-open) {
     height: calc(100dvh - var(--t-topbar-h));
   }
-  /* Hide the floating pill nav when a chat is active */
+  body:has(.t-messages--chat-open) .t-bottomnav {
+    display: none !important;
+  }
+}
+@media (max-width: 880px) {
+  .t-main--messages {
+    height: calc(100dvh - var(--t-topbar-h) - var(--t-nav-h));
+    padding-bottom: 0 !important;
+  }
+  .t-main--messages:has(.t-messages--chat-open) {
+    height: calc(100dvh - var(--t-topbar-h));
+  }
   body:has(.t-messages--chat-open) .t-bottomnav {
     display: none !important;
   }
@@ -1589,7 +1599,7 @@
 /* ---- Messages ---- */
 .t-messages {
   display: grid;
-  grid-template-columns: 300px 1fr;
+  grid-template-columns: 260px 1fr;
   height: calc(100% - 24px);
   min-height: 0;
   background: var(--t-surface);
@@ -1614,6 +1624,35 @@
     grid-template-columns: 56px 1fr;
   }
 }
+/* iPad portrait: single column with show/hide panels */
+@media (max-width: 1023px) and (min-width: 881px) {
+  .t-messages {
+    grid-template-columns: 1fr;
+    height: 100%;
+    border-radius: 0;
+    margin: 0;
+    border: 0;
+  }
+  .t-messages--collapsed { grid-template-columns: 1fr; }
+  .t-msg-list--hidden-mobile { display: none !important; }
+  .t-msg-pane--hidden-mobile { display: none !important; }
+  .t-msg-list { border-right: 0; }
+  .t-msg-pane {
+    height: 100%;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+  }
+  .t-msg-input {
+    padding-bottom: max(12px, env(safe-area-inset-bottom));
+  }
+  .t-msg-stream {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+}
 @media (max-width: 880px) {
   .t-messages {
     grid-template-columns: 1fr;
@@ -1627,17 +1666,14 @@
   .t-msg-pane--hidden-mobile { display: none !important; }
   .t-msg-list { border-right: 0; border-bottom: 0; }
   .t-msg-pane {
-    /* Pane fills full grid cell height */
     height: 100%;
     min-height: 0;
     display: flex;
     flex-direction: column;
   }
-  /* Input never gets covered — sits above safe-area */
   .t-msg-input {
     padding-bottom: max(12px, env(safe-area-inset-bottom));
   }
-  /* Message stream fills remaining space and scrolls */
   .t-msg-stream {
     flex: 1;
     min-height: 0;
