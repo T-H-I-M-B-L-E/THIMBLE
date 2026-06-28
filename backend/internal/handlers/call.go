@@ -89,6 +89,27 @@ func JoinCall(c *fiber.Ctx) error {
 		return c.Status(503).JSON(fiber.Map{"error": "calling not configured"})
 	}
 
+	var convID int
+	fmt.Sscanf(c.Params("id"), "%d", &convID)
+	if convID == 0 {
+		return c.Status(400).JSON(fiber.Map{"error": "invalid conversation id"})
+	}
+
+	participantIDs, err := repositories.GetConversationParticipantIDs(c.Context(), convID)
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": "db_failed"})
+	}
+	isMember := false
+	for _, p := range participantIDs {
+		if p == userID {
+			isMember = true
+			break
+		}
+	}
+	if !isMember {
+		return c.Status(403).JSON(fiber.Map{"error": "not a participant"})
+	}
+
 	var body struct {
 		Room string `json:"room"`
 	}

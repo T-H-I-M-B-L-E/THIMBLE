@@ -8,7 +8,9 @@ import (
 
 // GetFollows is overloaded: a (followerId, followingId) pair queries a
 // single edge; (followerId, type=following) lists who that user follows.
+// Following lists are public — any authenticated user can view them.
 func GetFollows(c *fiber.Ctx) error {
+	callerID, _ := c.Locals("userId").(string)
 	followerID := c.Query("followerId")
 	followingID := c.Query("followingId")
 	listType := c.Query("type")
@@ -18,6 +20,9 @@ func GetFollows(c *fiber.Ctx) error {
 	}
 
 	if listType == "following" && followerID != "" {
+		if callerID == "" {
+			return c.Status(401).JSON(fiber.Map{"error": "unauthorized"})
+		}
 		list, err := services.ListFollowing(c.Context(), followerID)
 		if err != nil {
 			return respondError(c, err)
