@@ -90,26 +90,12 @@ function NewMessageModal({
   const { following } = useFollowing(currentUser?.id)
   const [search, setSearch] = useState("")
   const [creating, setCreating] = useState<string | null>(null)
-  const [directory, setDirectory] = useState<DirectoryUser[]>([])
-  const [loadingDir, setLoadingDir] = useState(true)
-
-  // Pull the full user directory so search isn't limited to people you
-  // already follow. Cheap — backend caps at 200.
-  useEffect(() => {
-    let cancelled = false
-    fetch("/api/users", { credentials: "include" })
-      .then(r => r.ok ? r.json() : [])
-      .then(data => { if (!cancelled && Array.isArray(data)) setDirectory(data) })
-      .catch(() => {})
-      .finally(() => { if (!cancelled) setLoadingDir(false) })
-    return () => { cancelled = true }
-  }, [])
+  const [results, setResults] = useState<DirectoryUser[]>([])
+  const [loadingDir, setLoadingDir] = useState(false)
 
   const followingIds = useMemo(() => new Set(following.map(f => f.userId)), [following])
 
-  // Set of userIds we already have a 1:1 chat with. Used to surface a
-  // "Chat exists" hint in the row so the user knows clicking will route
-  // back to that conversation rather than start a fresh thread.
+  // Set of userIds we already have a 1:1 chat with.
   const existingChatPartnerIds = useMemo(() => {
     if (!currentUser?.id) return new Set<string>()
     const ids = new Set<string>()
@@ -121,26 +107,33 @@ function NewMessageModal({
     return ids
   }, [existingConversations, currentUser?.id])
 
-  // Surface results from the full directory. With a search query → show
-  // everyone matching. Empty query → just show the people you follow as
-  // a quick-pick list.
-  const results = useMemo(() => {
-    const q = search.trim().toLowerCase()
-    const all = directory.filter(u => u.id !== currentUser?.id)
-    if (!q) {
-      // Empty state: prioritise people you already follow.
-      return all
-        .filter(u => followingIds.has(u.id))
-        .slice(0, 20)
+  // Fetch from backend on every search change (debounced 250ms).
+  // Empty query → show people you follow. Any query → server-side search.
+  useEffect(() => {
+    let cancelled = false
+    const q = search.trim()
+    const url = q ? `/api/users?q=${encodeURIComponent(q)}` : "/api/users"
+
+    const run = () => {
+      setLoadingDir(true)
+      fetch(url, { credentials: "include" })
+        .then(r => r.ok ? r.json() : [])
+        .then((data: DirectoryUser[]) => {
+          if (cancelled) return
+          const filtered = data.filter(u => u.id !== currentUser?.id)
+          if (!q) {
+            setResults(filtered.filter(u => followingIds.has(u.id)).slice(0, 20))
+          } else {
+            setResults(filtered.slice(0, 25))
+          }
+        })
+        .catch(() => {})
+        .finally(() => { if (!cancelled) setLoadingDir(false) })
     }
-    return all
-      .filter(u =>
-        u.fullName?.toLowerCase().includes(q) ||
-        u.username?.toLowerCase().includes(q) ||
-        u.role?.toLowerCase().includes(q),
-      )
-      .slice(0, 25)
-  }, [search, directory, followingIds, currentUser?.id])
+
+    const timer = setTimeout(run, q ? 250 : 0)
+    return () => { cancelled = true; clearTimeout(timer) }
+  }, [search, currentUser?.id, followingIds])
 
   const handleSelect = async (u: DirectoryUser) => {
     if (!isVerified || creating) return
