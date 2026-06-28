@@ -1570,8 +1570,8 @@
   height: calc(100dvh - var(--t-topbar-h));
   overflow: hidden;
 }
-/* iPad portrait: leave room for bottom nav on list, reclaim when chat open */
-@media (max-width: 1023px) {
+/* iPad portrait (881–1023px): leave room for bottom nav */
+@media (max-width: 1023px) and (min-width: 881px) {
   .t-main--messages {
     height: calc(100dvh - var(--t-topbar-h) - var(--t-nav-h));
     padding-bottom: 0 !important;
@@ -1581,6 +1581,22 @@
   }
   body:has(.t-messages--chat-open) .t-bottomnav {
     display: none !important;
+  }
+}
+/* iPad landscape (1024–1099px): two-column, full height, no nav offset */
+@media (min-width: 1024px) and (max-width: 1099px) {
+  .t-main--messages {
+    height: calc(100dvh - var(--t-topbar-h));
+    padding-bottom: 0 !important;
+  }
+  .t-messages {
+    grid-template-columns: 280px 1fr;
+    height: calc(100% - 24px);
+    margin: 12px 0;
+    border-radius: 14px;
+  }
+  .t-messages--collapsed {
+    grid-template-columns: 56px 1fr;
   }
 }
 @media (max-width: 880px) {
