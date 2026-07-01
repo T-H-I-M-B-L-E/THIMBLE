@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"log"
+	"os"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
@@ -30,8 +31,14 @@ func main() {
 
 	go middleware.SweepExpiredTickets()
 	services.StartInfraMonitor(ctx)
-	services.StartFashionDigest(ctx)
-	services.StartARIAProactive(ctx)
+	// Only run scheduled background jobs on one machine to avoid duplicate emails.
+	// Use RUN_BACKGROUND_JOBS=true on exactly one Fly machine via:
+	//   flyctl machine update <id> --env RUN_BACKGROUND_JOBS=true
+	// Locally (no FLY_MACHINE_ID set) always runs jobs.
+	if os.Getenv("FLY_MACHINE_ID") == "" || os.Getenv("RUN_BACKGROUND_JOBS") == "true" {
+		services.StartFashionDigest(ctx)
+		services.StartARIAProactive(ctx)
+	}
 
 	app := fiber.New(fiber.Config{
 		ReadTimeout:  15 * time.Second,
