@@ -140,9 +140,27 @@ export const PostCard = memo(function PostCard({ post, currentUserId, onDelete }
     })
     .filter(Boolean) as { id: string; name: string; role?: string }[];
 
-  const handleTaggedUserClick = (userId: string, _userRole?: string) => {
-    prefetchComments(post.id);
-    router.push(`/profile/${userId}`);
+  const handleTaggedUserClick = async (userId: string) => {
+    const u = lookup(userId);
+    try {
+      const res = await fetch("/api/conversations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          participants: [{
+            userId,
+            userName: u?.fullName ?? "",
+            userAvatar: u?.avatarUrl ?? "",
+          }],
+        }),
+      });
+      if (!res.ok) throw new Error();
+      const conv = await res.json() as { id: number };
+      router.push(`/messages?conv=${conv.id}`);
+    } catch {
+      router.push(`/profile/${userId}`);
+    }
   };
 
   const handleAuthorClick = () => {
@@ -254,7 +272,7 @@ export const PostCard = memo(function PostCard({ post, currentUserId, onDelete }
               <button
                 key={t.id}
                 className="t-post-tagged-name"
-                onClick={() => handleTaggedUserClick(t.id, t.role)}
+                onClick={() => handleTaggedUserClick(t.id)}
                 type="button"
               >
                 @{t.name}

@@ -191,7 +191,7 @@ function NewMessageModal({
                 />
               </div>
               <p className="t-new-msg-hint">
-                {search.trim() ? "Showing all matching users" : "Suggested · people you follow"}
+                {search.trim() ? "Showing all matching users" : "Suggested · people you follow. Type to search everyone."}
               </p>
             </div>
 
@@ -206,7 +206,7 @@ function NewMessageModal({
                   <p>
                     {search.trim()
                       ? "No one matches your search."
-                      : "Search by name, @username, or role to find anyone."}
+                      : "You're not following anyone yet. Type a name above to find and message anyone."}
                   </p>
                 </div>
               ) : (
