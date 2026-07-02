@@ -37,6 +37,7 @@ export interface CallInviteEvent {
   callerName: string
   room: string
   kind: "video" | "audio"
+  convID?: number
 }
 
 export interface CallEndEvent {
@@ -79,7 +80,7 @@ export function useSocket(
   }, [conversationId])
 
   useEffect(() => {
-    if (!url || !conversationId) {
+    if (!url || conversationId === null) {
       setIsConnected(false)
       return
     }

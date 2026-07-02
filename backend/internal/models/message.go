@@ -32,13 +32,15 @@ type Conversation struct {
 }
 
 type ConvMessage struct {
-	ID             int    `json:"id"`
-	ConversationID int    `json:"conversationId"`
-	UserID         string `json:"userId"`
-	Name           string `json:"name"`
-	Content        string `json:"content"`
-	ImageUrl       string `json:"imageUrl,omitempty"`
-	Timestamp      int64  `json:"timestamp"`
+	ID              int    `json:"id"`
+	ConversationID  int    `json:"conversationId"`
+	UserID          string `json:"userId"`
+	Name            string `json:"name"`
+	Content         string `json:"content"`
+	ImageUrl        string `json:"imageUrl,omitempty"`
+	Timestamp       int64  `json:"timestamp"`
+	IsSystem        bool   `json:"isSystem,omitempty"`
+	CallDurationSecs *int  `json:"callDurationSecs,omitempty"`
 	// Receipt timestamps (ms epoch). Nil when not yet delivered/read.
 	DeliveredAt    *int64 `json:"deliveredAt,omitempty"`
 	ReadAt         *int64 `json:"readAt,omitempty"`

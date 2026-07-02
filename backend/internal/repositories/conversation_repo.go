@@ -220,7 +220,7 @@ func GetConversationMessages(ctx context.Context, convId, callerID string) ([]mo
 	}
 	rows, err := db.Pool.Query(ctx, `
 		SELECT id, conversation_id, user_id, name, content, image_url, timestamp,
-		       delivered_at, read_at
+		       delivered_at, read_at, COALESCE(is_system, FALSE), call_duration_secs
 		FROM conversation_messages
 		WHERE conversation_id = $1
 		  AND (deleted_by_user_id IS NULL OR deleted_by_user_id <> $2)
@@ -233,7 +233,7 @@ func GetConversationMessages(ctx context.Context, convId, callerID string) ([]mo
 	for rows.Next() {
 		var m models.ConvMessage
 		var delivered, read *time.Time
-		if err := rows.Scan(&m.ID, &m.ConversationID, &m.UserID, &m.Name, &m.Content, &m.ImageUrl, &m.Timestamp, &delivered, &read); err != nil {
+		if err := rows.Scan(&m.ID, &m.ConversationID, &m.UserID, &m.Name, &m.Content, &m.ImageUrl, &m.Timestamp, &delivered, &read, &m.IsSystem, &m.CallDurationSecs); err != nil {
 			return nil, err
 		}
 		if delivered != nil {
@@ -363,6 +363,29 @@ func InsertConvMessage(ctx context.Context, m *models.ConvMessage) error {
 	}
 	db.Pool.Exec(ctx, "UPDATE conversations SET updated_at = NOW() WHERE id = $1", m.ConversationID)
 	return nil
+}
+
+// InsertSystemCallMessage writes a system call event (ended/missed) into the
+// conversation thread so both parties see it in chat.
+func InsertSystemCallMessage(ctx context.Context, convID int, content string, durationSecs *int) (*models.ConvMessage, error) {
+	m := &models.ConvMessage{
+		ConversationID:   convID,
+		UserID:           "system",
+		Name:             "system",
+		Content:          content,
+		Timestamp:        time.Now().UnixMilli(),
+		IsSystem:         true,
+		CallDurationSecs: durationSecs,
+	}
+	err := db.Pool.QueryRow(ctx,
+		`INSERT INTO conversation_messages (conversation_id, user_id, name, content, timestamp, is_system, call_duration_secs)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`,
+		m.ConversationID, m.UserID, m.Name, m.Content, m.Timestamp, m.IsSystem, m.CallDurationSecs).Scan(&m.ID)
+	if err != nil {
+		return nil, err
+	}
+	db.Pool.Exec(ctx, "UPDATE conversations SET updated_at = NOW() WHERE id = $1", convID)
+	return m, nil
 }
 
 // ListAdminChatHistory returns the legacy admin chat backlog as raw maps

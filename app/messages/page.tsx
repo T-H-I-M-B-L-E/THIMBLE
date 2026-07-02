@@ -270,17 +270,19 @@ export default function MessagesPage() {
 
   // ── Calling state ─────────────────────────────────────────────────────────
   const [activeCall, setActiveCall] = useState<CallSession | null>(null)
+  const activeCallConvId = useRef<number | null>(null)
   const [incomingCall, setIncomingCall] = useState<{
-    callerID: string; callerName: string; room: string; kind: "video" | "audio"
+    callerID: string; callerName: string; room: string; kind: "video" | "audio"; convID?: number
   } | null>(null)
 
   const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL || "https://thimble-production.up.railway.app"
   const websocketUrl = apiBase.replace(/^http/, "ws") + "/ws"
   const isVerified = !!user // any logged-in user can message
 
+
   const { conversations, setConversations, isLoading: loadingConvs, createConversation, refresh } = useConversations(user?.id)
   const selectedConv = conversations.find(c => c.id === selectedId)
-  const { messages: apiMessages, isLoading: loadingMsgs, setMessages: setApiMessages } = useMessages(selectedId, user?.id)
+  const { messages: apiMessages, isLoading: loadingMsgs, setMessages: setApiMessages, refresh: refreshMessages } = useMessages(selectedId, user?.id)
 
   // Auto-open a conversation when ?conv=<id> is in the URL (e.g. from profile Message button or gig applicant redirect)
   useEffect(() => {
@@ -310,14 +312,21 @@ export default function MessagesPage() {
     }))
   }
 
+  const activeCallRef = useRef<CallSession | null>(null)
+  useEffect(() => { activeCallRef.current = activeCall }, [activeCall])
+
   const handleCallInvite = useCallback((ev: { callerID: string; callerName: string; room: string; kind: "video" | "audio" }) => {
-    if (!activeCall) setIncomingCall(ev)
-  }, [activeCall])
+    if (!activeCallRef.current) setIncomingCall(ev)
+  }, [])
 
   const handleCallEnd = useCallback(() => {
+    // Other party ended — close UI and refresh messages to show system call msg
     setActiveCall(null)
     setIncomingCall(null)
-  }, [])
+    activeCallConvId.current = null
+    void refreshMessages()
+    void refresh()
+  }, [refresh, refreshMessages])
 
   const startCall = useCallback(async (kind: "video" | "audio") => {
     if (!selectedId) return
@@ -327,25 +336,33 @@ export default function MessagesPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ kind }),
       })
-      if (!res.ok) { notify.error("Calling not available right now"); return }
-      const session = await res.json() as { room: string; token: string; lkUrl: string; kind: "video" | "audio" }
+      const body = await res.json().catch(() => ({}))
+      console.log("[call] status:", res.status, "body:", body)
+      if (!res.ok) { notify.error((body as { error?: string }).error ?? "Calling not available right now"); return }
+      const session = body as { room: string; token: string; lkUrl: string; kind: "video" | "audio" }
       const otherParticipant = selectedConv?.participants.find(p => p.userId !== user?.id)
+      activeCallConvId.current = selectedId
       setActiveCall({ ...session, otherName: otherParticipant?.userName, otherAvatar: otherParticipant?.userAvatar })
-    } catch {
+    } catch (e) {
+      console.error("[call] error:", e)
       notify.error("Failed to start call")
     }
-  }, [selectedId, apiBase, notify])
+  }, [selectedId, selectedConv, user, notify])
 
   const acceptCall = useCallback(async () => {
-    if (!incomingCall || !selectedId) return
+    if (!incomingCall) return
+    // Use the conversation ID from the invite (callee may not have that conv selected)
+    const convId = incomingCall.convID ?? selectedId
+    if (!convId) return
     try {
-      const res = await fetch(`/api/conversations/${selectedId}/call/join`, {
+      const res = await fetch(`/api/conversations/${convId}/call/join`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ room: incomingCall.room }),
       })
       if (!res.ok) { notify.error("Could not join call"); return }
       const { token, lkUrl } = await res.json() as { token: string; lkUrl: string }
+      activeCallConvId.current = convId
       setActiveCall({ room: incomingCall.room, token, lkUrl, kind: incomingCall.kind, otherName: incomingCall.callerName })
       setIncomingCall(null)
     } catch {
@@ -353,15 +370,25 @@ export default function MessagesPage() {
     }
   }, [incomingCall, selectedId, apiBase, notify])
 
-  const endCall = useCallback(async () => {
-    if (!activeCall || !selectedId) return
+  const endCall = useCallback(async (durationSecs = 0, missed = false) => {
+    const call = activeCallRef.current ?? activeCall
+    const convId = activeCallConvId.current
+    if (!call || !convId) return
     setActiveCall(null)
-    await fetch(`/api/conversations/${selectedId}/call`, {
+    activeCallConvId.current = null
+    await fetch(`/api/conversations/${convId}/call`, {
       method: "DELETE",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ room: activeCall.room }),
+      body: JSON.stringify({ room: call.room, durationSecs, missed }),
     }).catch(() => null)
-  }, [activeCall, selectedId, apiBase])
+    // Refresh messages so the system call message appears
+    void refreshMessages()
+    void refresh()
+  }, [activeCall, refresh, refreshMessages])
+
+  // Global WS connection (convId=0) — keeps the user registered in userConns
+  // so call-invite events are delivered even before a conversation is selected.
+  useSocket(user ? websocketUrl : null, user ? 0 : null, user, undefined, handleCallInvite, handleCallEnd)
 
   const { messages: wsMessages, sendMessage, isConnected, typingUsers, handleTyping, sendReadReceipt } = useSocket(
     websocketUrl, selectedId, user, handleReceipt, handleCallInvite, handleCallEnd,
@@ -811,6 +838,16 @@ export default function MessagesPage() {
                     const grouped = prev && prev.userId === msg.userId && msg.timestamp - prev.timestamp < 60000
                     const showTime = !grouped || i === allMessages.length - 1
 
+                    // System call messages render as a centred pill
+                    if ((msg as { isSystem?: boolean }).isSystem) {
+                      return (
+                        <div key={`${msg.id}-${msg.timestamp}`} className="t-msg-system">
+                          <span className="t-msg-system-pill">{msg.content}</span>
+                          <span className="t-msg-system-time">{formatFullTime(msg.timestamp)}</span>
+                        </div>
+                      )
+                    }
+
                     return (
                       <div
                         key={`${msg.id}-${msg.timestamp}`}
@@ -1044,7 +1081,7 @@ export default function MessagesPage() {
 
     {/* Active call modal */}
     {activeCall && (
-      <CallModal session={activeCall} onEnd={() => void endCall()} />
+      <CallModal session={activeCall} onEnd={(dur, missed) => void endCall(dur, missed)} />
     )}
 
     {/* Incoming call banner */}

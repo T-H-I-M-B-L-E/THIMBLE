@@ -33,7 +33,7 @@ func IssueWSTicket(c *fiber.Ctx) error {
 	}
 	ticket := uuid.New().String()
 	wsTicketsMu.Lock()
-	wsTickets[ticket] = wsTicket{UserID: userId, ExpiresAt: time.Now().Add(60 * time.Second)}
+	wsTickets[ticket] = wsTicket{UserID: userId, ExpiresAt: time.Now().Add(5 * time.Minute)}
 	wsTicketsMu.Unlock()
 	return c.JSON(fiber.Map{"ticket": ticket})
 }

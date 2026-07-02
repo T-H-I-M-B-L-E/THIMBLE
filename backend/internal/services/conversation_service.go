@@ -16,9 +16,13 @@ import (
 
 // Conversation WS state: clients keyed by conn → userId, per-room maps
 // (rooms[convId][conn] = userId). RWMutex because reads dominate.
+// userConns tracks every active connection per user across all rooms so
+// call-invite events can be delivered even when the callee isn't viewing
+// the specific conversation.
 var (
 	clients   = make(map[*websocket.Conn]string)
 	rooms     = make(map[int]map[*websocket.Conn]string)
+	userConns = make(map[string][]*websocket.Conn)
 	clientsMu sync.RWMutex
 )
 
@@ -147,6 +151,7 @@ func HandleConversationWS(c *websocket.Conn, userId string, convId int) {
 	} else {
 		clients[c] = userId
 	}
+	userConns[userId] = append(userConns[userId], c)
 	clientsMu.Unlock()
 
 	defer func() {
@@ -155,6 +160,16 @@ func HandleConversationWS(c *websocket.Conn, userId string, convId int) {
 			delete(rooms[convId], c)
 		} else {
 			delete(clients, c)
+		}
+		conns := userConns[userId]
+		for i, conn := range conns {
+			if conn == c {
+				userConns[userId] = append(conns[:i], conns[i+1:]...)
+				break
+			}
+		}
+		if len(userConns[userId]) == 0 {
+			delete(userConns, userId)
 		}
 		clientsMu.Unlock()
 		c.Close()
@@ -279,38 +294,66 @@ func broadcastToRoomIncludingSender(convId, mt int, payload []byte) {
 	}
 }
 
-// BroadcastCallInvite sends a call-invite WS event to every member of the
-// conversation except the caller. The frontend shows an incoming-call banner.
+// BroadcastCallInvite sends a call-invite WS event to every participant of
+// the conversation except the caller, delivered to any active WS connection
+// that user has open (regardless of which conversation they're currently viewing).
 func BroadcastCallInvite(convID int, callerID, callerName, room, kind string) {
+	participantIDs, err := repositories.GetConversationParticipantIDs(context.Background(), convID)
+	if err != nil {
+		log.Printf("[call] BroadcastCallInvite: db error for conv %d: %v", convID, err)
+		return
+	}
+	log.Printf("[call] BroadcastCallInvite: conv=%d caller=%s participants=%v", convID, callerID, participantIDs)
 	payload, _ := json.Marshal(map[string]any{
 		"type":       "call-invite",
 		"callerID":   callerID,
 		"callerName": callerName,
 		"room":       room,
 		"kind":       kind,
+		"convID":     convID,
 	})
 	clientsMu.RLock()
 	targets := make([]*websocket.Conn, 0)
-	for conn, uid := range rooms[convID] {
-		if uid != callerID {
-			targets = append(targets, conn)
+	for _, uid := range participantIDs {
+		if uid == callerID {
+			continue
 		}
+		conns := userConns[uid]
+		log.Printf("[call] callee=%s has %d active WS connections", uid, len(conns))
+		targets = append(targets, conns...)
 	}
 	clientsMu.RUnlock()
+	log.Printf("[call] sending invite to %d connections", len(targets))
 	for _, conn := range targets {
 		conn.WriteMessage(websocket.TextMessage, payload)
 	}
 }
 
-// BroadcastCallEnd notifies the WS room that the call is over so both
-// sides can close the LiveKit modal.
-func BroadcastCallEnd(convID int, senderID, room string) {
+// BroadcastCallEnd notifies all participants (via any active WS connection)
+// that the call is over so both sides close the LiveKit modal.
+func BroadcastCallEnd(convID int, senderID, room string, durationSecs *int) {
+	participantIDs, err := repositories.GetConversationParticipantIDs(context.Background(), convID)
+	if err != nil {
+		// Fall back to room-scoped broadcast if DB lookup fails
+		payload, _ := json.Marshal(map[string]any{"type": "call-end", "senderID": senderID, "room": room})
+		broadcastToRoomIncludingSender(convID, websocket.TextMessage, payload)
+		return
+	}
 	payload, _ := json.Marshal(map[string]any{
-		"type":     "call-end",
-		"senderID": senderID,
-		"room":     room,
+		"type":         "call-end",
+		"senderID":     senderID,
+		"room":         room,
+		"durationSecs": durationSecs,
 	})
-	broadcastToRoomIncludingSender(convID, websocket.TextMessage, payload)
+	clientsMu.RLock()
+	targets := make([]*websocket.Conn, 0)
+	for _, uid := range participantIDs {
+		targets = append(targets, userConns[uid]...)
+	}
+	clientsMu.RUnlock()
+	for _, conn := range targets {
+		conn.WriteMessage(websocket.TextMessage, payload)
+	}
 }
 
 // Admin chat: a separate single-room model used by the admin team. No

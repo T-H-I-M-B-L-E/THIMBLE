@@ -1554,12 +1554,12 @@
   .t-comment-body { padding: 7px 10px; }
 }
 
-/* ---- Messages layout escape hatch ---- */
-/*
-  The messages page needs to break out of .t-main's max-width + padding.
-  Apply .t-main--messages on the <main> element (via DashboardLayout prop
-  or a wrapping div) so the messages grid can fill the full shell width.
-*/
+/* ════════════════════════════════════════════════════════════
+   MESSAGES LAYOUT — responsive across all breakpoints
+   mobile (<640) | tablet portrait (640-1023) | iPad landscape / small laptop (1024-1279) | laptop (1280-1535) | xlarge (1536+)
+   ════════════════════════════════════════════════════════════ */
+
+/* Shell: full bleed, full height, no scroll */
 .t-main--messages {
   max-width: 100% !important;
   width: 100% !important;
@@ -1570,39 +1570,11 @@
   height: calc(100dvh - var(--t-topbar-h));
   overflow: hidden;
 }
-/* iPad portrait (881–1023px): leave room for bottom nav */
-@media (max-width: 1023px) and (min-width: 881px) {
+
+/* ── Mobile & tablet portrait (<1024px): bottom nav visible unless chat open ── */
+@media (max-width: 1023px) {
   .t-main--messages {
     height: calc(100dvh - var(--t-topbar-h) - var(--t-nav-h));
-    padding-bottom: 0 !important;
-  }
-  .t-main--messages:has(.t-messages--chat-open) {
-    height: calc(100dvh - var(--t-topbar-h));
-  }
-  body:has(.t-messages--chat-open) .t-bottomnav {
-    display: none !important;
-  }
-}
-/* iPad landscape (1024–1099px): two-column, full height, no nav offset */
-@media (min-width: 1024px) and (max-width: 1099px) {
-  .t-main--messages {
-    height: calc(100dvh - var(--t-topbar-h));
-    padding-bottom: 0 !important;
-  }
-  .t-messages {
-    grid-template-columns: 280px 1fr;
-    height: calc(100% - 24px);
-    margin: 12px 0;
-    border-radius: 14px;
-  }
-  .t-messages--collapsed {
-    grid-template-columns: 56px 1fr;
-  }
-}
-@media (max-width: 880px) {
-  .t-main--messages {
-    height: calc(100dvh - var(--t-topbar-h) - var(--t-nav-h));
-    padding-bottom: 0 !important;
   }
   .t-main--messages:has(.t-messages--chat-open) {
     height: calc(100dvh - var(--t-topbar-h));
@@ -1612,94 +1584,110 @@
   }
 }
 
-/* ---- Messages ---- */
+/* ── Grid container ── */
 .t-messages {
   display: grid;
-  grid-template-columns: 260px 1fr;
-  height: calc(100% - 24px);
+  grid-template-columns: 1fr;          /* mobile default: one column */
+  height: 100%;
   min-height: 0;
-  background: var(--t-surface);
-  border: 1px solid var(--t-line);
-  border-radius: 14px;
-  overflow: hidden;
   width: 100%;
-  margin: 12px 0;
+  background: var(--t-surface);
+  overflow: hidden;
   transition: grid-template-columns 0.22s cubic-bezier(.4,0,.2,1);
 }
-/* Collapsed sidebar — icon-only strip */
-.t-messages--collapsed {
-  grid-template-columns: 56px 1fr;
-}
-@media (min-width: 1100px) {
+
+/* ── Tablet portrait (640–1023px): still single column, card feel ── */
+@media (min-width: 640px) and (max-width: 1023px) {
   .t-messages {
-    grid-template-columns: 320px 1fr;
-    height: calc(100% - 32px);
-    margin: 16px 0;
-  }
-  .t-messages--collapsed {
-    grid-template-columns: 56px 1fr;
-  }
-}
-/* iPad portrait: single column with show/hide panels */
-@media (max-width: 1023px) and (min-width: 881px) {
-  .t-messages {
-    grid-template-columns: 1fr;
-    height: 100%;
+    border: 0;
     border-radius: 0;
     margin: 0;
-    border: 0;
   }
-  .t-messages--collapsed { grid-template-columns: 1fr; }
-  .t-msg-list--hidden-mobile { display: none !important; }
-  .t-msg-pane--hidden-mobile { display: none !important; }
   .t-msg-list { border-right: 0; }
   .t-msg-pane {
-    height: 100%;
-    min-height: 0;
-    display: flex;
-    flex-direction: column;
+    height: 100%; min-height: 0;
+    display: flex; flex-direction: column;
+  }
+  .t-msg-stream {
+    flex: 1; min-height: 0;
+    overflow-y: auto; -webkit-overflow-scrolling: touch;
   }
   .t-msg-input {
     padding-bottom: max(12px, env(safe-area-inset-bottom));
   }
-  .t-msg-stream {
-    flex: 1;
-    min-height: 0;
-    overflow-y: auto;
-    -webkit-overflow-scrolling: touch;
-  }
 }
-@media (max-width: 880px) {
-  .t-messages {
-    grid-template-columns: 1fr;
-    height: 100%;
-    border-radius: 0;
-    margin: 0;
-    border: 0;
+
+/* ── Mobile (<640px): same, tighter padding ── */
+@media (max-width: 639px) {
+  .t-messages { border: 0; border-radius: 0; margin: 0; }
+  .t-msg-list { border-right: 0; border-bottom: 0; }
+  .t-msg-pane {
+    height: 100%; min-height: 0;
+    display: flex; flex-direction: column;
   }
+  .t-msg-stream {
+    flex: 1; min-height: 0;
+    overflow-y: auto; -webkit-overflow-scrolling: touch;
+  }
+  .t-msg-input {
+    padding-bottom: max(12px, env(safe-area-inset-bottom));
+  }
+  .t-msg-list-head { padding: 12px 14px 10px; }
+  .t-bubble { max-width: min(280px, 80vw); }
+}
+
+/* Hide/show panels on narrow screens */
+@media (max-width: 1023px) {
   .t-messages--collapsed { grid-template-columns: 1fr; }
   .t-msg-list--hidden-mobile { display: none !important; }
   .t-msg-pane--hidden-mobile { display: none !important; }
-  .t-msg-list { border-right: 0; border-bottom: 0; }
-  .t-msg-pane {
-    height: 100%;
-    min-height: 0;
-    display: flex;
-    flex-direction: column;
-  }
-  .t-msg-input {
-    padding-bottom: max(12px, env(safe-area-inset-bottom));
-  }
-  .t-msg-stream {
-    flex: 1;
-    min-height: 0;
-    overflow-y: auto;
-    -webkit-overflow-scrolling: touch;
-  }
 }
-/* Back-to-list button is mobile-only. */
+
+/* ── iPad landscape & small laptop (1024–1279px): two-column, floating card ── */
+@media (min-width: 1024px) and (max-width: 1279px) {
+  .t-main--messages {
+    height: calc(100dvh - var(--t-topbar-h));
+    padding: 0 !important;
+  }
+  .t-messages {
+    grid-template-columns: 280px 1fr;
+    height: calc(100% - 20px);
+    margin: 10px 12px;
+    border: 1px solid var(--t-line);
+    border-radius: 14px;
+    width: calc(100% - 24px);
+  }
+  .t-messages--collapsed { grid-template-columns: 56px 1fr; }
+}
+
+/* ── Laptop (1280–1535px) ── */
+@media (min-width: 1280px) and (max-width: 1535px) {
+  .t-messages {
+    grid-template-columns: 300px 1fr;
+    height: calc(100% - 28px);
+    margin: 14px 0;
+    border: 1px solid var(--t-line);
+    border-radius: 14px;
+  }
+  .t-messages--collapsed { grid-template-columns: 56px 1fr; }
+}
+
+/* ── XLarge (1536px+) ── */
+@media (min-width: 1536px) {
+  .t-messages {
+    grid-template-columns: 340px 1fr;
+    height: calc(100% - 36px);
+    margin: 18px 0;
+    border: 1px solid var(--t-line);
+    border-radius: 16px;
+  }
+  .t-messages--collapsed { grid-template-columns: 56px 1fr; }
+  .t-msg-list-title { font-size: 20px; }
+  .t-bubble { max-width: 520px; }
+}
+/* Back-to-list button on narrow screens (below two-column threshold). */
 .t-msg-back-btn { display: inline-flex; }
-@media (min-width: 881px) {
+@media (min-width: 1024px) {
   .t-msg-back-btn { display: none; }
 }
 
@@ -1719,7 +1707,7 @@
   margin-left: auto;
 }
 .t-sidebar-toggle:hover { background: var(--t-line); color: var(--t-ink); }
-@media (min-width: 881px) {
+@media (min-width: 1024px) {
   .t-sidebar-toggle { display: flex; }
 }
 /* Collapsed thread row — centred avatar only */
@@ -2066,7 +2054,7 @@
   position: relative;
   min-height: 72px;
 }
-@media (max-width: 880px) {
+@media (max-width: 1023px) {
   .t-thread { padding: 13px 16px; min-height: 76px; }
 }
 .t-thread:last-child { border-bottom: 0; }
@@ -2206,11 +2194,10 @@
   background: var(--t-surface);
   min-width: 0;
 }
-@media (max-width: 880px) {
+@media (max-width: 1023px) {
   .t-msg-pane-head {
     height: 56px;
     padding: 0 12px 0 8px;
-    /* Slight shadow to separate from message stream */
     box-shadow: 0 1px 0 var(--t-line), 0 2px 8px rgba(0,0,0,.04);
   }
 }
@@ -3510,6 +3497,37 @@ aside.fixed.right-0 { display: none !important; }
 .t-call-video-live {
   font-size: 12px; font-weight: 600; color: #4ade80;
   letter-spacing: 0.04em;
+}
+.t-call-video-duration {
+  font-size: 13px; color: rgba(255,255,255,0.7);
+  margin-left: auto; font-variant-numeric: tabular-nums;
+}
+
+/* Remote muted badge */
+.t-call-remote-muted {
+  position: absolute; bottom: 96px; left: 50%; transform: translateX(-50%);
+  display: flex; align-items: center; gap: 6px;
+  background: rgba(0,0,0,0.55); color: #fff;
+  font-size: 12px; padding: 5px 12px; border-radius: 20px;
+  backdrop-filter: blur(6px); z-index: 4; white-space: nowrap;
+}
+.t-call-remote-muted--audio {
+  position: static; transform: none;
+  margin-top: 10px;
+}
+
+/* System call messages in chat */
+.t-msg-system {
+  display: flex; flex-direction: column; align-items: center;
+  gap: 2px; padding: 6px 0; pointer-events: none;
+}
+.t-msg-system-pill {
+  font-size: 12px; color: var(--muted-foreground, #888);
+  background: var(--muted, rgba(0,0,0,0.06));
+  padding: 3px 12px; border-radius: 20px;
+}
+.t-msg-system-time {
+  font-size: 10px; color: var(--muted-foreground, #aaa);
 }
 
 /* ════════════════════════════════════════════════════════════
