@@ -405,6 +405,10 @@ func SendARIAEmail(ctx context.Context, subject, body string) error {
 }
 
 func sendAlert(ctx context.Context, key, subject, body string) {
+	if repositories.GetSetting(ctx, "infra_alerts_enabled") == "false" {
+		log.Printf("alert: %q suppressed by infra_alerts_enabled=false", key)
+		return
+	}
 	if !canAlert(key) {
 		return
 	}
