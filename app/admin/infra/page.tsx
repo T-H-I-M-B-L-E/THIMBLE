@@ -489,6 +489,8 @@ export default function InfraPage() {
   const [tab, setTab]             = useState<'errors' | 'slow'>('errors')
   const [testingAlert, setTestingAlert] = useState(false)
   const [testAlertMsg, setTestAlertMsg] = useState('')
+  const [alertsEnabled, setAlertsEnabled] = useState(true)
+  const [alertsSaving, setAlertsSaving] = useState(false)
   const [neon, setNeon]           = useState<NeonUsage | null>(null)
   const [neonUnconfigured, setNeonUnconfigured] = useState(false)
   const [isMobile, setIsMobile]   = useState(false)
@@ -523,6 +525,15 @@ export default function InfraPage() {
   }, [])
 
   useEffect(() => {
+    adminFetch('/api/admin/settings').then(async r => {
+      if (r.ok) {
+        const s = (await r.json()) as Record<string, string>
+        setAlertsEnabled(s.infra_alerts_enabled !== 'false')
+      }
+    }).catch(() => {})
+  }, [])
+
+  useEffect(() => {
     const check = () => setIsMobile(window.innerWidth < 768)
     check()
     window.addEventListener('resize', check)
@@ -541,6 +552,20 @@ export default function InfraPage() {
       setTestingAlert(false)
       setTimeout(() => setTestAlertMsg(''), 6000)
     }
+  }
+
+  async function toggleAlerts() {
+    const next = !alertsEnabled
+    setAlertsSaving(true)
+    try {
+      const res = await adminFetch('/api/admin/settings', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ infra_alerts_enabled: next ? 'true' : 'false' }),
+      })
+      if (res.ok) setAlertsEnabled(next)
+    } catch { /* swallow — UI stays at previous state */ }
+    finally { setAlertsSaving(false) }
   }
 
   const errRate   = data ? parseFloat(data.requests.errRatePct) : 0
@@ -563,6 +588,24 @@ export default function InfraPage() {
           </p>
         </div>
         <div style={{ display: 'flex', gap: 8, flexShrink: 0, flexWrap: 'wrap' }}>
+          <button
+            onClick={toggleAlerts}
+            disabled={alertsSaving}
+            title={alertsEnabled ? 'Infra alert emails are ON — click to disable' : 'Infra alert emails are OFF — click to enable'}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px',
+              background: alertsEnabled ? 'rgba(34,197,94,0.08)' : 'rgba(239,68,68,0.08)',
+              border: `1px solid ${alertsEnabled ? 'rgba(34,197,94,0.25)' : 'rgba(239,68,68,0.25)'}`,
+              borderRadius: 8,
+              color: alertsEnabled ? '#22c55e' : '#ef4444',
+              fontSize: 12,
+              cursor: alertsSaving ? 'default' : 'pointer',
+              opacity: alertsSaving ? 0.6 : 1,
+            }}
+          >
+            <Mail size={13} />
+            Alert emails: {alertsSaving ? '…' : alertsEnabled ? 'ON' : 'OFF'}
+          </button>
           <button onClick={fireTestAlert} disabled={testingAlert} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.25)', borderRadius: 8, color: '#f59e0b', fontSize: 12, cursor: 'pointer' }}>
             <AlertTriangle size={13} />{testingAlert ? 'Sending…' : 'Test Alert'}
           </button>
